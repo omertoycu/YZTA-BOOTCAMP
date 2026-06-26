@@ -1,5 +1,5 @@
 # Takım İsmi
-## Takım [X] — EvRadar
+## Takım [151] — EvRadar
 
 ---
 
@@ -9,11 +9,10 @@
 
 | İsim | Rol |
 |------|-----|
-| [İsim Soyisim] | Product Owner |
-| [İsim Soyisim] | Scrum Master |
-| [İsim Soyisim] | Developer |
-| [İsim Soyisim] | Developer |
-| [İsim Soyisim] | Developer |
+| [Ömer Faruk Toycu] | Product Owner |
+| [Ömer Faruk Toycu] | Scrum Master |
+| [Ömer Faruk Toycu] | Developer |
+
 
 ---
 
