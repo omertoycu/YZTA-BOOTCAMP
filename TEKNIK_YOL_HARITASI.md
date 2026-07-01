@@ -53,14 +53,21 @@ portfoyai/
 **RLS kuralı (her tabloda, `offices` hariç):**
 ```sql
 ALTER TABLE listings ENABLE ROW LEVEL SECURITY;
+ALTER TABLE listings FORCE ROW LEVEL SECURITY;
 CREATE POLICY office_isolation ON listings
-  USING (office_id = current_setting('app.current_office_id')::uuid);
+  USING (office_id = NULLIF(current_setting('app.current_office_id', true), '')::uuid);
 ```
 Backend, her request başında `tenant` middleware'inde şunu çalıştırır:
 ```sql
 SET LOCAL app.current_office_id = '<request.user.office_id>';
 ```
-Bu satır atlanırsa RLS sessizce **tüm satırları gizler** (varsayılan `current_setting` boşsa hiçbir satır eşleşmez) — bu nedenle Sprint 1'de bu middleware için ayrı bir entegrasyon testi yazılmalı (bkz. Bölüm 6).
+
+**Sprint 1'de canlıda bulunan 3 kritik RLS tuzağı (bkz. migration 0002-0004):**
+1. **Postgres superuser'ları RLS'yi her zaman atlar** — `FORCE ROW LEVEL SECURITY` bile superuser'ı etkilemez, sadece tablo sahibini etkiler. Resmi `postgres` Docker imajının `POSTGRES_USER`'ı varsayılan olarak superuser'dır. Çözüm: uygulama, DDL yetkisi olmayan, superuser OLMAYAN ayrı bir `portfoyai_app` rolüyle bağlanır; migration'lar ise superuser (`portfoyai`) ile çalışır (`MIGRATIONS_DATABASE_URL`).
+2. **`SET LOCAL` transaction-scoped'dur** — `db.commit()` sonrası tenant context sıfırlanır. Kullanılmamış bir custom GUC, LOCAL scope bitince `NULL` değil **boş string (`''`)** döner, bu da `''::uuid` cast hatasına yol açar. Çözüm: policy ifadesinde `NULLIF(..., '')` kullanılır.
+3. **Login, e-posta ile ofis bilinmeden kullanıcı aramalıdır** — bu doğası gereği cross-tenant bir sorgu olduğundan RLS'e tabi olamaz. Tüm uygulamaya `BYPASSRLS` vermek yerine, sadece `offices`+`users` tablolarına `SELECT`/`INSERT` yetkisi olan dar kapsamlı bir `portfoyai_auth` rolü (`AUTH_DATABASE_URL`) sadece `/auth/register` ve `/auth/login` route'larında kullanılır.
+
+Tenant middleware'i atlanırsa (ya da yanlış rolle bağlanılırsa) RLS ya sessizce **tüm satırları gizler** ya da (superuser bypass durumunda) **tüm kiracıların verisini sızdırır** — bu yüzden `backend/tests/test_rls.py`, iki farklı ofisin birbirinin verisini gerçekten göremediğini uçtan uca (gerçek HTTP istekleriyle) doğrular ve CI'da her PR'da çalışır.
 
 ---
 

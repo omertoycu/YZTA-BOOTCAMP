@@ -8,8 +8,18 @@ from sqlalchemy import create_engine, text
 from sqlalchemy.orm import sessionmaker
 
 os.environ.setdefault(
-    "DATABASE_URL",
+    "MIGRATIONS_DATABASE_URL",
     "postgresql+psycopg2://portfoyai:portfoyai@localhost:5432/portfoyai_test",
+)
+# Uygulama testlerde de kısıtlı app rolüyle bağlanmalı; aksi halde RLS testi
+# superuser bypass'ı yüzünden yanlışlıkla "geçer" (bkz. 0002_app_role_least_privilege).
+os.environ.setdefault(
+    "DATABASE_URL",
+    "postgresql+psycopg2://portfoyai_app:portfoyai_app@localhost:5432/portfoyai_test",
+)
+os.environ.setdefault(
+    "AUTH_DATABASE_URL",
+    "postgresql+psycopg2://portfoyai_auth:portfoyai_auth@localhost:5432/portfoyai_test",
 )
 
 from app.main import app  # noqa: E402  (env var yukarıda set edildikten sonra import edilmeli)
@@ -28,7 +38,8 @@ def run_migrations():
 
 @pytest.fixture()
 def db_session():
-    engine = create_engine(os.environ["DATABASE_URL"])
+    """RLS'i baypas eden, tam yetkili bağlantı — doğrudan DB kurulumu/temizliği için."""
+    engine = create_engine(os.environ["MIGRATIONS_DATABASE_URL"])
     Session = sessionmaker(bind=engine)
     session = Session()
     yield session

@@ -20,7 +20,15 @@ services:
     env_file:
       - .env
     environment:
-      DATABASE_URL: postgresql+psycopg2://portfoyai:portfoyai@postgres:5432/portfoyai
+      # Uygulama, RLS'in gerçekten uygulanabilmesi için superuser OLMAYAN kısıtlı
+      # bir rolle bağlanır (bkz. alembic/versions/0002_app_role_least_privilege.py).
+      # Postgres superuser'ları RLS'yi FORCE ile bile atlar.
+      DATABASE_URL: postgresql+psycopg2://portfoyai_app:portfoyai_app@postgres:5432/portfoyai
+      MIGRATIONS_DATABASE_URL: postgresql+psycopg2://portfoyai:portfoyai@postgres:5432/portfoyai
+      # Sadece /auth/register ve /auth/login: e-posta ile ofis bilinmeden kullanıcı
+      # arama gerekir, bu yüzden BYPASSRLS'li ama sadece offices+users'a erişimi olan
+      # dar yetkili bir rol (bkz. migration 0003).
+      AUTH_DATABASE_URL: postgresql+psycopg2://portfoyai_auth:portfoyai_auth@postgres:5432/portfoyai
     ports:
       - "8000:8000"
     depends_on:

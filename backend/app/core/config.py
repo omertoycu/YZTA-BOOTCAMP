@@ -4,7 +4,10 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 
-    database_url: str = "postgresql+psycopg2://portfoyai:portfoyai@localhost:5432/portfoyai"
+    database_url: str = "postgresql+psycopg2://portfoyai_app:portfoyai_app@localhost:5432/portfoyai"
+    # Sadece register/login için: e-posta ile ofis bilinmeden kullanıcı arama,
+    # RLS'in tek-tenant modeliyle doğası gereği çelişir. Bkz. migration 0003.
+    auth_database_url: str = "postgresql+psycopg2://portfoyai_auth:portfoyai_auth@localhost:5432/portfoyai"
     jwt_secret: str = "change-me-in-production"
     jwt_algorithm: str = "HS256"
     access_token_expire_minutes: int = 60 * 24

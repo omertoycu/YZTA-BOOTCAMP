@@ -1,3 +1,4 @@
+import os
 from logging.config import fileConfig
 
 from alembic import context
@@ -8,7 +9,13 @@ from app.core.db import Base
 from app.models import Office, User, Listing, Lead  # noqa: F401  (Base.metadata için import gerekli)
 
 config = context.config
-config.set_main_option("sqlalchemy.url", settings.database_url)
+
+# Migration'lar (rol/tablo oluşturma, RLS policy'leri) yetkili bir superuser/owner
+# bağlantısı gerektirir. Uygulamanın kendi DATABASE_URL'i ise Sprint 1'de eklenen
+# kısıtlı `portfoyai_app` rolünü kullanır ve DDL çalıştıramaz — bu yüzden ayrı
+# bir MIGRATIONS_DATABASE_URL üzerinden çalışıyoruz.
+migrations_url = os.environ.get("MIGRATIONS_DATABASE_URL", settings.database_url)
+config.set_main_option("sqlalchemy.url", migrations_url)
 
 if config.config_file_name is not None:
     fileConfig(config.config_file_name)

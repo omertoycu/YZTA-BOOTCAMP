@@ -29,7 +29,12 @@ jobs:
           --health-retries 10
 
     env:
-      DATABASE_URL: postgresql+psycopg2://portfoyai:portfoyai@localhost:5432/portfoyai_test
+      # DATABASE_URL: uygulamanın bağlandığı kısıtlı rol (RLS'in gerçekten
+      #   test edilebilmesi için superuser OLMAMALI, bkz. migration 0002).
+      # MIGRATIONS_DATABASE_URL: alembic upgrade için superuser bağlantısı.
+      DATABASE_URL: postgresql+psycopg2://portfoyai_app:portfoyai_app@localhost:5432/portfoyai_test
+      MIGRATIONS_DATABASE_URL: postgresql+psycopg2://portfoyai:portfoyai@localhost:5432/portfoyai_test
+      AUTH_DATABASE_URL: postgresql+psycopg2://portfoyai_auth:portfoyai_auth@localhost:5432/portfoyai_test
       JWT_SECRET: ci-test-secret
 
     steps:

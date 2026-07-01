@@ -23,7 +23,6 @@ def create_listing(
     )
     db.add(listing)
     db.commit()
-    db.refresh(listing)
     return listing
 
 

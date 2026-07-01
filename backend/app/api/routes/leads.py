@@ -19,7 +19,6 @@ def create_lead(
     lead = Lead(office_id=current_user["office_id"], **payload.model_dump())
     db.add(lead)
     db.commit()
-    db.refresh(lead)
     return lead
 
 
