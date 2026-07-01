@@ -14,4 +14,13 @@
 
 ---
 
+## 2026-07-02 — Docker'da Uçtan Uca Test ve RLS Düzeltmeleri
+
+**Ömer Faruk Toycu**
+1. Dün: Pivot sonrası README, teknik yol haritası ve backend iskeleti (auth, RLS migration, Matching Agent) yazıldı ama hiç çalıştırılmadı.
+2. Bugün: `docker-compose up` ile backend gerçek bir Postgres'e karşı çalıştırıldı. Üç kritik RLS açığı bulundu ve düzeltildi: (1) Postgres superuser'ları RLS'yi atlıyor, (2) `SET LOCAL` commit sonrası sıfırlanıyor ve boş string cast hatası veriyordu, (3) login'in cross-tenant e-posta araması RLS ile çelişiyordu. Ayrıca eksik `GET /offices/me` endpoint'i, tutarlı hata yönetimi ve 12 testlik bir test suite'i eklendi. CI şimdi yeşil.
+3. Engel yok — Sprint 1'in kalan kapsamı (iyzico sandbox talebi, WhatsApp başvurusu) manuel/kurumsal işlemler olduğu için ekibin (tek kişilik) kendisi tarafından başlatılması gerekiyor; bunlar Sprint 2'ye devredildi.
+
+---
+
 *(Sonraki günler eklenecektir.)*

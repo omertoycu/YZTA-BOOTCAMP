@@ -32,3 +32,21 @@ def test_login_with_wrong_password_fails(client):
         json={"email": "owner2@test-office.com", "password": "wrong-password"},
     )
     assert resp.status_code == 401
+
+
+def test_register_with_duplicate_email_fails(client):
+    payload = {
+        "office_name": "Test Emlak Ofisi 3",
+        "owner_email": "owner3@test-office.com",
+        "owner_password": "supersecret123",
+    }
+    first = client.post("/auth/register", json=payload)
+    assert first.status_code == 201
+
+    second = client.post("/auth/register", json=payload)
+    assert second.status_code == 400
+
+
+def test_protected_endpoint_without_token_returns_401(client):
+    resp = client.get("/listings")
+    assert resp.status_code == 401

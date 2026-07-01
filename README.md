@@ -185,17 +185,20 @@ Daily Scrum Slack kanalı üzerinden asenkron olarak yürütülmektedir (her üy
 **Katılımcılar:** [İsimler yazılacak]
 
 **Tamamlanan Story'ler:**
-- [ ] Ofis kaydı + JWT auth
-- [ ] Multi-tenant RLS
-- [ ] Portföy CRUD
-- [ ] Matching Agent MVP
-- [ ] iyzico sandbox talebi + CI/CD
+- [x] Ofis kaydı + JWT auth
+- [x] Multi-tenant RLS (docker-compose ile uçtan uca test edildi; superuser bypass, transaction-scoped context ve cross-tenant login sorunları tespit edilip düzeltildi — bkz. [TEKNIK_YOL_HARITASI.md](./TEKNIK_YOL_HARITASI.md))
+- [x] Portföy CRUD (create + list)
+- [x] Matching Agent MVP
+- [x] GitHub Actions CI/CD (pytest + ruff, Postgres servisli)
+- [ ] iyzico sandbox aktivasyon talebi — **manuel aksiyon gerekiyor**, henüz gönderilmedi
+- [ ] WhatsApp Business doğrulama başvurusu — **manuel aksiyon gerekiyor**, henüz başlatılmadı
+- [ ] Railway'e gerçek deploy — CI'da build/test var, henüz canlı deploy adımı yok
 
 **Sonraki Sprint'e Devreden:**
-[Buraya yazılacak]
+iyzico sandbox aktivasyonu ve WhatsApp Business başvurusu kurumsal/manuel işlemler olduğu için Sprint 2'ye devrediyor; bu ikisi Sprint 2'nin ilk gününde paralel başlatılmalı (bkz. TEKNIK_YOL_HARITASI.md Bölüm 5). Railway deploy'u da Sprint 2 kapsamına alındı.
 
 **Alınan Kararlar:**
-[Buraya yazılacak]
+RLS testinde ortaya çıkan üç güvenlik açığı (superuser bypass, SET LOCAL'in transaction-scoped olması, login'in cross-tenant sorgu ihtiyacı) kod incelemesiyle değil gerçek Docker ortamında uçtan uca test ederek bulundu — bundan sonraki her multi-tenant değişiklikte aynı testin (`backend/tests/test_rls.py`) CI'da çalışması zorunlu tutulacak.
 
 ### Sprint Retrospective
 
