@@ -1,5 +1,5 @@
 # Takım İsmi
-## Takım [151] — EvRadar
+## Takım [151] — PortföyAI
 
 ---
 
@@ -13,50 +13,45 @@
 | [Ömer Faruk Toycu] | Scrum Master |
 | [Ömer Faruk Toycu] | Developer |
 
-
 ---
 
 ## Ürün İsmi
 
-**EvRadar** — Akıllı Emlak ve Konum Eşleştirme Asistanı
+**PortföyAI** — Emlak Danışmanı için AI Kapanış Asistanı
 
 ---
 
 ## Ürün Açıklaması
 
-EvRadar, kiralık ev arayışını kullanıcının bütçesi, günlük ulaşım rotaları ve kişisel yaşam tarzı tercihleriyle çapraz analiz eden otonom bir yapay zeka asistanıdır.
+PortföyAI, emlak danışmanının CRM'i değil; ilk WhatsApp mesajından imzaya kadar hiçbir fırsatı kaçırmamasını sağlayan dijital asistanıdır.
 
-Kullanıcı sadece "İzmit'te 2+1, işe 45 dakikadan az, bütçem 12.000 TL" yazmak yeterlidir. EvRadar'ın çok ajanlı (multi-agent) mimarisi; Sahibinden, Hepsiemlak ve Emlakjet gibi platformlardaki ilanları toplar, her ev için Google Maps API üzerinden gerçek zamanlı ulaşım süresi ve maliyeti hesaplar, bütçeyi kira + aylık ulaşım toplamı olarak değerlendirir. Kullanıcının "bu ev çok gürültülü" ya da "metro yürüme mesafesi önemli" gibi doğal dil geri bildirimlerini hafıza ajanı aracılığıyla saklayan sistem, sonraki aramalarda bu tercihleri otomatik olarak uygular. Sonuç: evlerin salt kira değil, **toplam yaşam maliyeti** üzerinden sıralandığı kişiselleştirilmiş bir öneri motoru.
+Türkiye emlak yazılım pazarında "AI destekli CRM" artık bir farklılaştırıcı değil, sektör standardı (Arveya, RE-OS, EmlakCRMx gibi oyuncular zaten lead skorlama ve AI eşleştirme sunuyor — detaylı rakip analizi için [Girişim Analizi Raporu](./PortfoyAI_Girisim_Analizi_ve_Teknik_Rapor.md)'na bakınız). Bu yüzden PortföyAI, Matching/Scoring/Pricing'i "olması gereken temel özellikler" olarak arkada tutup pazarda gerçekten boş olan iki alana odaklanır: **sesli not ile saniyeler içinde ilan oluşturma** ve **markalı, kapanış aracı olarak kullanılabilecek ulaşım/konum raporu**. Danışman arabada müşteriyle gezerken telefonuna konuşur, PortföyAI ilanı taslak olarak hazırlar; danışman onaylar. Aynı danışman, adayına logolu bir PDF ile "eve 12 dakikada, metroya yürüyerek 4 dakikada" diyen somut bir rapor gönderir. Arka planda WhatsApp'tan gelen her lead otomatik nitelendirilir, skorlanır ve uygun portföylerle eşleştirilir.
 
 ---
 
 ## Ürün Özellikleri
 
-### Temel Özellikler
-- 🔍 **Doğal Dil Arama** — "İzmit'te 2+1, metrobüse 10 dakika, 10.000 TL altı" gibi serbest metin sorguları LLM tarafından ayrıştırılır; oda sayısı, bütçe, lokasyon ve ulaşım koşulları otomatik çıkarılır
-- 🏠 **Çok Kaynaklı İlan Toplama** — Listing Ajanı, Sahibinden / Hepsiemlak / Emlakjet ilanlarını gerçek zamanlı olarak toplar ve normalleştirir; yinelenen ve bayat ilanlar filtrelenir
-- 🗺️ **Ulaşım Maliyeti Hesaplama** — Konum Ajanı, her ilan için kullanıcının iş/okul adresine alternatif rotalar (metro, otobüs, paylaşımlı scooter) hesaplar; günlük süre ve aylık taşıma maliyetini çıkarır
-- 💰 **Toplam Yaşam Maliyeti Skoru** — Bütçe Ajanı, kira + aylık ulaşım maliyetini birleştirerek gerçek "cepten çıkacak" rakamı hesaplar ve bütçe aşımını önceden uyarır
-- 🧠 **Hafızalı Öneri Sistemi** — Hafıza Ajanı, "bu ev çok eski", "asansör şart", "gürültülü cadde olmasın" gibi doğal dil geri bildirimlerini ChromaDB'de vektör olarak saklar; bir sonraki aramada bu kısıtlar otomatik devreye girer
-- 🏆 **Ağırlıklı Öneri Motoru** — Her ilan için 0–100 arası bileşik puan hesaplanır: ulaşım skoru + bütçe skoru + tercih uyum skoru + konum kalite skoru
-- 📍 **Harita Görselleştirme** — Folium tabanlı interaktif harita üzerinde önerilen evler ve her ev için işyerine giden rota gösterilir
-- 💬 **Sohbet Arayüzü** — Streamlit chat widget'ı ile ajan sonuçları, sıralamalar ve harita tek ekranda sunulur
+### Hero Özellikler (Farklılaştırıcı — rakiplerde yok)
+- 🎙️ **Sesli Not → İlan Otomasyonu** — Danışman sahada telefonuna konuşur ("3+1, 120 metrekare, asansörlü, otoparklı..."); Whisper ile transkript alınır, LLM ile yapılandırılmış ilan taslağına dönüştürülür. Yayına almadan önce danışman onayı **zorunludur** — AI çıktısı asla otomatik yayınlanmaz.
+- 🗺️ **Markalı Ulaşım/Konum Raporu (PDF)** — Google Maps Directions API ile üretilen, ofis logolu, alıcıya doğrudan gönderilebilen kapanış aracı. Piyasada doğrudan muadiline rastlanmayan, en düşük teknik riskli, en yüksek pazarlama değerine sahip özellik.
+- 💬 **Otomatik WhatsApp Takip Mesajı** — Lead ilk temastan sonra belirli aralıklarla otomatik nitelikli takip mesajı alır; danışman hiçbir fırsatı unutmaz.
 
-### Fark Yaratan Özellikler
-- **Gerçek ulaşım süresi:** Google Maps Directions API ile trafik saatine göre gerçek süre (sabah rush hour'da kaç dakika?)
-- **Toplu taşıma + yürüme kombinasyonu:** "Metrobüse yürüyerek 8 dk, metrobüste 22 dk, işyerine yürüyerek 5 dk — toplam 35 dk" formatında detaylı bilgilendirme
-- **Aylık maliyet karşılaştırması:** 9.000 TL kirası olan ama 1.200 TL ulaşım masrafı çıkan ev mi, yoksa 10.000 TL kirası olan ama 300 TL ulaşımla iş başına giden ev mi daha avantajlı? EvRadar bunu hesaplar.
-- **Tercih öğrenimi:** İlk aramada "asansör yok diyorum", sonraki aramada sistem asansörü default filtre olarak uygular
+### Temel Özellikler (Table Stakes — sektör standardı, ürün için zorunlu ama pazarlamanın merkezinde değil)
+- 🤖 **Intake Agent** — WhatsApp Business API üzerinden gelen mesajları LLM ile ayrıştırır, lead olarak sisteme kaydeder
+- 🔗 **Matching Agent** — Bütçe, oda sayısı, bölge kriterlerine göre lead'i uygun portföylerle eşleştirir
+- 📊 **Scoring Agent** — Yanıt hızı, mesaj sayısı, bütçe tutarlılığı gibi kural bazlı ağırlıklarla lead'i puanlar (ilk versiyon ML değil, kural motoru)
+- 💰 **Pricing Agent** — ChromaDB'de tutulan bölgesel emsal ilan embedding'leri üzerinden k-NN benzerlik ile "benzer ilan fiyat aralığı" önerir (kesin AI fiyat tahmini değil, savunulabilir bir aralık)
+- 🏢 **Multi-tenant Ofis Yönetimi** — Ofis sahibi / danışman / görüntüleyici rolleriyle RBAC, PostgreSQL Row-Level Security ile veri izolasyonu
+- 💳 **Abonelik ve Faturalama** — iyzico Abonelik Yönetimi ile Starter / Professional / Enterprise planları
 
 ---
 
 ## Hedef Kitle
 
-- Yeni bir şehre taşınan ya da ev değiştiren çalışanlar ve öğrenciler (18–40 yaş)
-- İş değiştirip yeni konuma göre ev arayan profesyoneller
-- İzmit, Kocaeli, İstanbul, Ankara gibi büyük şehirlerde kiralık ev arayanlar
-- Ulaşım maliyetini kira kararına dahil etmek isteyen bütçe odaklı kullanıcılar
-- Yabancı dil bilerek Türkiye'de ev arayan expat'lar (İngilizce destek eklenebilir)
+- **Birincil hedef:** 1–5 danışmanlı bireysel/mikro emlak ofisleri (büyük zincirler değil — onlar zaten kurumsal CRM'lere bağlı, değişim maliyeti düşük olan küçük ofisler ilk dalga)
+- Şu anda WhatsApp ve Excel ile manuel çalışan, dijitalleşmemiş emlak danışmanları
+- İl/ilçe bazlı emlakçı WhatsApp gruplarında ve emlak odalarında (TÜGEM, İstanbul Emlak Odası vb.) organik olarak ulaşılabilecek bağımsız acenteler
+- Zaman kaybını en çok "sahada not alıp ofise dönünce ilan girme" ve "her lead'i manuel takip etme" adımlarında yaşayan danışmanlar
 
 ---
 
@@ -64,62 +59,83 @@ Kullanıcı sadece "İzmit'te 2+1, işe 45 dakikadan az, bütçem 12.000 TL" yaz
 
 | Katman | Teknoloji | Gerekçe |
 |--------|-----------|---------|
-| LLM | Google Gemini Pro API | Doğal dil ayrıştırma, geri bildirim analizi |
-| Agent Framework | LangChain + LangGraph | Çok ajanlı orkestrasyon ve durum yönetimi |
-| Vektör DB | ChromaDB | Kullanıcı tercihlerinin embedding olarak saklanması |
-| Veri Toplama | Playwright + BeautifulSoup | Sahibinden / Hepsiemlak / Emlakjet ilanları |
-| Rota API | Google Maps Directions API | Gerçek zamanlı ulaşım süresi ve modu hesaplama |
-| Backend | Python 3.11 + FastAPI | REST API ve ajan koordinasyon katmanı |
-| Frontend | Streamlit | Sohbet arayüzü + Folium harita entegrasyonu |
-| Harita | Folium + Leaflet.js | İnteraktif ev ve rota görselleştirmesi |
-| Veritabanı | PostgreSQL | İlanlar, kullanıcı oturumları, tercih geçmişi |
-| Deployment | Railway / Render | Ücretsiz katmanlı, anında deploy |
-| Versiyon Kontrolü | GitHub | Tüm sprint belgeleri burada |
+| LLM | Google Gemini (Flash-Lite / Flash / Pro karışık) | Yüksek hacimli basit işler Flash-Lite, karmaşık emsal analizi Flash/Pro — maliyet/performans dengesi |
+| Ses İşleme | OpenAI Whisper API | Sesli not → transkripsiyon (düşük gürültülü ortam hedefli MVP) |
+| Agent Framework | LangChain + LangGraph | Intake / Matching / Scoring / Pricing ajanlarının orkestrasyonu |
+| Vektör DB | ChromaDB | Bölgesel emsal ilan embedding'leri (Gemini `text-embedding-004`) |
+| Backend | Python 3.11 + FastAPI + SQLAlchemy + Alembic | REST API, migration yönetimi |
+| Auth | `python-jose` (JWT) + RBAC | Ofis sahibi / danışman / görüntüleyici rolleri |
+| Veritabanı | PostgreSQL (Row-Level Security) | `office_id` bazlı multi-tenant izolasyon |
+| Mesajlaşma | WhatsApp Business Cloud API (başlangıçta bir BSP: VatanSMS/Invekto) | Intake Agent kanalı, otomatik takip mesajları |
+| Ödeme | iyzico Abonelik Yönetimi (v2 API) | Starter/Professional/Enterprise abonelik planları |
+| Harita/Rota | Google Maps Directions API | Ulaşım/konum raporu |
+| PDF Üretimi | WeasyPrint | Markalı, logolu ulaşım raporu çıktısı |
+| Frontend | Next.js (App Router) + TypeScript + Tailwind CSS | Ofis paneli — lead listesi, portföy yönetimi, rapor önizleme |
+| Hata İzleme | Sentry | Prod ortamda LLM/agent hatalarını yakalama |
+| CI/CD | GitHub Actions + Railway | Otomatik test + deploy |
+| Versiyon Kontrolü | GitHub | Bu repo |
 
 ---
 
 ## Ajan Mimarisi
 
 ```
-Kullanıcı Girişi (Doğal Dil)
-        │
-        ▼
-┌─────────────────────┐
-│ LangGraph           │
-│ Orchestrator        │  ← Sorguyu ayrıştırır, ajanları yönlendirir
-└──┬──────┬───────┬───┘
-   │      │       │
-   ▼      ▼       ▼
-[Listing] [Konum] [Hafıza]  ← Paralel çalışır
-  Ajanı   Ajanı   Ajanı
-   │      │       │
-   └──────┴───────┘
-           │
-           ▼
-  ┌─────────────────┐
-  │  Öneri Motoru   │  ← Bileşik skor hesaplar, sıralar
-  └────────┬────────┘
-           │
-           ▼
-  Kullanıcı Paneli & Harita
+WhatsApp Mesajı / Sesli Not / Manuel Giriş
+              │
+              ▼
+     ┌─────────────────────┐
+     │ LangGraph            │
+     │ Orchestrator         │  ← İstek tipini ayırt eder, ilgili ajana yönlendirir
+     └──┬──────┬──────┬────┘
+        │      │      │
+        ▼      ▼      ▼
+   [Intake] [Voice-to-  [Matching]
+    Agent    Listing]    Agent
+        │    Agent          │
+        │      │            ▼
+        │      │       [Scoring Agent]
+        │      │            │
+        │      │            ▼
+        │      │      [Pricing Agent]
+        │      │            │
+        └──────┴──────┬─────┘
+                       ▼
+              ┌─────────────────┐
+              │  CRM Katmanı    │  ← Lead/portföy kaydı, skor, eşleşme
+              └────────┬────────┘
+                       │
+                       ▼
+        Ofis Paneli (Next.js) + Ulaşım Raporu (PDF)
+        + Otomatik WhatsApp Takip Mesajı
 ```
 
-**Listing Ajanı:** Sahibinden/Hepsiemlak/Emlakjet'ten ilanları çeker, normalize eder, filtreler (oda sayısı, bütçe, ilçe)
+**Intake Agent:** WhatsApp webhook'undan gelen mesajları LLM ile ayrıştırır, lead olarak kaydeder, ilk otomatik yanıtı gönderir
 
-**Konum Ajanı:** Her ilan için Google Maps Directions API çağrısı yapar; toplu taşıma ve yürüyerek süre + maliyet hesaplar
+**Voice-to-Listing Agent:** Whisper ile transkript alır, LLM ile yapılandırılmış ilan taslağı üretir; danışman onayı olmadan yayınlanmaz
 
-**Hafıza Ajanı:** ChromaDB üzerinde kullanıcı tercihlerini embedding olarak saklar; yeni sorgularda ilgili kısıtları geri çeker
+**Matching Agent:** Lead kriterlerini (bütçe, oda sayısı, bölge) mevcut portföylerle eşleştirir
 
-**Öneri Motoru:** Üç ajandan gelen verileri birleştirerek ağırlıklı skor üretir:
-- Ulaşım skoru (30%): sürece ve maliyete göre ters orantılı
-- Bütçe skoru (40%): toplam maliyet / kullanıcı bütçesi
-- Tercih uyum skoru (30%): hafıza ajanından gelen kısıt eşleşmesi
+**Scoring Agent:** Kural bazlı ağırlıklı skor üretir — yanıt hızı + mesaj sayısı + bütçe tutarlılığı
+
+**Pricing Agent:** ChromaDB'deki emsal ilan embedding'leri üzerinden k-NN benzerlik ile fiyat aralığı önerir
+
+---
+
+## İş Modeli Notu
+
+Starter / Professional / Enterprise üç kademeli abonelik modeli. Starter plana WhatsApp AI erişimi tamamen kapatılmaz — sınırlı sayıda konuşma (örn. ayda 100) dahil edilir ki deneme kullanıcısı ürünün asıl değerini (Intake Agent) görebilsin. 14 günlük deneme, iyzico akışı gereği kart bilgisi doğrulaması ister ancak deneme boyunca ücret alınmaz. Detaylı unit economics ve rakip analizi için [Girişim Analizi Raporu](./PortfoyAI_Girisim_Analizi_ve_Teknik_Rapor.md)'na bakınız.
+
+---
+
+## Teknik Yol Haritası
+
+Detaylı, story bazlı teknik yol haritası ve altyapı kararları için: [📋 TEKNIK_YOL_HARITASI.md](./TEKNIK_YOL_HARITASI.md)
 
 ---
 
 ## Product Backlog URL
 
-[📋 GitHub Projects — EvRadar Backlog](https://github.com/[KULLANICI-ADI]/evradar/projects/1)
+[📋 GitHub Projects — PortföyAI Backlog](https://github.com/omertoycu/YZTA-BOOTCAMP/projects/1)
 
 > *Alternatif: [Miro Backlog Board](#)*
 
@@ -128,22 +144,23 @@ Kullanıcı Girişi (Doğal Dil)
 # Sprint 1
 
 > 📅 **19 Haziran — 5 Temmuz 2026**
-> Sprint puanı hedefi: `[Toplam puan]`
+> Sprint puanı hedefi: `31`
+>
+> ⚠️ **Pivot notu:** Ürün konsepti (EvRadar → PortföyAI) Sprint 1 içerisinde, sprint bitimine 3 gün kala netleşmiştir. Aşağıdaki story seçimi, kalan süreye göre gerçekçi şekilde daraltılmış temel iskelete odaklanır; kapsamlı özellikler Sprint 2/3'e devredilmiştir.
 
 ### Backlog Düzeni ve Story Seçimleri
 
-Sprint 1'de ürünün temel iskeletini kurmayı hedefliyoruz: veri akışı, ajan çerçevesi ve temel UI. Bu sprintte ürünün "çalışan ama minimal" versiyonuna ulaşmayı planlıyoruz.
+Sprint 1'de hedef, ürünün çalışan ama minimal iskeletini kurmak: multi-tenant auth, temel portföy CRUD'u, ilk Matching Agent taslağı ve ödeme/CI altyapısının başlatılması.
 
-**Sprint 1 User Story'leri (Önerilen):**
+**Sprint 1 User Story'leri:**
 
 | # | User Story | Puan |
 |---|-----------|------|
-| 1 | Kullanıcı olarak doğal dil ile "İzmit'te 2+1, 10.000 TL altı" yazabilmeliyim | 8 |
-| 2 | Sistem, Hepsiemlak'tan 20+ ilanı listeleyebilmeli | 5 |
-| 3 | Her ilan için Google Maps API'den tahmini ulaşım süresi çekilebilmeli | 8 |
-| 4 | Temel Streamlit arayüzü üzerinde ilan listesi gösterilebilmeli | 3 |
-| 5 | LangGraph Orchestrator temel yapısı ve Query Parser Ajanı kurulmalı | 5 |
-| 6 | GitHub repo yapısı ve CI/CD pipeline kurulmalı | 2 |
+| 1 | Ofis olarak kayıt olabilmeli, JWT ile giriş yapabilmeliyim (FastAPI + `python-jose`) | 8 |
+| 2 | Sistem, her tabloda `office_id` bazlı PostgreSQL RLS ile veri izolasyonu sağlamalı | 5 |
+| 3 | Danışman olarak portföy (ilan) manuel ekleyip listeleyebilmeliyim | 5 |
+| 4 | Matching Agent MVP: bütçe aralığı + oda sayısı + bölge filtresiyle basit eşleştirme (LangGraph tek node) | 8 |
+| 5 | iyzico sandbox aktivasyon talebi gönderilmeli ve GitHub Actions CI/CD (Railway deploy) kurulmalı | 5 |
 
 **Sprint Toplam Tahmini Puan: 31**
 
@@ -168,12 +185,11 @@ Daily Scrum Slack kanalı üzerinden asenkron olarak yürütülmektedir (her üy
 **Katılımcılar:** [İsimler yazılacak]
 
 **Tamamlanan Story'ler:**
-- [ ] Doğal dil sorgusu ayrıştırma
-- [ ] Hepsiemlak ilan çekme
-- [ ] Google Maps API bağlantısı
-- [ ] Temel Streamlit UI
-- [ ] LangGraph Orchestrator iskelet
-- [ ] GitHub repo yapısı
+- [ ] Ofis kaydı + JWT auth
+- [ ] Multi-tenant RLS
+- [ ] Portföy CRUD
+- [ ] Matching Agent MVP
+- [ ] iyzico sandbox talebi + CI/CD
 
 **Sonraki Sprint'e Devreden:**
 [Buraya yazılacak]
@@ -200,17 +216,17 @@ Daily Scrum Slack kanalı üzerinden asenkron olarak yürütülmektedir (her üy
 
 ### Backlog Düzeni ve Story Seçimleri
 
-Sprint 2'de Hafıza Ajanı ve çok kaynaklı ilan toplama özelliklerini tamamlamayı hedefliyoruz.
+Sprint 2'de gerçek entegrasyonları (ödeme, WhatsApp) ve Pricing/Scoring ajanlarını tamamlamayı hedefliyoruz.
 
 **Planlanan Story'ler (Taslak):**
 
 | # | User Story | Puan (Tahmini) |
 |---|-----------|----------------|
-| 7 | Kullanıcı "bu ev çok gürültülü" yazabilmeli, sistem bir sonraki aramada bunu hatırlamalı | 8 |
-| 8 | Sahibinden.com ilanları listeye eklenebilmeli | 5 |
-| 9 | Her ilan için "aylık toplam maliyet = kira + ulaşım" hesaplanabilmeli | 5 |
-| 10 | Harita üzerinde önerilen evler ve rota gösterilebilmeli (Folium) | 8 |
-| 11 | Bileşik skor hesaplama algoritması çalışır hale gelmeli | 5 |
+| 6 | iyzico canlı ödeme akışı: ürün + 3 `pricingPlan` (Starter/Professional/Enterprise) | 8 |
+| 7 | WhatsApp Business API başvurusu + BSP seçimi + Intake Agent webhook entegrasyonu | 8 |
+| 8 | Pricing Agent: ChromaDB emsal embedding + k-NN benzerlik ile fiyat aralığı önerisi | 8 |
+| 9 | Scoring Agent: kural bazlı skor motoru (yanıt hızı + mesaj sayısı + bütçe tutarlılığı) | 5 |
+| 10 | Ofis paneli (Next.js): lead listesi + portföy yönetimi temel ekranları | 8 |
 
 ### Daily Scrum
 
@@ -240,17 +256,17 @@ Sprint 2'de Hafıza Ajanı ve çok kaynaklı ilan toplama özelliklerini tamamla
 
 ### Backlog Düzeni ve Story Seçimleri
 
-Sprint 3'te deployment, polish ve değerlendirme kriterlerine yönelik ek AI özellikleri hedefliyoruz.
+Sprint 3'te hero özellikleri (Voice-to-Listing, Ulaşım Raporu, Otomatik Takip) canlıya almayı ve deployment/polish adımlarını hedefliyoruz.
 
 **Planlanan Story'ler (Taslak):**
 
 | # | User Story | Puan (Tahmini) |
 |---|-----------|----------------|
-| 12 | Sistem Railway/Render üzerinden canlıya alınabilmeli | 5 |
-| 13 | Kullanıcı tercih geçmişini görüntüleyip silebilmeli | 3 |
-| 14 | "Sabah rush hour'da süre kaç dakika?" sorusunu yanıtlayabilmeli | 5 |
-| 15 | AI tabanlı skor açıklaması: "Bu evi öneriyoruz çünkü..." | 8 |
-| 16 | Performans optimizasyonu ve hata yönetimi | 3 |
+| 11 | Voice-to-Listing: Whisper transkripsiyon + Gemini ile ilan taslağı, danışman onay adımı zorunlu | 8 |
+| 12 | Markalı ulaşım/konum raporu: Google Maps Directions API + WeasyPrint PDF üretimi | 5 |
+| 13 | Otomatik WhatsApp takip mesajı zinciri | 5 |
+| 14 | Production deployment: Railway/Render + Sentry hata izleme + retry/timeout mekanizmaları | 5 |
+| 15 | Onboarding'de zorunlu veri kalitesi kontrolü (eksik/tutarsız portföy girişini engelleme) | 3 |
 
 ### Daily Scrum
 
@@ -276,4 +292,4 @@ Sprint 3'te deployment, polish ve değerlendirme kriterlerine yönelik ek AI öz
 
 ## Lisans
 
-Bu proje YZTA Bootcamp 2026 kapsamında geliştirilmiştir. © Takım [X]
+Bu proje YZTA Bootcamp 2026 kapsamında geliştirilmiştir. © Takım [151]

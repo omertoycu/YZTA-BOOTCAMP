@@ -1,0 +1,22 @@
+import uuid
+from datetime import datetime
+
+from sqlalchemy import String, Numeric, DateTime, ForeignKey, func
+from sqlalchemy.dialects.postgresql import UUID
+from sqlalchemy.orm import Mapped, mapped_column
+
+from app.core.db import Base
+
+
+class Lead(Base):
+    __tablename__ = "leads"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    office_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("offices.id"), nullable=False)
+    source: Mapped[str] = mapped_column(String(30), default="manual")  # whatsapp | manual
+    contact_phone: Mapped[str] = mapped_column(String(30), nullable=False)
+    district: Mapped[str] = mapped_column(String(120), nullable=True)
+    budget_min: Mapped[float] = mapped_column(Numeric(12, 2), nullable=True)
+    budget_max: Mapped[float] = mapped_column(Numeric(12, 2), nullable=True)
+    room_count: Mapped[str] = mapped_column(String(20), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
