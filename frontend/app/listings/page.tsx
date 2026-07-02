@@ -2,8 +2,17 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
+import { Building2, MapPin, Plus, Sparkles } from "lucide-react";
 import { apiFetch, getToken } from "@/lib/api";
 import type { Listing, PricingSuggestion } from "@/lib/types";
+import { formatCurrency } from "@/lib/format";
+import { Button } from "@/components/ui/Button";
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/Card";
+import { Input } from "@/components/ui/Input";
+import { Badge } from "@/components/ui/Badge";
+import { Alert } from "@/components/ui/Alert";
+import { Spinner } from "@/components/ui/Spinner";
+import { EmptyState } from "@/components/ui/EmptyState";
 
 export default function ListingsPage() {
   const router = useRouter();
@@ -11,6 +20,7 @@ export default function ListingsPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [pricingByListing, setPricingByListing] = useState<Record<string, PricingSuggestion>>({});
+  const [pricingLoading, setPricingLoading] = useState<string | null>(null);
 
   const [title, setTitle] = useState("");
   const [district, setDistrict] = useState("");
@@ -56,96 +66,141 @@ export default function ListingsPage() {
   }
 
   async function handlePricingSuggestion(listingId: string) {
+    setPricingLoading(listingId);
     try {
       const suggestion = await apiFetch<PricingSuggestion>(`/listings/${listingId}/pricing-suggestion`);
       setPricingByListing((prev) => ({ ...prev, [listingId]: suggestion }));
     } catch (err) {
       setError(err instanceof Error ? err.message : "Fiyat önerisi alınamadı");
+    } finally {
+      setPricingLoading(null);
     }
   }
 
   return (
-    <div>
-      <h1 className="mb-6 text-2xl font-semibold">Portföyler</h1>
+    <div className="flex flex-col gap-8">
+      <div>
+        <h1 className="text-2xl font-semibold text-slate-900">Portföyler</h1>
+        <p className="mt-1 text-sm text-slate-500">
+          Ofisinizin tüm gayrimenkul portföyünü tek yerden yönetin.
+        </p>
+      </div>
 
-      <form onSubmit={handleCreate} className="mb-8 flex flex-wrap items-end gap-3 rounded border border-gray-200 p-4">
-        <div className="flex flex-col">
-          <label className="text-xs text-gray-500">Başlık</label>
-          <input
-            required
-            value={title}
-            onChange={(e) => setTitle(e.target.value)}
-            className="rounded border border-gray-300 px-2 py-1"
-          />
-        </div>
-        <div className="flex flex-col">
-          <label className="text-xs text-gray-500">Bölge</label>
-          <input
-            required
-            value={district}
-            onChange={(e) => setDistrict(e.target.value)}
-            className="rounded border border-gray-300 px-2 py-1"
-          />
-        </div>
-        <div className="flex flex-col">
-          <label className="text-xs text-gray-500">Fiyat (TL)</label>
-          <input
-            required
-            type="number"
-            value={price}
-            onChange={(e) => setPrice(e.target.value)}
-            className="w-32 rounded border border-gray-300 px-2 py-1"
-          />
-        </div>
-        <div className="flex flex-col">
-          <label className="text-xs text-gray-500">Oda sayısı</label>
-          <input
-            required
-            value={roomCount}
-            onChange={(e) => setRoomCount(e.target.value)}
-            className="w-24 rounded border border-gray-300 px-2 py-1"
-          />
-        </div>
-        <button type="submit" className="rounded bg-gray-900 px-3 py-1.5 text-white">
-          Ekle
-        </button>
-      </form>
+      <Card>
+        <CardHeader>
+          <CardTitle>Yeni portföy ekle</CardTitle>
+          <CardDescription>İlan bilgilerini girip listenize saniyeler içinde ekleyin.</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <form onSubmit={handleCreate} className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-5 lg:items-end">
+            <Input
+              id="title"
+              label="Başlık"
+              required
+              placeholder="Örn. Deniz manzaralı 3+1"
+              value={title}
+              onChange={(e) => setTitle(e.target.value)}
+              className="lg:col-span-2"
+            />
+            <Input
+              id="district"
+              label="Bölge"
+              required
+              placeholder="Örn. Kadıköy"
+              value={district}
+              onChange={(e) => setDistrict(e.target.value)}
+            />
+            <Input
+              id="price"
+              label="Fiyat (TL)"
+              required
+              type="number"
+              placeholder="2500000"
+              value={price}
+              onChange={(e) => setPrice(e.target.value)}
+            />
+            <Input
+              id="roomCount"
+              label="Oda sayısı"
+              required
+              placeholder="2+1"
+              value={roomCount}
+              onChange={(e) => setRoomCount(e.target.value)}
+            />
+            <Button type="submit" className="lg:col-span-5 lg:w-fit">
+              <Plus className="h-4 w-4" />
+              Portföy ekle
+            </Button>
+          </form>
+        </CardContent>
+      </Card>
 
-      {error && <p className="mb-4 text-sm text-red-600">{error}</p>}
-      {isLoading && <p className="text-sm text-gray-500">Yükleniyor...</p>}
+      {error && <Alert>{error}</Alert>}
 
-      <div className="flex flex-col gap-3">
+      {isLoading && (
+        <div className="flex items-center justify-center gap-2 py-16 text-sm text-slate-500">
+          <Spinner />
+          Yükleniyor...
+        </div>
+      )}
+
+      {!isLoading && listings.length === 0 && (
+        <EmptyState
+          icon={Building2}
+          title="Henüz portföy eklenmedi"
+          description="Yukarıdaki formu kullanarak ilk portföyünüzü ekleyin."
+        />
+      )}
+
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
         {listings.map((listing) => {
           const suggestion = pricingByListing[listing.id];
           return (
-            <div key={listing.id} className="rounded border border-gray-200 p-4">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="font-medium">{listing.title}</p>
-                  <p className="text-sm text-gray-500">
-                    {listing.district} · {listing.room_count} · {listing.price.toLocaleString("tr-TR")} TL
-                  </p>
+            <Card key={listing.id} className="flex flex-col">
+              <CardHeader className="flex-row items-start justify-between gap-2 space-y-0">
+                <div className="flex flex-col gap-1">
+                  <CardTitle>{listing.title}</CardTitle>
+                  <div className="flex flex-wrap items-center gap-1.5">
+                    <Badge variant="neutral">
+                      <MapPin className="h-3 w-3" />
+                      {listing.district}
+                    </Badge>
+                    <Badge variant="brand">{listing.room_count}</Badge>
+                    {listing.status && (
+                      <Badge variant={listing.status === "active" ? "success" : "neutral"}>
+                        {listing.status === "active" ? "Aktif" : listing.status}
+                      </Badge>
+                    )}
+                  </div>
                 </div>
-                <button
+              </CardHeader>
+              <CardContent className="flex flex-1 flex-col gap-4">
+                <p className="text-2xl font-semibold text-slate-900">{formatCurrency(listing.price)}</p>
+
+                <Button
+                  variant="outline"
+                  size="sm"
+                  isLoading={pricingLoading === listing.id}
                   onClick={() => handlePricingSuggestion(listing.id)}
-                  className="text-sm text-gray-500 underline hover:text-gray-900"
+                  className="w-fit"
                 >
+                  <Sparkles className="h-3.5 w-3.5" />
                   Fiyat önerisi
-                </button>
-              </div>
-              {suggestion && (
-                <p className="mt-2 text-sm text-gray-600">
-                  {suggestion.has_enough_data
-                    ? `Benzer ilan aralığı: ${suggestion.suggested_min?.toLocaleString("tr-TR")} - ${suggestion.suggested_max?.toLocaleString("tr-TR")} TL (${suggestion.comparable_count} emsal)`
-                    : suggestion.message}
-                </p>
-              )}
-            </div>
+                </Button>
+
+                {suggestion && (
+                  <div className="rounded-lg bg-brand-50 px-3 py-2.5 text-sm text-brand-800">
+                    {suggestion.has_enough_data
+                      ? `Benzer ilan aralığı: ${formatCurrency(suggestion.suggested_min ?? 0)} - ${formatCurrency(
+                          suggestion.suggested_max ?? 0
+                        )} (${suggestion.comparable_count} emsal)`
+                      : suggestion.message}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
           );
         })}
-        {!isLoading && listings.length === 0 && (
-          <p className="text-sm text-gray-500">Henüz portföy eklenmedi.</p>
-        )}
       </div>
     </div>
   );

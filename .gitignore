@@ -20,6 +20,7 @@ docker-compose.override.yml
 node_modules/
 .next/
 out/
+*.tsbuildinfo
 
 # Editor
 .vscode/
@@ -31,3 +32,4 @@ Thumbs.db
 
 # Claude Code local settings/skills (yerel araç konfigürasyonu, teslim kapsamı dışı)
 .claude/
+CLAUDE.md
