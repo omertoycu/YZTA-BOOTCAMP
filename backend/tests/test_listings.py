@@ -38,3 +38,24 @@ def test_create_and_list_listing(client):
     assert list_resp.status_code == 200
     titles = {listing["title"] for listing in list_resp.json()}
     assert "3+1 Daire" in titles
+
+
+def test_get_listing_by_id(client):
+    headers = _register(client, "Ofis Listing Test 3", "owner3@listing-test.com")
+    create_resp = client.post(
+        "/listings",
+        json={"title": "1+1 Stüdyo", "district": "Sisli", "price": 12000, "room_count": "1+1"},
+        headers=headers,
+    )
+    listing_id = create_resp.json()["id"]
+
+    get_resp = client.get(f"/listings/{listing_id}", headers=headers)
+    assert get_resp.status_code == 200
+    assert get_resp.json()["title"] == "1+1 Stüdyo"
+
+
+def test_get_unknown_listing_returns_404(client):
+    headers = _register(client, "Ofis Listing Test 4", "owner4@listing-test.com")
+    fake_id = "00000000-0000-0000-0000-000000000000"
+    resp = client.get(f"/listings/{fake_id}", headers=headers)
+    assert resp.status_code == 404

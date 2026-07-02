@@ -45,3 +45,31 @@ def test_match_unknown_lead_returns_404(client):
     fake_id = "00000000-0000-0000-0000-000000000000"
     resp = client.post(f"/leads/{fake_id}/match", headers=headers)
     assert resp.status_code == 404
+
+
+def test_score_lead_returns_breakdown(client):
+    headers = _register(client, "Ofis Lead Test 3", "owner3@lead-test.com")
+    lead_resp = client.post(
+        "/leads",
+        json={
+            "contact_phone": "5559998877",
+            "budget_min": 10000,
+            "budget_max": 11000,
+            "message_count": 5,
+        },
+        headers=headers,
+    )
+    lead_id = lead_resp.json()["id"]
+
+    score_resp = client.post(f"/leads/{lead_id}/score", headers=headers)
+    assert score_resp.status_code == 201
+    body = score_resp.json()
+    assert 0 <= body["score"] <= 100
+    assert "response_speed_score" in body["score_breakdown"]
+
+
+def test_score_unknown_lead_returns_404(client):
+    headers = _register(client, "Ofis Lead Test 4", "owner4@lead-test.com")
+    fake_id = "00000000-0000-0000-0000-000000000000"
+    resp = client.post(f"/leads/{fake_id}/score", headers=headers)
+    assert resp.status_code == 404

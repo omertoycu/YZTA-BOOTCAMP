@@ -2,10 +2,13 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
 from app.agents.graph import build_matching_graph
+from app.agents.scoring import calculate_lead_score
 from app.api.deps import get_current_user
 from app.middleware.tenant import get_tenant_db
 from app.models.lead import Lead
+from app.models.lead_score import LeadScore
 from app.schemas.lead import LeadCreate, LeadResponse, MatchResult
+from app.schemas.lead_score import LeadScoreResponse
 
 router = APIRouter(prefix="/leads", tags=["leads"])
 
@@ -40,3 +43,25 @@ def match_lead(lead_id: str, db: Session = Depends(get_tenant_db)):
         }
     )
     return result["candidate_listings"]
+
+
+@router.post("/{lead_id}/score", response_model=LeadScoreResponse, status_code=201)
+def score_lead(
+    lead_id: str,
+    db: Session = Depends(get_tenant_db),
+    current_user: dict = Depends(get_current_user),
+):
+    lead = db.get(Lead, lead_id)
+    if not lead:
+        raise HTTPException(status_code=404, detail="Lead bulunamadı")
+
+    score, breakdown = calculate_lead_score(lead)
+    lead_score = LeadScore(
+        office_id=current_user["office_id"],
+        lead_id=lead.id,
+        score=score,
+        score_breakdown=breakdown,
+    )
+    db.add(lead_score)
+    db.commit()
+    return lead_score

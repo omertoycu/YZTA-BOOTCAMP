@@ -20,5 +20,8 @@ class Settings(BaseSettings):
     whatsapp_token: str | None = None
     sentry_dsn: str | None = None
 
+    # Pricing Agent: bölgesel emsal ilan embedding'leri için kalıcı ChromaDB dizini.
+    chroma_persist_dir: str = "./chroma_data"
+
 
 settings = Settings()

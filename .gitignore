@@ -10,6 +10,9 @@ venv/
 *.egg-info/
 .pytest_cache/
 
+# Pricing Agent: yerel ChromaDB kalıcı dizini (bkz. app/core/vectorstore.py)
+chroma_data/
+
 # Yerel port çakışması gibi makineye özel compose override'ları
 docker-compose.override.yml
 

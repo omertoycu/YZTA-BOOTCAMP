@@ -81,8 +81,10 @@ Tenant middleware'i atlanırsa (ya da yanlış rolle bağlanılırsa) RLS ya ses
 | POST | `/listings` | Yeni portföy ekler |
 | GET | `/listings` | Ofisin portföylerini listeler (RLS ile otomatik filtrelenir) |
 | GET | `/listings/{id}` | Tek portföy detayı |
+| GET | `/listings/{id}/pricing-suggestion` | Pricing Agent: ChromaDB k-NN emsal benzerliğiyle fiyat aralığı önerir *(Sprint 2 — erken tamamlandı)* |
 | POST | `/leads` | Yeni lead kaydı (WhatsApp webhook veya manuel) |
 | POST | `/leads/{id}/match` | Matching Agent'ı tetikler, uygun portföyleri döner |
+| POST | `/leads/{id}/score` | Scoring Agent: kural bazlı skor + breakdown hesaplar *(Sprint 2 — erken tamamlandı)* |
 | POST | `/webhooks/whatsapp` | Meta WhatsApp Cloud API webhook alıcısı (Sprint 2) |
 | POST | `/voice-notes` | Ses dosyası yükler, transkript + taslak ilan döner (Sprint 3) |
 | POST | `/listings/{id}/location-report` | Ulaşım raporu PDF üretir (Sprint 3) |

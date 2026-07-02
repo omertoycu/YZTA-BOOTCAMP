@@ -221,14 +221,16 @@ RLS testinde ortaya çıkan üç güvenlik açığı (superuser bypass, SET LOCA
 
 Sprint 2'de gerçek entegrasyonları (ödeme, WhatsApp) ve Pricing/Scoring ajanlarını tamamlamayı hedefliyoruz.
 
+> ⚡ **Erken başlangıç notu (2 Temmuz 2026):** Sprint 1 kapanışının ardından, resmi Sprint 2 tarihi beklenmeden Pricing Agent ve Scoring Agent story'leri kod tarafında tamamlandı ve Docker'da uçtan uca doğrulandı (22/22 test yeşil). Detaylar için [TEKNIK_YOL_HARITASI.md](./TEKNIK_YOL_HARITASI.md) Bölüm 3-4'e bakınız.
+
 **Planlanan Story'ler (Taslak):**
 
 | # | User Story | Puan (Tahmini) |
 |---|-----------|----------------|
 | 6 | iyzico canlı ödeme akışı: ürün + 3 `pricingPlan` (Starter/Professional/Enterprise) | 8 |
 | 7 | WhatsApp Business API başvurusu + BSP seçimi + Intake Agent webhook entegrasyonu | 8 |
-| 8 | Pricing Agent: ChromaDB emsal embedding + k-NN benzerlik ile fiyat aralığı önerisi | 8 |
-| 9 | Scoring Agent: kural bazlı skor motoru (yanıt hızı + mesaj sayısı + bütçe tutarlılığı) | 5 |
+| 8 | ✅ Pricing Agent: ChromaDB emsal embedding + k-NN benzerlik ile fiyat aralığı önerisi *(erken tamamlandı)* | 8 |
+| 9 | ✅ Scoring Agent: kural bazlı skor motoru (yanıt hızı + mesaj sayısı + bütçe tutarlılığı) *(erken tamamlandı)* | 5 |
 | 10 | Ofis paneli (Next.js): lead listesi + portföy yönetimi temel ekranları | 8 |
 
 ### Daily Scrum
