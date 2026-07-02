@@ -1,4 +1,5 @@
 from fastapi import APIRouter, Depends, HTTPException
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.agents.graph import build_matching_graph
@@ -22,6 +23,20 @@ def create_lead(
     lead = Lead(office_id=current_user["office_id"], **payload.model_dump())
     db.add(lead)
     db.commit()
+    return lead
+
+
+@router.get("", response_model=list[LeadResponse])
+def list_leads(db: Session = Depends(get_tenant_db)):
+    # RLS, current_user'ın office_id'si dışındaki satırları zaten filtreler.
+    return db.execute(select(Lead)).scalars().all()
+
+
+@router.get("/{lead_id}", response_model=LeadResponse)
+def get_lead(lead_id: str, db: Session = Depends(get_tenant_db)):
+    lead = db.get(Lead, lead_id)
+    if not lead:
+        raise HTTPException(status_code=404, detail="Lead bulunamadı")
     return lead
 
 

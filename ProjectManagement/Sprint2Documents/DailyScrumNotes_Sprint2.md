@@ -14,4 +14,13 @@
 
 ---
 
+## 2026-07-02 (devam) — Next.js Ofis Paneli
+
+**Ömer Faruk Toycu**
+1. Dün/bugün erken saatler: Pricing/Scoring Agent tamamlandı.
+2. Bugün: Sprint 2'nin 10. story'si — Next.js 16 (App Router) + TypeScript + Tailwind ile ofis paneli iskeleti kuruldu: giriş/kayıt, portföy listesi + fiyat önerisi, lead listesi + skorlama/eşleştirme tetikleme ekranları. `GET /leads` ve `GET /leads/{id}` endpoint'leri eksikti, eklendi. Backend'e CORS middleware eklendi (frontend farklı origin'den istek atıyor). `next build` başarılı, backend'e gerçek isteklerle (CORS header'ları dahil) uçtan uca doğrulandı.
+3. Engel yok. Not: `next lint` Next.js 16'da flat ESLint config (`eslint.config.js`) gerektiriyor, henüz eklenmedi — `next build`'in TypeScript kontrolü şimdilik yeterli güvence sağlıyor, flat config Sprint 2 içinde eklenmeli.
+
+---
+
 *(Sonraki günler eklenecektir.)*

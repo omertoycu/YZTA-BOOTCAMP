@@ -23,5 +23,12 @@ class Settings(BaseSettings):
     # Pricing Agent: bölgesel emsal ilan embedding'leri için kalıcı ChromaDB dizini.
     chroma_persist_dir: str = "./chroma_data"
 
+    # Next.js ofis paneli farklı origin'den (localhost:3000) istek atar; virgülle ayrılmış liste.
+    cors_origins: str = "http://localhost:3000"
+
+    @property
+    def cors_origin_list(self) -> list[str]:
+        return [origin.strip() for origin in self.cors_origins.split(",") if origin.strip()]
+
 
 settings = Settings()

@@ -25,13 +25,28 @@ portfoyai/
 │   ├── tests/
 │   ├── requirements.txt
 │   └── Dockerfile
-├── frontend/                    # Next.js ofis paneli (Sprint 2'de başlar)
+├── frontend/                    # Next.js 16 (App Router) + TypeScript + Tailwind — ofis paneli
+│   ├── app/
+│   │   ├── login/page.tsx        # Ofis kaydı + giriş (tek sayfa, tab ile)
+│   │   ├── listings/page.tsx     # Portföy listesi/ekleme + Pricing Agent önerisi
+│   │   └── leads/page.tsx        # Lead listesi/ekleme + Scoring/Matching Agent tetikleme
+│   ├── lib/api.ts                 # fetch wrapper, JWT localStorage yönetimi
+│   └── components/NavBar.tsx
 ├── .github/workflows/ci.yml     # Lint + test + Railway deploy
 ├── docker-compose.yml            # Yerel: postgres + backend
 └── .env.example
 ```
 
 **Neden bu ayrım:** Multi-tenant RLS'in doğru çalışması backend'in her request'te `office_id`'yi DB session'a set etmesine bağlı — bu en sık atlanan adım olduğu için `middleware/tenant.py` ayrı ve test edilebilir bir modül olarak izole edildi.
+
+**Frontend'i yerelde çalıştırma:**
+```bash
+cd frontend
+cp .env.local.example .env.local   # NEXT_PUBLIC_API_URL varsayılanı localhost:8010'u gösterir
+npm install
+npm run dev                        # http://localhost:3000
+```
+Backend'in `CORS_ORIGINS` ayarı varsayılan olarak `http://localhost:3000`'i kabul eder (bkz. `app/core/config.py`); farklı bir portta çalıştırıyorsanız `.env`'de güncelleyin.
 
 ---
 
@@ -83,6 +98,8 @@ Tenant middleware'i atlanırsa (ya da yanlış rolle bağlanılırsa) RLS ya ses
 | GET | `/listings/{id}` | Tek portföy detayı |
 | GET | `/listings/{id}/pricing-suggestion` | Pricing Agent: ChromaDB k-NN emsal benzerliğiyle fiyat aralığı önerir *(Sprint 2 — erken tamamlandı)* |
 | POST | `/leads` | Yeni lead kaydı (WhatsApp webhook veya manuel) |
+| GET | `/leads` | Ofisin lead'lerini listeler |
+| GET | `/leads/{id}` | Tek lead detayı |
 | POST | `/leads/{id}/match` | Matching Agent'ı tetikler, uygun portföyleri döner |
 | POST | `/leads/{id}/score` | Scoring Agent: kural bazlı skor + breakdown hesaplar *(Sprint 2 — erken tamamlandı)* |
 | POST | `/webhooks/whatsapp` | Meta WhatsApp Cloud API webhook alıcısı (Sprint 2) |

@@ -73,3 +73,32 @@ def test_score_unknown_lead_returns_404(client):
     fake_id = "00000000-0000-0000-0000-000000000000"
     resp = client.post(f"/leads/{fake_id}/score", headers=headers)
     assert resp.status_code == 404
+
+
+def test_list_leads_returns_only_own_office_leads(client):
+    headers_a = _register(client, "Ofis Lead Test 5", "owner5@lead-test.com")
+    headers_b = _register(client, "Ofis Lead Test 6", "owner6@lead-test.com")
+    client.post("/leads", json={"contact_phone": "5550000001"}, headers=headers_a)
+    client.post("/leads", json={"contact_phone": "5550000002"}, headers=headers_b)
+
+    resp = client.get("/leads", headers=headers_a)
+    assert resp.status_code == 200
+    phones = {lead["contact_phone"] for lead in resp.json()}
+    assert phones == {"5550000001"}
+
+
+def test_get_lead_by_id(client):
+    headers = _register(client, "Ofis Lead Test 7", "owner7@lead-test.com")
+    create_resp = client.post("/leads", json={"contact_phone": "5550000003"}, headers=headers)
+    lead_id = create_resp.json()["id"]
+
+    resp = client.get(f"/leads/{lead_id}", headers=headers)
+    assert resp.status_code == 200
+    assert resp.json()["contact_phone"] == "5550000003"
+
+
+def test_get_unknown_lead_returns_404(client):
+    headers = _register(client, "Ofis Lead Test 8", "owner8@lead-test.com")
+    fake_id = "00000000-0000-0000-0000-000000000000"
+    resp = client.get(f"/leads/{fake_id}", headers=headers)
+    assert resp.status_code == 404

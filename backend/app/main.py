@@ -1,5 +1,6 @@
 import sentry_sdk
 from fastapi import FastAPI, Request
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
 from app.api.routes import auth, leads, listings, offices
@@ -9,6 +10,14 @@ if settings.sentry_dsn:
     sentry_sdk.init(dsn=settings.sentry_dsn, traces_sample_rate=0.1)
 
 app = FastAPI(title="PortföyAI API", version="0.1.0")
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=settings.cors_origin_list,
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 app.include_router(auth.router)
 app.include_router(offices.router)
