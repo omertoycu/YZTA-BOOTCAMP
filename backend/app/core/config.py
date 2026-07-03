@@ -4,6 +4,10 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 
+    # "production" iken bazı güvenlik kontrolleri (örn. WhatsApp webhook imza
+    # doğrulaması) daha katı davranır; Railway'de ENVIRONMENT=production set edilmeli.
+    environment: str = "development"
+
     database_url: str = "postgresql+psycopg2://portfoyai_app:portfoyai_app@localhost:5432/portfoyai"
     # Sadece register/login için: e-posta ile ofis bilinmeden kullanıcı arama,
     # RLS'in tek-tenant modeliyle doğası gereği çelişir. Bkz. migration 0003.

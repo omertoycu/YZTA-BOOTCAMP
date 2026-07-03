@@ -16,15 +16,13 @@ export function clearToken() {
 
 export class ApiError extends Error {}
 
-export async function apiFetch<T>(path: string, options: RequestInit = {}): Promise<T> {
-  const token = getToken();
-  const headers: Record<string, string> = {
-    "Content-Type": "application/json",
-    ...(token ? { Authorization: `Bearer ${token}` } : {}),
-    ...(options.headers as Record<string, string> | undefined),
-  };
-
-  const res = await fetch(`${API_URL}${path}`, { ...options, headers });
+async function handleResponse<T>(res: Response): Promise<T> {
+  if (res.status === 401) {
+    clearToken();
+    if (typeof window !== "undefined" && window.location.pathname !== "/login") {
+      window.location.href = "/login";
+    }
+  }
 
   if (!res.ok) {
     let detail = res.statusText;
@@ -41,6 +39,18 @@ export async function apiFetch<T>(path: string, options: RequestInit = {}): Prom
   return res.json();
 }
 
+export async function apiFetch<T>(path: string, options: RequestInit = {}): Promise<T> {
+  const token = getToken();
+  const headers: Record<string, string> = {
+    "Content-Type": "application/json",
+    ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    ...(options.headers as Record<string, string> | undefined),
+  };
+
+  const res = await fetch(`${API_URL}${path}`, { ...options, headers });
+  return handleResponse<T>(res);
+}
+
 export async function apiUpload<T>(path: string, file: File): Promise<T> {
   const token = getToken();
   const formData = new FormData();
@@ -52,16 +62,5 @@ export async function apiUpload<T>(path: string, file: File): Promise<T> {
     body: formData,
   });
 
-  if (!res.ok) {
-    let detail = res.statusText;
-    try {
-      const body = await res.json();
-      detail = body.detail || detail;
-    } catch {
-      // yanıt gövdesi JSON değilse statusText ile devam et
-    }
-    throw new ApiError(detail);
-  }
-
-  return res.json();
+  return handleResponse<T>(res);
 }

@@ -135,6 +135,19 @@ def test_invalid_signature_rejected(client, monkeypatch):
     assert resp.status_code == 401
 
 
+def test_signature_required_in_production_when_no_app_secret_configured(client, monkeypatch):
+    monkeypatch.setattr(settings, "whatsapp_app_secret", None)
+    monkeypatch.setattr(settings, "environment", "production")
+
+    body = json.dumps(_build_payload("1000000007", "wamid.GGG", "905551110007")).encode()
+    resp = client.post(
+        "/webhooks/whatsapp",
+        content=body,
+        headers={"Content-Type": "application/json"},
+    )
+    assert resp.status_code == 401
+
+
 def test_unknown_phone_number_id_is_ignored_but_returns_200(client, monkeypatch):
     monkeypatch.setattr(settings, "whatsapp_app_secret", WHATSAPP_APP_SECRET)
     resp = _post_webhook(client, _build_payload("does-not-exist", "wamid.EEE", "905551110005"))

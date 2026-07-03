@@ -11,6 +11,7 @@ import { Icon } from "@/components/ui/Icon";
 import { cn } from "@/lib/utils";
 
 const TOTAL_STEPS = 6;
+const MAX_PHOTO_BYTES = 8 * 1024 * 1024; // 8MB, backend ile aynı sınır
 
 export default function NewListingPage() {
   const router = useRouter();
@@ -41,6 +42,9 @@ export default function NewListingPage() {
     setStep((s) => Math.max(s - 1, 1));
   }
 
+  const parsedPrice = Number(price);
+  const isPriceValid = price.trim() !== "" && Number.isFinite(parsedPrice) && parsedPrice > 0;
+
   async function handleExtract() {
     setError(null);
     setIsExtracting(true);
@@ -64,7 +68,20 @@ export default function NewListingPage() {
 
   function handlePhotoSelect(e: React.ChangeEvent<HTMLInputElement>) {
     const files = Array.from(e.target.files ?? []);
-    setPhotos((prev) => [...prev, ...files]);
+    const accepted: File[] = [];
+    const rejected: string[] = [];
+    for (const file of files) {
+      if (!file.type.startsWith("image/")) {
+        rejected.push(`${file.name} (desteklenmeyen dosya türü)`);
+      } else if (file.size > MAX_PHOTO_BYTES) {
+        rejected.push(`${file.name} (8MB sınırını aşıyor)`);
+      } else {
+        accepted.push(file);
+      }
+    }
+    setPhotos((prev) => [...prev, ...accepted]);
+    setError(rejected.length > 0 ? `Eklenemeyen fotoğraflar: ${rejected.join(", ")}` : null);
+    e.target.value = "";
   }
 
   function removePhoto(index: number) {
@@ -86,12 +103,21 @@ export default function NewListingPage() {
         }),
       });
 
+      const failedPhotos: string[] = [];
       for (const file of photos) {
         try {
           await apiUpload(`/listings/${listing.id}/photos`, file);
         } catch {
-          // Fotoğraf yüklenemese bile ilan zaten oluştu, sessizce devam et.
+          failedPhotos.push(file.name);
         }
+      }
+
+      if (failedPhotos.length > 0) {
+        window.alert(
+          `İlan kaydedildi ancak şu fotoğraflar yüklenemedi: ${failedPhotos.join(
+            ", "
+          )}. Panelden tekrar ekleyebilirsiniz.`
+        );
       }
 
       router.push("/dashboard");
@@ -252,13 +278,24 @@ export default function NewListingPage() {
           )}
 
           {step > 1 && step < TOTAL_STEPS && (
-            <Button onClick={goNext} disabled={step === 2 && !district}>
+            <Button
+              onClick={goNext}
+              disabled={
+                (step === 2 && !district) ||
+                (step === 3 && !roomCount.trim()) ||
+                (step === 4 && !isPriceValid)
+              }
+            >
               İleri
             </Button>
           )}
 
           {step === TOTAL_STEPS && (
-            <Button isLoading={isSaving} onClick={handleSave} disabled={!title || !district || !price}>
+            <Button
+              isLoading={isSaving}
+              onClick={handleSave}
+              disabled={!title.trim() || !district.trim() || !isPriceValid}
+            >
               Kaydet
             </Button>
           )}

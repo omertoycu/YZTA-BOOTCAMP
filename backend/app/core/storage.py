@@ -13,6 +13,8 @@ CONTENT_TYPE_EXTENSIONS = {
     "image/gif": "gif",
 }
 
+MAX_PHOTO_BYTES = 8 * 1024 * 1024  # 8MB
+
 
 def _get_s3_client():
     return boto3.client(
@@ -31,6 +33,9 @@ def upload_photo(file_bytes: bytes, content_type: str, listing_id: str) -> str:
     """
     if not settings.s3_endpoint_url or not settings.s3_bucket_name:
         raise HTTPException(status_code=503, detail="Fotoğraf yükleme şu an aktif değil")
+
+    if len(file_bytes) > MAX_PHOTO_BYTES:
+        raise HTTPException(status_code=413, detail="Fotoğraf çok büyük (maksimum 8MB)")
 
     extension = CONTENT_TYPE_EXTENSIONS.get(content_type)
     if not extension:

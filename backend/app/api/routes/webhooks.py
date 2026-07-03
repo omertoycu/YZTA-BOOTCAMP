@@ -28,7 +28,11 @@ def verify_webhook(
 
 def _verify_signature(raw_body: bytes, signature_header: str | None) -> bool:
     if not settings.whatsapp_app_secret:
-        # Meta onayı/app secret'ı henüz yoksa (mock/test aşaması) imza kontrolü atlanır.
+        if settings.environment == "production":
+            # Prod'da app secret'sız webhook'a asla güvenilmez: yanlışlıkla secret
+            # set edilmeden deploy edilmişse endpoint sessizce açık kalmak yerine kapanır.
+            return False
+        # Meta onayı/app secret'ı henüz yoksa (dev/mock aşaması) imza kontrolü atlanır.
         return True
     if not signature_header or not signature_header.startswith("sha256="):
         return False

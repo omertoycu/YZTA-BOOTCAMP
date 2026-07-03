@@ -11,14 +11,17 @@ import { Button } from "@/components/ui/Button";
 import { Icon } from "@/components/ui/Icon";
 import { Spinner } from "@/components/ui/Spinner";
 import { EmptyState } from "@/components/ui/EmptyState";
+import { Alert } from "@/components/ui/Alert";
 import { ListingCard } from "@/components/ListingCard";
 
 export default function ListingsPage() {
   const router = useRouter();
   const [listings, setListings] = useState<Listing[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [pricingByListing, setPricingByListing] = useState<Record<string, PricingSuggestion>>({});
   const [pricingLoading, setPricingLoading] = useState<string | null>(null);
+  const [pricingError, setPricingError] = useState<string | null>(null);
 
   useEffect(() => {
     if (!getToken()) {
@@ -31,9 +34,12 @@ export default function ListingsPage() {
 
   async function loadListings() {
     setIsLoading(true);
+    setError(null);
     try {
       const data = await apiFetch<Listing[]>("/listings");
       setListings(data);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Portföyler yüklenemedi");
     } finally {
       setIsLoading(false);
     }
@@ -41,9 +47,12 @@ export default function ListingsPage() {
 
   async function handlePricingSuggestion(listingId: string) {
     setPricingLoading(listingId);
+    setPricingError(null);
     try {
       const suggestion = await apiFetch<PricingSuggestion>(`/listings/${listingId}/pricing-suggestion`);
       setPricingByListing((prev) => ({ ...prev, [listingId]: suggestion }));
+    } catch (err) {
+      setPricingError(err instanceof Error ? err.message : "Fiyat önerisi alınamadı");
     } finally {
       setPricingLoading(null);
     }
@@ -66,6 +75,9 @@ export default function ListingsPage() {
         </Link>
       </div>
 
+      {error && <Alert>{error}</Alert>}
+      {pricingError && <Alert>{pricingError}</Alert>}
+
       {isLoading && (
         <div className="flex items-center justify-center gap-2 py-16 text-body-sm text-text-muted">
           <Spinner />
@@ -73,7 +85,7 @@ export default function ListingsPage() {
         </div>
       )}
 
-      {!isLoading && listings.length === 0 && (
+      {!isLoading && !error && listings.length === 0 && (
         <EmptyState
           icon={Building2}
           title="Henüz portföy eklenmedi"

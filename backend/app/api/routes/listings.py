@@ -10,7 +10,7 @@ from app.agents.listing_import import (
 )
 from app.agents.pricing import index_listing, suggest_price_range
 from app.api.deps import get_current_user
-from app.core.storage import upload_photo
+from app.core.storage import MAX_PHOTO_BYTES, upload_photo
 from app.middleware.tenant import get_tenant_db
 from app.models.listing import Listing
 from app.schemas.listing import (
@@ -78,7 +78,9 @@ def upload_listing_photo(
     if not listing:
         raise HTTPException(status_code=404, detail="Portföy bulunamadı")
 
-    file_bytes = file.file.read()
+    file_bytes = file.file.read(MAX_PHOTO_BYTES + 1)
+    if len(file_bytes) > MAX_PHOTO_BYTES:
+        raise HTTPException(status_code=413, detail="Fotoğraf çok büyük (maksimum 8MB)")
     url = upload_photo(file_bytes, file.content_type or "", listing_id)
     listing.photos = [*listing.photos, url]
     db.commit()
