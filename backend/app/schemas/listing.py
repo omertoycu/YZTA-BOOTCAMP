@@ -20,6 +20,7 @@ class ListingResponse(BaseModel):
     room_count: str
     square_meters: int | None
     status: str
+    photos: list[str] = []
     created_at: datetime
 
     model_config = {"from_attributes": True}
@@ -27,6 +28,10 @@ class ListingResponse(BaseModel):
 
 class ListingExtractRequest(BaseModel):
     url: str
+
+
+class ListingExtractFromHtmlRequest(BaseModel):
+    html: str
 
 
 class ListingExtractResponse(BaseModel):

@@ -9,7 +9,7 @@ export default function HomePage() {
   const router = useRouter();
 
   useEffect(() => {
-    router.replace(getToken() ? "/listings" : "/login");
+    router.replace(getToken() ? "/dashboard" : "/login");
   }, [router]);
 
   return (

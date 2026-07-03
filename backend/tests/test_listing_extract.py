@@ -84,3 +84,38 @@ def test_extract_from_url_returns_502_on_fetch_failure(client, monkeypatch):
         headers=headers,
     )
     assert resp.status_code == 502
+
+
+def test_extract_from_html_requires_auth(client):
+    resp = client.post("/listings/extract-from-html", json={"html": FAKE_SAHIBINDEN_HTML})
+    assert resp.status_code == 401
+
+
+def test_extract_from_html_returns_parsed_fields_without_fetching(client):
+    """Sahibinden'in bot koruması yüzünden fetch adımı hiç yok — sadece
+    yapıştırılan HTML parse ediliyor, hiçbir outbound istek atılmıyor."""
+    headers = _register(client, "Ofis Extract Test 4", "owner4@extract-test.com")
+    resp = client.post(
+        "/listings/extract-from-html",
+        json={"html": FAKE_SAHIBINDEN_HTML},
+        headers=headers,
+    )
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["title"] == "Deniz manzaralı 3+1 daire"
+    assert body["district"] == "Fenerbahce"
+    assert body["room_count"] == "3+1"
+    assert body["square_meters"] == 140
+
+
+def test_extract_from_html_handles_garbage_gracefully(client):
+    headers = _register(client, "Ofis Extract Test 5", "owner5@extract-test.com")
+    resp = client.post(
+        "/listings/extract-from-html",
+        json={"html": "<html><body>alakasız bir sayfa</body></html>"},
+        headers=headers,
+    )
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["title"] is None
+    assert body["price"] is None

@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
@@ -6,13 +6,16 @@ from app.agents.listing_import import (
     ListingFetchError,
     UnsupportedListingSiteError,
     extract_listing,
+    parse_sahibinden,
 )
 from app.agents.pricing import index_listing, suggest_price_range
 from app.api.deps import get_current_user
+from app.core.storage import upload_photo
 from app.middleware.tenant import get_tenant_db
 from app.models.listing import Listing
 from app.schemas.listing import (
     ListingCreate,
+    ListingExtractFromHtmlRequest,
     ListingExtractRequest,
     ListingExtractResponse,
     ListingResponse,
@@ -53,11 +56,41 @@ def extract_from_url(
     return ListingExtractResponse(**fields)
 
 
+@router.post("/extract-from-html", response_model=ListingExtractResponse)
+def extract_from_html(
+    payload: ListingExtractFromHtmlRequest,
+    current_user: dict = Depends(get_current_user),  # auth zorunlu, açık proxy istismarını önler
+):
+    """Sahibinden sunucudan atılan istekleri (bot koruması) engellediği için
+    danışman sayfa kaynağını kendi tarayıcısından kopyalayıp buraya yapıştırır —
+    fetch adımı yok, sadece parse_sahibinden ile ayrıştırma."""
+    fields = parse_sahibinden(payload.html)
+    return ListingExtractResponse(**fields)
+
+
+@router.post("/{listing_id}/photos", response_model=ListingResponse)
+def upload_listing_photo(
+    listing_id: str,
+    file: UploadFile = File(...),
+    db: Session = Depends(get_tenant_db),
+):
+    listing = db.get(Listing, listing_id)
+    if not listing:
+        raise HTTPException(status_code=404, detail="Portföy bulunamadı")
+
+    file_bytes = file.file.read()
+    url = upload_photo(file_bytes, file.content_type or "", listing_id)
+    listing.photos = [*listing.photos, url]
+    db.commit()
+    return listing
+
+
 @router.get("", response_model=list[ListingResponse])
 def list_listings(db: Session = Depends(get_tenant_db)):
     # RLS, current_user'ın office_id'si dışındaki satırları zaten filtreler;
     # burada office_id ile ayrıca filtrelemeye gerek yok.
-    return db.execute(select(Listing)).scalars().all()
+    query = select(Listing).order_by(Listing.created_at.desc())
+    return db.execute(query).scalars().all()
 
 
 @router.get("/{listing_id}", response_model=ListingResponse)

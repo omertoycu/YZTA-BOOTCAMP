@@ -4,7 +4,6 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { CheckCircle2 } from "lucide-react";
 import { apiFetch, setToken } from "@/lib/api";
-import { Logo } from "@/components/Logo";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { Alert } from "@/components/ui/Alert";
@@ -14,7 +13,7 @@ type Mode = "login" | "register";
 
 const VALUE_PROPS = [
   "İlk WhatsApp mesajından imzaya kadar hiçbir fırsatı kaçırmayın",
-  "Lead'lerinizi otomatik skorlayın, en sıcak müşteriye önce dönün",
+  "Adaylarınızı otomatik skorlayın, en sıcak müşteriye önce dönün",
   "Portföyünüze uygun alıcıyı saniyeler içinde eşleştirin",
 ];
 
@@ -43,7 +42,7 @@ export default function LoginPage() {
         body: JSON.stringify(payload),
       });
       setToken(access_token);
-      router.push("/listings");
+      router.push("/dashboard");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Bir hata oluştu");
     } finally {
@@ -53,7 +52,7 @@ export default function LoginPage() {
 
   return (
     <div className="grid min-h-screen grid-cols-1 lg:grid-cols-2">
-      <div className="relative hidden flex-col justify-between overflow-hidden bg-gradient-to-br from-brand-700 via-brand-600 to-brand-500 p-12 text-white lg:flex">
+      <div className="relative hidden flex-col justify-between overflow-hidden bg-gradient-to-br from-primary via-inverse-surface to-secondary p-12 text-on-primary lg:flex">
         <div
           className="pointer-events-none absolute inset-0 opacity-20"
           style={{
@@ -62,11 +61,9 @@ export default function LoginPage() {
             backgroundSize: "48px 48px",
           }}
         />
-        <div className="relative flex items-center gap-2">
-          <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-white/15 text-white ring-1 ring-white/25">
-            <span className="text-sm font-bold">P</span>
-          </span>
-          <span className="text-base font-semibold tracking-tight">PortföyAI</span>
+        <div className="relative">
+          <h1 className="text-headline-lg font-black tracking-tight">PortföyAI</h1>
+          <p className="mt-1 text-body-sm text-white/70">Closing Assistant</p>
         </div>
 
         <div className="relative flex flex-col gap-6">
@@ -75,7 +72,7 @@ export default function LoginPage() {
           </h1>
           <ul className="flex flex-col gap-3">
             {VALUE_PROPS.map((item) => (
-              <li key={item} className="flex items-start gap-2.5 text-sm text-brand-50">
+              <li key={item} className="flex items-start gap-2.5 text-body-sm text-white/90">
                 <CheckCircle2 className="mt-0.5 h-4 w-4 flex-shrink-0 text-white" />
                 {item}
               </li>
@@ -83,22 +80,22 @@ export default function LoginPage() {
           </ul>
         </div>
 
-        <p className="relative text-xs text-brand-100">1-5 danışmanlı bağımsız emlak ofisleri için.</p>
+        <p className="relative text-xs text-white/60">1-5 danışmanlı bağımsız emlak ofisleri için.</p>
       </div>
 
-      <div className="flex flex-col items-center justify-center px-6 py-16">
+      <div className="flex flex-col items-center justify-center bg-background px-6 py-16">
         <div className="w-full max-w-sm">
-          <div className="mb-8 flex justify-center lg:hidden">
-            <Logo />
+          <div className="mb-8 text-center lg:hidden">
+            <h1 className="text-headline-lg font-black tracking-tight text-primary">PortföyAI</h1>
           </div>
 
-          <div className="mb-6 flex gap-1 rounded-lg bg-slate-100 p-1 text-sm">
+          <div className="mb-6 flex gap-1 rounded-full bg-surface-container p-1 text-sm">
             <button
               type="button"
               onClick={() => setMode("login")}
               className={cn(
-                "flex-1 rounded-md py-1.5 font-medium transition-colors",
-                mode === "login" ? "bg-white text-slate-900 shadow-sm" : "text-slate-500 hover:text-slate-700"
+                "flex-1 rounded-full py-1.5 font-medium transition-colors",
+                mode === "login" ? "bg-surface-container-lowest text-primary shadow-sm" : "text-text-muted hover:text-on-surface"
               )}
             >
               Giriş yap
@@ -107,18 +104,18 @@ export default function LoginPage() {
               type="button"
               onClick={() => setMode("register")}
               className={cn(
-                "flex-1 rounded-md py-1.5 font-medium transition-colors",
-                mode === "register" ? "bg-white text-slate-900 shadow-sm" : "text-slate-500 hover:text-slate-700"
+                "flex-1 rounded-full py-1.5 font-medium transition-colors",
+                mode === "register" ? "bg-surface-container-lowest text-primary shadow-sm" : "text-text-muted hover:text-on-surface"
               )}
             >
               Yeni ofis kaydet
             </button>
           </div>
 
-          <h2 className="mb-1 text-xl font-semibold text-slate-900">
+          <h2 className="mb-1 text-title-md text-primary">
             {mode === "login" ? "Tekrar hoş geldiniz" : "Ofisinizi oluşturun"}
           </h2>
-          <p className="mb-6 text-sm text-slate-500">
+          <p className="mb-6 text-body-sm text-text-muted">
             {mode === "login"
               ? "Devam etmek için ofis hesabınıza giriş yapın."
               : "Birkaç saniyede ofisinizi kaydedip başlayın."}

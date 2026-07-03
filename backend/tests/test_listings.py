@@ -59,3 +59,56 @@ def test_get_unknown_listing_returns_404(client):
     fake_id = "00000000-0000-0000-0000-000000000000"
     resp = client.get(f"/listings/{fake_id}", headers=headers)
     assert resp.status_code == 404
+
+
+def test_upload_photo_returns_503_when_s3_not_configured(client):
+    """s3_endpoint_url ayarlanmamışken (henüz bucket kurulmadıysa) sert crash
+    yerine anlamlı bir 503 dönmeli — geri kalan uygulama fotoğrafsız çalışmalı."""
+    headers = _register(client, "Ofis Listing Test 5", "owner5@listing-test.com")
+    create_resp = client.post(
+        "/listings",
+        json={"title": "Fotosuz ilan", "district": "Kadikoy", "price": 15000, "room_count": "2+1"},
+        headers=headers,
+    )
+    listing_id = create_resp.json()["id"]
+
+    resp = client.post(
+        f"/listings/{listing_id}/photos",
+        files={"file": ("test.jpg", b"fake-image-bytes", "image/jpeg")},
+        headers=headers,
+    )
+    assert resp.status_code == 503
+
+
+def test_upload_photo_appends_url_to_listing(client, monkeypatch):
+    from app.api.routes import listings as listings_route
+
+    monkeypatch.setattr(listings_route, "upload_photo", lambda file_bytes, content_type, listing_id: "https://cdn.example.com/fake.jpg")
+
+    headers = _register(client, "Ofis Listing Test 6", "owner6@listing-test.com")
+    create_resp = client.post(
+        "/listings",
+        json={"title": "Fotoğraflı ilan", "district": "Kadikoy", "price": 15000, "room_count": "2+1"},
+        headers=headers,
+    )
+    listing_id = create_resp.json()["id"]
+    assert create_resp.json()["photos"] == []
+
+    resp = client.post(
+        f"/listings/{listing_id}/photos",
+        files={"file": ("test.jpg", b"fake-image-bytes", "image/jpeg")},
+        headers=headers,
+    )
+    assert resp.status_code == 200
+    assert resp.json()["photos"] == ["https://cdn.example.com/fake.jpg"]
+
+
+def test_upload_photo_unknown_listing_returns_404(client):
+    headers = _register(client, "Ofis Listing Test 7", "owner7@listing-test.com")
+    fake_id = "00000000-0000-0000-0000-000000000000"
+    resp = client.post(
+        f"/listings/{fake_id}/photos",
+        files={"file": ("test.jpg", b"fake-image-bytes", "image/jpeg")},
+        headers=headers,
+    )
+    assert resp.status_code == 404

@@ -12,7 +12,7 @@ const Input = forwardRef<HTMLInputElement, InputProps>(
         ref={ref}
         id={id}
         className={cn(
-          "h-10 w-full rounded-lg border border-slate-300 bg-white px-3 text-sm text-slate-900 placeholder:text-slate-400 transition-shadow focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-100",
+          "h-10 w-full rounded border border-outline-variant bg-surface-container-lowest px-3 text-body-sm text-on-surface placeholder:text-text-muted transition-shadow focus:border-secondary focus:outline-none focus:ring-2 focus:ring-secondary-container",
           className
         )}
         {...props}
@@ -23,7 +23,7 @@ const Input = forwardRef<HTMLInputElement, InputProps>(
 
     return (
       <div className="flex flex-col gap-1.5">
-        <label htmlFor={id} className="text-xs font-medium text-slate-600">
+        <label htmlFor={id} className="font-label text-label-caps text-on-surface-variant">
           {label}
         </label>
         {inputEl}

@@ -24,6 +24,14 @@ class Settings(BaseSettings):
     whatsapp_app_secret: str | None = None
     sentry_dsn: str | None = None
 
+    # İlan fotoğrafları: herhangi bir S3-uyumlu servis (Railway Bucket, Cloudflare R2, vb.).
+    # s3_endpoint_url boşsa fotoğraf yükleme endpoint'i 503 döner (henüz kurulmadıysa sert hata değil).
+    s3_endpoint_url: str | None = None
+    s3_bucket_name: str | None = None
+    s3_access_key_id: str | None = None
+    s3_secret_access_key: str | None = None
+    s3_public_url_base: str | None = None
+
     # Pricing Agent: bölgesel emsal ilan embedding'leri için kalıcı ChromaDB dizini.
     chroma_persist_dir: str = "./chroma_data"
 

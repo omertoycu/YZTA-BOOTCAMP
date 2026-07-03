@@ -4,16 +4,16 @@ import { Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 const buttonVariants = cva(
-  "inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-lg text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50",
+  "inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-full text-sm font-medium transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-secondary focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50",
   {
     variants: {
       variant: {
-        primary: "bg-brand-600 text-white shadow-sm hover:bg-brand-700",
-        secondary: "bg-slate-900 text-white shadow-sm hover:bg-slate-800",
-        outline: "border border-slate-300 bg-white text-slate-700 hover:bg-slate-50",
-        ghost: "text-slate-600 hover:bg-slate-100 hover:text-slate-900",
-        link: "text-brand-600 underline-offset-4 hover:underline",
-        destructive: "bg-rose-600 text-white shadow-sm hover:bg-rose-700",
+        primary: "bg-primary text-on-primary shadow-md hover:shadow-lg hover:opacity-90",
+        secondary: "bg-secondary text-on-secondary shadow-sm hover:opacity-90",
+        outline: "border border-outline-variant bg-surface-container-lowest text-on-surface hover:bg-surface-container-low",
+        ghost: "text-on-surface-variant hover:bg-surface-container-low hover:text-on-surface",
+        link: "text-secondary underline-offset-4 hover:underline",
+        destructive: "bg-error text-on-error shadow-sm hover:opacity-90",
       },
       size: {
         sm: "h-8 px-3 text-xs",

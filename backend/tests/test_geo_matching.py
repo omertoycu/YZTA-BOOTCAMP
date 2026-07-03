@@ -1,3 +1,5 @@
+import uuid
+
 from app.agents import geocoding, matching
 
 FAKE_COORDS = {
@@ -145,14 +147,17 @@ class _FakeHttpClient:
 
 
 def test_geocode_district_caches_after_first_lookup(db_session, monkeypatch):
+    # geocoded_districts test'ler arası truncate edilmiyor (kalıcı bir önbellek
+    # olduğu için bilinçli) — çakışmayı önlemek için her çalıştırmada benzersiz isim.
+    district_name = f"TestBenzersizBolge-{uuid.uuid4().hex[:8]}"
     fake_client = _FakeHttpClient([{"lat": "40.99", "lon": "29.03"}])
     monkeypatch.setattr(geocoding, "get_http_client", lambda: fake_client)
 
-    first = geocoding.geocode_district(db_session, "TestBenzersizBolge12345")
+    first = geocoding.geocode_district(db_session, district_name)
     assert first == (40.99, 29.03)
     assert fake_client.call_count == 1
 
     # İkinci çağrı önbellekten dönmeli, tekrar HTTP isteği atmamalı.
-    second = geocoding.geocode_district(db_session, "testbenzersizbolge12345")
+    second = geocoding.geocode_district(db_session, district_name.lower())
     assert second == (40.99, 29.03)
     assert fake_client.call_count == 1

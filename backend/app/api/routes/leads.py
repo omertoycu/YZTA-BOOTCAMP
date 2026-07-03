@@ -29,7 +29,8 @@ def create_lead(
 @router.get("", response_model=list[LeadResponse])
 def list_leads(db: Session = Depends(get_tenant_db)):
     # RLS, current_user'ın office_id'si dışındaki satırları zaten filtreler.
-    return db.execute(select(Lead)).scalars().all()
+    query = select(Lead).order_by(Lead.created_at.desc())
+    return db.execute(query).scalars().all()
 
 
 @router.get("/{lead_id}", response_model=LeadResponse)

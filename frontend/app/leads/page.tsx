@@ -107,15 +107,15 @@ export default function LeadsPage() {
   return (
     <div className="flex flex-col gap-8">
       <div>
-        <h1 className="text-2xl font-semibold text-slate-900">Lead&apos;ler</h1>
-        <p className="mt-1 text-sm text-slate-500">
+        <h1 className="text-headline-lg text-primary">Adaylar</h1>
+        <p className="mt-1 text-body-sm text-text-muted">
           Gelen talepleri skorlayın, en uygun portföyle eşleştirin.
         </p>
       </div>
 
       <Card>
         <CardHeader>
-          <CardTitle>Yeni lead ekle</CardTitle>
+          <CardTitle>Yeni aday ekle</CardTitle>
           <CardDescription>İletişim bilgisi ve tercihleri girerek listenize ekleyin.</CardDescription>
         </CardHeader>
         <CardContent>
@@ -161,7 +161,7 @@ export default function LeadsPage() {
             />
             <Button type="submit" className="lg:col-span-5 lg:w-fit">
               <Plus className="h-4 w-4" />
-              Lead ekle
+              Aday ekle
             </Button>
           </form>
         </CardContent>
@@ -170,7 +170,7 @@ export default function LeadsPage() {
       {error && <Alert>{error}</Alert>}
 
       {isLoading && (
-        <div className="flex items-center justify-center gap-2 py-16 text-sm text-slate-500">
+        <div className="flex items-center justify-center gap-2 py-16 text-body-sm text-text-muted">
           <Spinner />
           Yükleniyor...
         </div>
@@ -179,8 +179,8 @@ export default function LeadsPage() {
       {!isLoading && leads.length === 0 && (
         <EmptyState
           icon={Users}
-          title="Henüz lead eklenmedi"
-          description="Yukarıdaki formu kullanarak ilk lead'inizi ekleyin."
+          title="Henüz aday eklenmedi"
+          description="Yukarıdaki formu kullanarak ilk adayınızı ekleyin."
         />
       )}
 
@@ -193,8 +193,8 @@ export default function LeadsPage() {
               <CardContent className="flex flex-col gap-4">
                 <div className="flex flex-wrap items-start justify-between gap-4">
                   <div className="flex flex-col gap-2">
-                    <div className="flex items-center gap-2 text-sm font-semibold text-slate-900">
-                      <Phone className="h-4 w-4 text-slate-400" />
+                    <div className="flex items-center gap-2 font-semibold text-primary">
+                      <Phone className="h-4 w-4 text-outline" />
                       {lead.contact_phone}
                     </div>
                     <div className="flex flex-wrap items-center gap-1.5">
@@ -245,18 +245,18 @@ export default function LeadsPage() {
                 </div>
 
                 {matches && (
-                  <div className="rounded-lg bg-slate-50 p-3">
+                  <div className="rounded bg-surface-bright p-3">
                     {matches.length === 0 ? (
-                      <p className="text-sm text-slate-500">Uygun portföy bulunamadı.</p>
+                      <p className="text-body-sm text-text-muted">Uygun portföy bulunamadı.</p>
                     ) : (
                       <ul className="flex flex-col gap-1.5">
                         {matches.map((match) => (
                           <li
                             key={match.listing_id}
-                            className="flex items-center justify-between text-sm text-slate-700"
+                            className="flex items-center justify-between text-body-sm text-on-surface"
                           >
                             <span>{match.title}</span>
-                            <span className="font-medium text-slate-900">{formatCurrency(match.price)}</span>
+                            <span className="font-medium text-primary">{formatCurrency(match.price)}</span>
                           </li>
                         ))}
                       </ul>

@@ -13,6 +13,7 @@ export interface Listing {
   room_count: string;
   square_meters: number | null;
   status: string;
+  photos: string[];
   created_at: string;
 }
 

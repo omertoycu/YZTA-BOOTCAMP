@@ -1,0 +1,138 @@
+"use client";
+
+import { useEffect, useState } from "react";
+import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { apiFetch, getToken } from "@/lib/api";
+import type { Lead, Listing } from "@/lib/types";
+import { formatCurrency } from "@/lib/format";
+import { Icon } from "@/components/ui/Icon";
+import { ListingCard } from "@/components/ListingCard";
+import { Badge } from "@/components/ui/Badge";
+import { Spinner } from "@/components/ui/Spinner";
+
+export default function DashboardPage() {
+  const router = useRouter();
+  const [listings, setListings] = useState<Listing[]>([]);
+  const [leads, setLeads] = useState<Lead[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+
+  useEffect(() => {
+    if (!getToken()) {
+      router.replace("/login");
+      return;
+    }
+    (async () => {
+      setIsLoading(true);
+      try {
+        const [listingsData, leadsData] = await Promise.all([
+          apiFetch<Listing[]>("/listings"),
+          apiFetch<Lead[]>("/leads"),
+        ]);
+        setListings(listingsData);
+        setLeads(leadsData);
+      } finally {
+        setIsLoading(false);
+      }
+    })();
+  }, [router]);
+
+  return (
+    <div className="mx-auto flex max-w-[1440px] flex-col gap-gutter">
+      <header className="flex items-center justify-between">
+        <div>
+          <h2 className="text-headline-lg text-primary">Genel Bakış</h2>
+          <p className="mt-1 text-body-sm text-text-muted">
+            Toplam: <span className="font-bold text-primary">{listings.length}</span> ilan aktif.
+          </p>
+        </div>
+        <div className="flex items-center gap-4">
+          <div className="glass-panel hidden items-center gap-2 rounded-full px-4 py-2 text-text-muted shadow-sm md:flex">
+            <Icon name="search" />
+            <input
+              className="w-48 border-none bg-transparent text-sm outline-none focus:ring-0"
+              placeholder="İlan veya müşteri ara..."
+              type="text"
+              disabled
+            />
+          </div>
+          <button className="flex h-10 w-10 items-center justify-center rounded-full bg-surface-container-lowest text-text-muted shadow-sm transition-colors hover:text-primary">
+            <Icon name="notifications" />
+          </button>
+          <div className="flex h-10 w-10 items-center justify-center rounded-full border-2 border-white bg-mint-accent text-secondary shadow-sm">
+            <Icon name="person" filled />
+          </div>
+        </div>
+      </header>
+
+      {isLoading ? (
+        <div className="flex items-center justify-center gap-2 py-24 text-body-sm text-text-muted">
+          <Spinner />
+          Yükleniyor...
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 gap-gutter xl:grid-cols-12">
+          <div className="flex flex-col gap-6 xl:col-span-8">
+            <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
+              {listings.slice(0, 4).map((listing) => (
+                <ListingCard key={listing.id} listing={listing} />
+              ))}
+              {listings.length === 0 && (
+                <p className="text-body-sm text-text-muted md:col-span-2">
+                  Henüz portföy eklenmedi.
+                </p>
+              )}
+            </div>
+          </div>
+
+          <div className="flex flex-col gap-6 xl:col-span-4">
+            <Link
+              href="/listings/new"
+              className="group relative flex h-64 cursor-pointer flex-col items-center justify-center overflow-hidden rounded-lg border-2 border-dashed border-outline-variant bg-surface-container-lowest transition-colors hover:bg-surface-bright"
+            >
+              <div className="z-10 mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-white shadow-md transition-transform group-hover:scale-110">
+                <Icon name="add" />
+              </div>
+              <p className="z-10 text-title-md font-medium text-primary">Yeni İlan Ekle</p>
+            </Link>
+
+            <div className="flex flex-1 flex-col rounded-lg bg-surface-container-lowest p-6 shadow-[0px_10px_30px_rgba(0,0,0,0.04)]">
+              <div className="mb-6 flex items-center justify-between">
+                <h3 className="text-[18px] text-title-md text-primary">Aday Mesajları</h3>
+                <Badge variant="brand">YZ Destekli</Badge>
+              </div>
+              <div className="flex max-h-[400px] flex-col gap-2 overflow-y-auto pr-2">
+                {leads.slice(0, 6).map((lead) => (
+                  <Link
+                    key={lead.id}
+                    href="/leads"
+                    className="flex gap-4 rounded border border-transparent p-3 transition-colors hover:border-surface-variant hover:bg-surface-bright"
+                  >
+                    <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-surface-container text-outline">
+                      <Icon name="person" />
+                    </div>
+                    <div className="flex-1">
+                      <div className="flex items-start justify-between">
+                        <h4 className="font-semibold text-primary">{lead.contact_phone}</h4>
+                      </div>
+                      <p className="mt-1 text-[12px] text-text-muted">
+                        {lead.district ?? "Bölge belirtilmedi"}
+                        {lead.budget_max ? ` · ${formatCurrency(lead.budget_max)}'ye kadar` : ""}
+                      </p>
+                    </div>
+                    <div className="flex items-center text-outline">
+                      <Icon name="chevron_right" />
+                    </div>
+                  </Link>
+                ))}
+                {leads.length === 0 && (
+                  <p className="text-body-sm text-text-muted">Henüz lead eklenmedi.</p>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
