@@ -2,11 +2,21 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from app.agents.listing_import import (
+    ListingFetchError,
+    UnsupportedListingSiteError,
+    extract_listing,
+)
 from app.agents.pricing import index_listing, suggest_price_range
 from app.api.deps import get_current_user
 from app.middleware.tenant import get_tenant_db
 from app.models.listing import Listing
-from app.schemas.listing import ListingCreate, ListingResponse
+from app.schemas.listing import (
+    ListingCreate,
+    ListingExtractRequest,
+    ListingExtractResponse,
+    ListingResponse,
+)
 from app.schemas.pricing import PricingSuggestionResponse
 
 router = APIRouter(prefix="/listings", tags=["listings"])
@@ -27,6 +37,20 @@ def create_listing(
     db.commit()
     index_listing(listing)
     return listing
+
+
+@router.post("/extract-from-url", response_model=ListingExtractResponse)
+def extract_from_url(
+    payload: ListingExtractRequest,
+    current_user: dict = Depends(get_current_user),  # auth zorunlu, açık proxy istismarını önler
+):
+    try:
+        fields = extract_listing(payload.url)
+    except UnsupportedListingSiteError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except ListingFetchError as exc:
+        raise HTTPException(status_code=502, detail=str(exc)) from exc
+    return ListingExtractResponse(**fields)
 
 
 @router.get("", response_model=list[ListingResponse])

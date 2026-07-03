@@ -23,3 +23,15 @@ class ListingResponse(BaseModel):
     created_at: datetime
 
     model_config = {"from_attributes": True}
+
+
+class ListingExtractRequest(BaseModel):
+    url: str
+
+
+class ListingExtractResponse(BaseModel):
+    title: str | None
+    district: str | None
+    price: float | None
+    room_count: str | None
+    square_meters: int | None

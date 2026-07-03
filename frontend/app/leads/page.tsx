@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Gauge, MapPin, Phone, Plus, Sparkles, Users, Wallet } from "lucide-react";
+import { Compass, Gauge, MapPin, Phone, Plus, Sparkles, Users, Wallet } from "lucide-react";
 import { apiFetch, getToken } from "@/lib/api";
 import type { Lead, LeadScore, MatchResult } from "@/lib/types";
 import { formatCurrency } from "@/lib/format";
@@ -33,6 +33,7 @@ export default function LeadsPage() {
   const [district, setDistrict] = useState("");
   const [budgetMax, setBudgetMax] = useState("");
   const [roomCount, setRoomCount] = useState("2+1");
+  const [radiusKm, setRadiusKm] = useState("");
 
   useEffect(() => {
     if (!getToken()) {
@@ -66,11 +67,13 @@ export default function LeadsPage() {
           district: district || null,
           budget_max: budgetMax ? Number(budgetMax) : null,
           room_count: roomCount || null,
+          radius_km: radiusKm ? Number(radiusKm) : null,
         }),
       });
       setContactPhone("");
       setDistrict("");
       setBudgetMax("");
+      setRadiusKm("");
       await loadLeads();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Lead eklenemedi");
@@ -148,6 +151,14 @@ export default function LeadsPage() {
               value={roomCount}
               onChange={(e) => setRoomCount(e.target.value)}
             />
+            <Input
+              id="radiusKm"
+              label="Arama yarıçapı (km, opsiyonel)"
+              type="number"
+              placeholder="Örn. 5"
+              value={radiusKm}
+              onChange={(e) => setRadiusKm(e.target.value)}
+            />
             <Button type="submit" className="lg:col-span-5 lg:w-fit">
               <Plus className="h-4 w-4" />
               Lead ekle
@@ -196,6 +207,12 @@ export default function LeadsPage() {
                         <Wallet className="h-3 w-3" />
                         {lead.budget_max ? `${formatCurrency(lead.budget_max)}'ye kadar` : "Bütçe belirtilmedi"}
                       </Badge>
+                      {lead.radius_km && (
+                        <Badge variant="neutral">
+                          <Compass className="h-3 w-3" />
+                          {lead.radius_km} km yarıçap
+                        </Badge>
+                      )}
                       {score && (
                         <Badge variant={scoreVariant(score.score)}>
                           <Gauge className="h-3 w-3" />

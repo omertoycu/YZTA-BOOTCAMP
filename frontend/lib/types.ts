@@ -16,6 +16,14 @@ export interface Listing {
   created_at: string;
 }
 
+export interface ListingExtract {
+  title: string | null;
+  district: string | null;
+  price: number | null;
+  room_count: string | null;
+  square_meters: number | null;
+}
+
 export interface Lead {
   id: string;
   source: string;
@@ -24,6 +32,7 @@ export interface Lead {
   budget_min: number | null;
   budget_max: number | null;
   room_count: string | null;
+  radius_km: number | null;
   message_count: number;
   last_contacted_at: string | null;
   created_at: string;

@@ -2,9 +2,9 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Building2, MapPin, Plus, Sparkles } from "lucide-react";
+import { Building2, Link2, MapPin, Plus, Sparkles } from "lucide-react";
 import { apiFetch, getToken } from "@/lib/api";
-import type { Listing, PricingSuggestion } from "@/lib/types";
+import type { Listing, ListingExtract, PricingSuggestion } from "@/lib/types";
 import { formatCurrency } from "@/lib/format";
 import { Button } from "@/components/ui/Button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/Card";
@@ -26,6 +26,9 @@ export default function ListingsPage() {
   const [district, setDistrict] = useState("");
   const [price, setPrice] = useState("");
   const [roomCount, setRoomCount] = useState("2+1");
+
+  const [sourceUrl, setSourceUrl] = useState("");
+  const [isExtracting, setIsExtracting] = useState(false);
 
   useEffect(() => {
     if (!getToken()) {
@@ -65,6 +68,25 @@ export default function ListingsPage() {
     }
   }
 
+  async function handleExtract() {
+    setError(null);
+    setIsExtracting(true);
+    try {
+      const fields = await apiFetch<ListingExtract>("/listings/extract-from-url", {
+        method: "POST",
+        body: JSON.stringify({ url: sourceUrl }),
+      });
+      if (fields.title) setTitle(fields.title);
+      if (fields.district) setDistrict(fields.district);
+      if (fields.price) setPrice(String(fields.price));
+      if (fields.room_count) setRoomCount(fields.room_count);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Linkten bilgi alınamadı, elle doldurabilirsiniz");
+    } finally {
+      setIsExtracting(false);
+    }
+  }
+
   async function handlePricingSuggestion(listingId: string) {
     setPricingLoading(listingId);
     try {
@@ -91,7 +113,28 @@ export default function ListingsPage() {
           <CardTitle>Yeni portföy ekle</CardTitle>
           <CardDescription>İlan bilgilerini girip listenize saniyeler içinde ekleyin.</CardDescription>
         </CardHeader>
-        <CardContent>
+        <CardContent className="flex flex-col gap-5">
+          <div className="flex flex-col gap-2 rounded-lg border border-dashed border-slate-200 bg-slate-50/60 p-4 sm:flex-row sm:items-end">
+            <Input
+              id="sourceUrl"
+              label="Sahibinden linki (opsiyonel)"
+              placeholder="https://www.sahibinden.com/ilan/..."
+              value={sourceUrl}
+              onChange={(e) => setSourceUrl(e.target.value)}
+              className="flex-1"
+            />
+            <Button
+              type="button"
+              variant="outline"
+              isLoading={isExtracting}
+              disabled={!sourceUrl}
+              onClick={handleExtract}
+            >
+              <Link2 className="h-3.5 w-3.5" />
+              Doldur
+            </Button>
+          </div>
+
           <form onSubmit={handleCreate} className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-5 lg:items-end">
             <Input
               id="title"

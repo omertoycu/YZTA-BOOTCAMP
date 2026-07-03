@@ -13,6 +13,7 @@ from app.models import (  # noqa: F401  (Base.metadata için import gerekli)
     Lead,
     LeadScore,
     WhatsAppInboundEvent,
+    GeocodedDistrict,
 )
 
 config = context.config

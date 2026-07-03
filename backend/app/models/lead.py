@@ -19,6 +19,9 @@ class Lead(Base):
     budget_min: Mapped[float] = mapped_column(Numeric(12, 2), nullable=True)
     budget_max: Mapped[float] = mapped_column(Numeric(12, 2), nullable=True)
     room_count: Mapped[str] = mapped_column(String(20), nullable=True)
+    # Set edilirse matching_node district tam eşleşmesi yerine bu yarıçapta
+    # coğrafi filtre uygular (bkz. app/agents/geocoding.py, app/agents/matching.py).
+    radius_km: Mapped[float | None] = mapped_column(Numeric(6, 2), nullable=True)
     # message_count/last_contacted_at manuel girişte elle, WhatsApp Intake Agent'ında
     # (app/agents/intake.py) otomatik güncellenir. Mesaj içeriği/transkript ayrı bir
     # tabloda tutulmuyor — sadece idempotency için whatsapp_inbound_events var.

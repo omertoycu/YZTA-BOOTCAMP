@@ -11,6 +11,9 @@ class LeadCreate(BaseModel):
     budget_min: float | None = None
     budget_max: float | None = None
     room_count: str | None = None
+    # Set edilirse eşleştirmede bölge tam eşleşmesi yerine coğrafi yarıçap
+    # filtresi uygulanır (bkz. app/agents/matching.py).
+    radius_km: float | None = None
     # WhatsApp Intake Agent gelene kadar (Sprint 2), bu ikisi manuel/demo amaçlı
     # elle girilir; gerçek konuşma verisi geldiğinde otomatik güncellenecek.
     message_count: int = 0
@@ -25,6 +28,7 @@ class LeadResponse(BaseModel):
     budget_min: float | None
     budget_max: float | None
     room_count: str | None
+    radius_km: float | None
     message_count: int
     last_contacted_at: datetime | None
     created_at: datetime

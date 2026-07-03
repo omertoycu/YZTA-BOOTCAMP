@@ -55,6 +55,7 @@ def match_lead(lead_id: str, db: Session = Depends(get_tenant_db)):
             "budget_max": float(lead.budget_max) if lead.budget_max else None,
             "room_count": lead.room_count,
             "district": lead.district,
+            "radius_km": float(lead.radius_km) if lead.radius_km else None,
         }
     )
     return result["candidate_listings"]
