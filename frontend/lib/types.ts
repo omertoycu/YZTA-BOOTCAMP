@@ -25,6 +25,15 @@ export interface ListingExtract {
   square_meters: number | null;
 }
 
+export interface VoiceListingDraft {
+  transcript: string;
+  title: string | null;
+  district: string | null;
+  price: number | null;
+  room_count: string | null;
+  square_meters: number | null;
+}
+
 export interface Lead {
   id: string;
   source: string;
@@ -52,6 +61,28 @@ export interface LeadScore {
   score: number;
   score_breakdown: Record<string, unknown>;
   computed_at: string;
+}
+
+export interface DistrictCount {
+  district: string;
+  count: number;
+}
+
+export interface ScoreBucket {
+  label: string;
+  count: number;
+}
+
+export interface ReportsOverview {
+  listing_count: number;
+  active_listing_count: number;
+  listings_by_district: DistrictCount[];
+  lead_count: number;
+  leads_by_source: Record<string, number>;
+  leads_by_district: DistrictCount[];
+  scored_lead_count: number;
+  average_score: number | null;
+  score_distribution: ScoreBucket[];
 }
 
 export interface PricingSuggestion {

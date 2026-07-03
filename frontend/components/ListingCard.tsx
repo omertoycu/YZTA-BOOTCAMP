@@ -1,10 +1,14 @@
+"use client";
+
+import { useState } from "react";
 import Link from "next/link";
 import type { Listing } from "@/lib/types";
 import { formatCurrency } from "@/lib/format";
 import { Icon } from "@/components/ui/Icon";
 
 export function ListingCard({ listing }: { listing: Listing }) {
-  const cover = listing.photos[0];
+  const [coverFailed, setCoverFailed] = useState(false);
+  const cover = !coverFailed ? listing.photos[0] : undefined;
 
   return (
     <div className="flex flex-col rounded-lg bg-surface-container-lowest p-4 shadow-[0px_10px_30px_rgba(0,0,0,0.04)] transition-shadow duration-300 hover:shadow-[0px_15px_40px_rgba(0,0,0,0.08)]">
@@ -39,7 +43,12 @@ export function ListingCard({ listing }: { listing: Listing }) {
       <div className="relative mt-auto h-48 w-full overflow-hidden rounded">
         {cover ? (
           // eslint-disable-next-line @next/next/no-img-element
-          <img src={cover} alt={listing.title} className="h-full w-full object-cover" />
+          <img
+            src={cover}
+            alt={listing.title}
+            className="h-full w-full object-cover"
+            onError={() => setCoverFailed(true)}
+          />
         ) : (
           <div className="flex h-full w-full items-center justify-center bg-surface-container text-outline">
             <Icon name="home_work" className="text-[40px]" />
@@ -49,7 +58,7 @@ export function ListingCard({ listing }: { listing: Listing }) {
           {formatCurrency(listing.price)}
         </p>
         <Link
-          href="/listings"
+          href={`/listings/${listing.id}`}
           className="absolute bottom-3 right-3 rounded-full bg-primary px-4 py-2 font-label text-label-caps text-on-primary shadow-lg transition-transform hover:scale-105"
         >
           İncele

@@ -9,6 +9,7 @@ from app.agents.listing_import import (
     parse_sahibinden,
 )
 from app.agents.pricing import index_listing, suggest_price_range
+from app.agents.voice_listing import MAX_AUDIO_BYTES, VoiceListingError, transcribe_and_extract
 from app.api.deps import get_current_user
 from app.core.storage import MAX_PHOTO_BYTES, upload_photo
 from app.middleware.tenant import get_tenant_db
@@ -19,6 +20,7 @@ from app.schemas.listing import (
     ListingExtractRequest,
     ListingExtractResponse,
     ListingResponse,
+    VoiceListingDraftResponse,
 )
 from app.schemas.pricing import PricingSuggestionResponse
 
@@ -66,6 +68,33 @@ def extract_from_html(
     fetch adımı yok, sadece parse_sahibinden ile ayrıştırma."""
     fields = parse_sahibinden(payload.html)
     return ListingExtractResponse(**fields)
+
+
+@router.post("/voice-draft", response_model=VoiceListingDraftResponse)
+def create_voice_draft(
+    file: UploadFile = File(...),
+    current_user: dict = Depends(get_current_user),  # auth zorunlu, açık proxy istismarını önler
+):
+    """Danışmanın kaydettiği/yüklediği sesli notu Gemini ile transkript edip
+    yapılandırılmış bir ilan taslağına çevirir. Hiçbir şey otomatik yayınlanmaz —
+    frontend, danışman taslağı gözden geçirip onayladıktan sonra normal
+    POST /listings akışıyla ilanı oluşturur."""
+    audio_bytes = file.file.read(MAX_AUDIO_BYTES + 1)
+    if len(audio_bytes) > MAX_AUDIO_BYTES:
+        raise HTTPException(status_code=413, detail="Ses kaydı çok büyük (maksimum 20MB)")
+    if not audio_bytes:
+        raise HTTPException(status_code=422, detail="Boş ses kaydı")
+
+    content_type = (file.content_type or "audio/webm").split(";")[0].strip()
+
+    try:
+        draft = transcribe_and_extract(audio_bytes, content_type)
+    except VoiceListingError as exc:
+        if str(exc) == "__not_configured__":
+            raise HTTPException(status_code=503, detail="Sesli not işleme şu an aktif değil") from exc
+        raise HTTPException(status_code=502, detail=str(exc)) from exc
+
+    return VoiceListingDraftResponse(**draft)
 
 
 @router.post("/{listing_id}/photos", response_model=ListingResponse)

@@ -50,6 +50,7 @@ def upload_photo(file_bytes: bytes, content_type: str, listing_id: str) -> str:
             Key=key,
             Body=file_bytes,
             ContentType=content_type,
+            ACL="public-read",
         )
     except (BotoCoreError, ClientError) as exc:
         raise HTTPException(status_code=502, detail="Fotoğraf yüklenemedi, tekrar deneyin") from exc

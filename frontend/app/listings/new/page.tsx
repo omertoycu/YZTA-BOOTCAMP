@@ -27,10 +27,17 @@ export default function NewListingPage() {
   const [roomCount, setRoomCount] = useState("2+1");
   const [squareMeters, setSquareMeters] = useState("");
   const [photos, setPhotos] = useState<File[]>([]);
+  const [photoPreviewUrls, setPhotoPreviewUrls] = useState<string[]>([]);
 
   useEffect(() => {
     if (!getToken()) router.replace("/login");
   }, [router]);
+
+  useEffect(() => {
+    const urls = photos.map((file) => URL.createObjectURL(file));
+    setPhotoPreviewUrls(urls);
+    return () => urls.forEach((url) => URL.revokeObjectURL(url));
+  }, [photos]);
 
   function goNext() {
     setError(null);
@@ -226,32 +233,31 @@ export default function NewListingPage() {
         {step === 6 && (
           <div className="flex flex-col gap-4">
             <h2 className="text-title-md text-primary">Fotoğraf ekleyin (opsiyonel)</h2>
-            <label className="flex cursor-pointer flex-col items-center justify-center gap-2 rounded border-2 border-dashed border-outline-variant py-8 text-text-muted hover:bg-surface-bright">
-              <Icon name="add_photo_alternate" />
-              <span className="text-body-sm">Fotoğraf seç</span>
-              <input type="file" accept="image/*" multiple className="hidden" onChange={handlePhotoSelect} />
-            </label>
-            {photos.length > 0 && (
-              <div className="grid grid-cols-3 gap-2">
-                {photos.map((file, i) => (
-                  <div key={i} className="group relative aspect-square overflow-hidden rounded">
-                    {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img
-                      src={URL.createObjectURL(file)}
-                      alt={file.name}
-                      className="h-full w-full object-cover"
-                    />
-                    <button
-                      type="button"
-                      onClick={() => removePhoto(i)}
-                      className="absolute right-1 top-1 flex h-6 w-6 items-center justify-center rounded-full bg-primary/80 text-on-primary opacity-0 transition-opacity group-hover:opacity-100"
-                    >
-                      <Icon name="close" className="text-[16px]" />
-                    </button>
-                  </div>
-                ))}
-              </div>
-            )}
+            <div className="grid grid-cols-3 gap-2">
+              {photos.map((file, i) => (
+                <div key={i} className="group relative aspect-square overflow-hidden rounded">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img src={photoPreviewUrls[i]} alt={file.name} className="h-full w-full object-cover" />
+                  {i === 0 && (
+                    <span className="absolute left-1 top-1 rounded-full bg-primary/80 px-2 py-0.5 text-[10px] font-semibold text-on-primary">
+                      Kapak
+                    </span>
+                  )}
+                  <button
+                    type="button"
+                    onClick={() => removePhoto(i)}
+                    className="absolute right-1 top-1 flex h-6 w-6 items-center justify-center rounded-full bg-primary/80 text-on-primary opacity-0 transition-opacity group-hover:opacity-100"
+                  >
+                    <Icon name="close" className="text-[16px]" />
+                  </button>
+                </div>
+              ))}
+              <label className="flex aspect-square cursor-pointer flex-col items-center justify-center gap-1 rounded border-2 border-dashed border-outline-variant text-text-muted hover:bg-surface-bright">
+                <Icon name="add_photo_alternate" />
+                <span className="text-center text-[11px] leading-tight">Fotoğraf seç</span>
+                <input type="file" accept="image/*" multiple className="hidden" onChange={handlePhotoSelect} />
+              </label>
+            </div>
           </div>
         )}
 

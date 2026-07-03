@@ -40,3 +40,12 @@ class ListingExtractResponse(BaseModel):
     price: float | None
     room_count: str | None
     square_meters: int | None
+
+
+class VoiceListingDraftResponse(BaseModel):
+    transcript: str
+    title: str | None
+    district: str | None
+    price: float | None
+    room_count: str | None
+    square_meters: int | None
