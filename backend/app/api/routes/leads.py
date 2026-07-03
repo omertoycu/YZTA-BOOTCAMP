@@ -1,17 +1,26 @@
+from datetime import datetime, timezone
+
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.agents.graph import build_matching_graph
 from app.agents.scoring import calculate_lead_score
+from app.agents.whatsapp_send import WhatsAppSendError, send_whatsapp_text
 from app.api.deps import get_current_user
 from app.middleware.tenant import get_tenant_db
 from app.models.lead import Lead
 from app.models.lead_score import LeadScore
-from app.schemas.lead import LeadCreate, LeadResponse, MatchResult
+from app.models.office import Office
+from app.schemas.lead import FollowUpRequest, FollowUpResponse, LeadCreate, LeadResponse, MatchResult
 from app.schemas.lead_score import LeadScoreResponse
 
 router = APIRouter(prefix="/leads", tags=["leads"])
+
+DEFAULT_FOLLOW_UP_TEMPLATE = (
+    "Merhaba, PortföyAI danışmanınız buradan yazıyor. {district} bölgesinde aradığınız "
+    "kriterlere uygun yeni portföylerimiz oldu, size uygun bir zamanda görüşebilir miyiz?"
+)
 
 
 @router.post("", response_model=LeadResponse, status_code=201)
@@ -82,3 +91,35 @@ def score_lead(
     db.add(lead_score)
     db.commit()
     return lead_score
+
+
+@router.post("/{lead_id}/follow-up", response_model=FollowUpResponse)
+def send_follow_up(
+    lead_id: str,
+    payload: FollowUpRequest,
+    db: Session = Depends(get_tenant_db),
+    current_user: dict = Depends(get_current_user),
+):
+    """Lead'e manuel tetiklenen bir WhatsApp takip mesajı gönderir. Otomatik
+    (zamanlanmış) takip zinciri ayrı bir altyapı (cron/scheduler) gerektirir —
+    bu, danışmanın panelden bir tıkla tetiklediği MVP versiyonu."""
+    lead = db.get(Lead, lead_id)
+    if not lead:
+        raise HTTPException(status_code=404, detail="Lead bulunamadı")
+
+    office = db.get(Office, current_user["office_id"])
+    if not office or not office.whatsapp_phone_number_id:
+        raise HTTPException(status_code=503, detail="Bu ofis için WhatsApp gönderimi henüz bağlı değil")
+
+    message = payload.message or DEFAULT_FOLLOW_UP_TEMPLATE.format(district=lead.district or "bölgenizde")
+
+    try:
+        send_whatsapp_text(office.whatsapp_phone_number_id, lead.contact_phone, message)
+    except WhatsAppSendError as exc:
+        if str(exc) == "__not_configured__":
+            raise HTTPException(status_code=503, detail="WhatsApp gönderimi şu an aktif değil") from exc
+        raise HTTPException(status_code=502, detail=str(exc)) from exc
+
+    lead.last_contacted_at = datetime.now(timezone.utc)
+    db.commit()
+    return FollowUpResponse(sent=True, message=message)

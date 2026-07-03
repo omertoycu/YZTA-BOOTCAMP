@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
+from fastapi import APIRouter, Depends, File, HTTPException, Response, UploadFile
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
@@ -8,18 +8,21 @@ from app.agents.listing_import import (
     extract_listing,
     parse_sahibinden,
 )
+from app.agents.location_report import LocationReportError, get_travel_summary, render_report_pdf
 from app.agents.pricing import index_listing, suggest_price_range
 from app.agents.voice_listing import MAX_AUDIO_BYTES, VoiceListingError, transcribe_and_extract
 from app.api.deps import get_current_user
 from app.core.storage import MAX_PHOTO_BYTES, upload_photo
 from app.middleware.tenant import get_tenant_db
 from app.models.listing import Listing
+from app.models.office import Office
 from app.schemas.listing import (
     ListingCreate,
     ListingExtractFromHtmlRequest,
     ListingExtractRequest,
     ListingExtractResponse,
     ListingResponse,
+    LocationReportRequest,
     VoiceListingDraftResponse,
 )
 from app.schemas.pricing import PricingSuggestionResponse
@@ -114,6 +117,45 @@ def upload_listing_photo(
     listing.photos = [*listing.photos, url]
     db.commit()
     return listing
+
+
+@router.post("/{listing_id}/location-report")
+def create_location_report(
+    listing_id: str,
+    payload: LocationReportRequest,
+    db: Session = Depends(get_tenant_db),
+    current_user: dict = Depends(get_current_user),
+):
+    """Markalı ulaşım/konum raporu PDF'i üretir. Portföyün bölgesi origin,
+    danışmanın girdiği hedef adres destination olarak Google Directions API'ye
+    serbest metin gönderilir — Google kendi içinde geocode ettiği için ayrıca
+    Nominatim'e gerek yok. PDF diske/S3'e kaydedilmez, doğrudan indirilir."""
+    listing = db.get(Listing, listing_id)
+    if not listing:
+        raise HTTPException(status_code=404, detail="Portföy bulunamadı")
+    office = db.get(Office, current_user["office_id"])
+
+    origin = f"{listing.district}, İstanbul"
+    try:
+        travel_summary = get_travel_summary(origin, payload.target_address)
+    except LocationReportError as exc:
+        if str(exc) == "__not_configured__":
+            raise HTTPException(status_code=503, detail="Ulaşım raporu şu an aktif değil") from exc
+        raise HTTPException(status_code=502, detail=str(exc)) from exc
+
+    pdf_bytes = render_report_pdf(
+        office_name=office.name if office else "PortföyAI",
+        listing_title=listing.title,
+        listing_district=listing.district,
+        target_label=payload.target_label or payload.target_address,
+        travel_summary=travel_summary,
+    )
+
+    return Response(
+        content=pdf_bytes,
+        media_type="application/pdf",
+        headers={"Content-Disposition": f'inline; filename="ulasim-raporu-{listing_id}.pdf"'},
+    )
 
 
 @router.get("", response_model=list[ListingResponse])

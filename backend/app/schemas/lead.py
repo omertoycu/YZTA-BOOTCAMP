@@ -41,3 +41,12 @@ class MatchResult(BaseModel):
     title: str
     price: float
     match_reason: str
+
+
+class FollowUpRequest(BaseModel):
+    message: str | None = None
+
+
+class FollowUpResponse(BaseModel):
+    sent: bool
+    message: str

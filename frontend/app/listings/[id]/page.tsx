@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import { ArrowLeft, Ruler, DoorOpen, MapPin, Sparkles, CalendarDays } from "lucide-react";
-import { apiFetch, getToken } from "@/lib/api";
+import { apiFetch, apiFetchBlob, getToken } from "@/lib/api";
 import type { Listing, PricingSuggestion } from "@/lib/types";
 import { formatCurrency } from "@/lib/format";
 import { Button } from "@/components/ui/Button";
@@ -12,6 +12,7 @@ import { Badge } from "@/components/ui/Badge";
 import { Alert } from "@/components/ui/Alert";
 import { Spinner } from "@/components/ui/Spinner";
 import { Icon } from "@/components/ui/Icon";
+import { Input } from "@/components/ui/Input";
 
 export default function ListingDetailPage() {
   const router = useRouter();
@@ -25,6 +26,11 @@ export default function ListingDetailPage() {
   const [pricing, setPricing] = useState<PricingSuggestion | null>(null);
   const [pricingLoading, setPricingLoading] = useState(false);
   const [pricingError, setPricingError] = useState<string | null>(null);
+
+  const [targetAddress, setTargetAddress] = useState("");
+  const [targetLabel, setTargetLabel] = useState("");
+  const [reportLoading, setReportLoading] = useState(false);
+  const [reportError, setReportError] = useState<string | null>(null);
 
   useEffect(() => {
     if (!getToken()) {
@@ -59,6 +65,24 @@ export default function ListingDetailPage() {
       setPricingError(err instanceof Error ? err.message : "Fiyat önerisi alınamadı");
     } finally {
       setPricingLoading(false);
+    }
+  }
+
+  async function handleGenerateReport() {
+    if (!listing || !targetAddress.trim()) return;
+    setReportLoading(true);
+    setReportError(null);
+    try {
+      const blob = await apiFetchBlob(`/listings/${listing.id}/location-report`, {
+        method: "POST",
+        body: JSON.stringify({ target_address: targetAddress, target_label: targetLabel || null }),
+      });
+      const url = URL.createObjectURL(blob);
+      window.open(url, "_blank");
+    } catch (err) {
+      setReportError(err instanceof Error ? err.message : "Rapor oluşturulamadı");
+    } finally {
+      setReportLoading(false);
     }
   }
 
@@ -194,12 +218,41 @@ export default function ListingDetailPage() {
             )}
           </div>
 
-          <div className="flex flex-col gap-2 rounded-lg border border-dashed border-outline-variant p-4 text-body-sm text-text-muted">
+          <div className="flex flex-col gap-3 rounded-lg bg-surface-container-lowest p-4 shadow-[0px_10px_30px_rgba(0,0,0,0.04)]">
             <span className="flex items-center gap-2 font-medium text-on-surface">
               <Icon name="directions" />
               Markalı Ulaşım/Konum Raporu
             </span>
-            Yakında: adaya bu ilana ulaşım sürelerini gösteren PDF rapor gönderebileceksiniz.
+            <p className="text-body-sm text-text-muted">
+              Adayın önem verdiği bir adresi (iş yeri, metro istasyonu vb.) girin; bu ilana araçla,
+              yürüyerek ve toplu taşımayla ulaşım sürelerini gösteren bir PDF oluşturulsun.
+            </p>
+            <Input
+              id="targetAddress"
+              label="Hedef adres"
+              placeholder="Örn. Levent, İstanbul"
+              value={targetAddress}
+              onChange={(e) => setTargetAddress(e.target.value)}
+            />
+            <Input
+              id="targetLabel"
+              label="Etiket (opsiyonel)"
+              placeholder="Örn. İş yeri"
+              value={targetLabel}
+              onChange={(e) => setTargetLabel(e.target.value)}
+            />
+            {reportError && <Alert>{reportError}</Alert>}
+            <Button
+              variant="outline"
+              size="sm"
+              className="w-fit"
+              isLoading={reportLoading}
+              disabled={!targetAddress.trim()}
+              onClick={handleGenerateReport}
+            >
+              <Icon name="picture_as_pdf" className="text-[16px]" />
+              Rapor Oluştur
+            </Button>
           </div>
         </div>
       </div>

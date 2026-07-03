@@ -42,6 +42,11 @@ class ListingExtractResponse(BaseModel):
     square_meters: int | None
 
 
+class LocationReportRequest(BaseModel):
+    target_address: str
+    target_label: str | None = None
+
+
 class VoiceListingDraftResponse(BaseModel):
     transcript: str
     title: str | None

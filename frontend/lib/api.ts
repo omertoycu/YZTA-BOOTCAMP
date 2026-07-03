@@ -51,6 +51,37 @@ export async function apiFetch<T>(path: string, options: RequestInit = {}): Prom
   return handleResponse<T>(res);
 }
 
+export async function apiFetchBlob(path: string, options: RequestInit = {}): Promise<Blob> {
+  const token = getToken();
+  const headers: Record<string, string> = {
+    "Content-Type": "application/json",
+    ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    ...(options.headers as Record<string, string> | undefined),
+  };
+
+  const res = await fetch(`${API_URL}${path}`, { ...options, headers });
+
+  if (res.status === 401) {
+    clearToken();
+    if (typeof window !== "undefined" && window.location.pathname !== "/login") {
+      window.location.href = "/login";
+    }
+  }
+
+  if (!res.ok) {
+    let detail = res.statusText;
+    try {
+      const body = await res.json();
+      detail = body.detail || detail;
+    } catch {
+      // yanıt gövdesi JSON değilse statusText ile devam et
+    }
+    throw new ApiError(detail);
+  }
+
+  return res.blob();
+}
+
 export async function apiUpload<T>(path: string, file: File): Promise<T> {
   const token = getToken();
   const formData = new FormData();

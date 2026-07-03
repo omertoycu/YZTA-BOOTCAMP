@@ -2,9 +2,9 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Compass, Gauge, MapPin, Phone, Plus, Sparkles, Users, Wallet } from "lucide-react";
+import { Compass, Gauge, MapPin, MessageCircle, Phone, Plus, Sparkles, Users, Wallet } from "lucide-react";
 import { apiFetch, getToken } from "@/lib/api";
-import type { Lead, LeadScore, MatchResult } from "@/lib/types";
+import type { FollowUpResult, Lead, LeadScore, MatchResult } from "@/lib/types";
 import { formatCurrency } from "@/lib/format";
 import { Button } from "@/components/ui/Button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/Card";
@@ -27,6 +27,7 @@ export default function LeadsPage() {
   const [error, setError] = useState<string | null>(null);
   const [scoresByLead, setScoresByLead] = useState<Record<string, LeadScore>>({});
   const [matchesByLead, setMatchesByLead] = useState<Record<string, MatchResult[]>>({});
+  const [followUpResultByLead, setFollowUpResultByLead] = useState<Record<string, string>>({});
   const [pendingAction, setPendingAction] = useState<string | null>(null);
 
   const [contactPhone, setContactPhone] = useState("");
@@ -99,6 +100,20 @@ export default function LeadsPage() {
       setMatchesByLead((prev) => ({ ...prev, [leadId]: matches }));
     } catch (err) {
       setError(err instanceof Error ? err.message : "Eşleştirme yapılamadı");
+    } finally {
+      setPendingAction(null);
+    }
+  }
+
+  async function handleFollowUp(leadId: string) {
+    setPendingAction(`follow-up-${leadId}`);
+    setError(null);
+    try {
+      const result = await apiFetch<FollowUpResult>(`/leads/${leadId}/follow-up`, { method: "POST" });
+      setFollowUpResultByLead((prev) => ({ ...prev, [leadId]: result.message }));
+      await loadLeads();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Takip mesajı gönderilemedi");
     } finally {
       setPendingAction(null);
     }
@@ -241,8 +256,23 @@ export default function LeadsPage() {
                       <Sparkles className="h-3.5 w-3.5" />
                       Eşleştir
                     </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      isLoading={pendingAction === `follow-up-${lead.id}`}
+                      onClick={() => handleFollowUp(lead.id)}
+                    >
+                      <MessageCircle className="h-3.5 w-3.5" />
+                      Takip Mesajı Gönder
+                    </Button>
                   </div>
                 </div>
+
+                {followUpResultByLead[lead.id] && (
+                  <div className="rounded bg-mint-accent p-3 text-body-sm text-on-secondary-container">
+                    Gönderildi: &ldquo;{followUpResultByLead[lead.id]}&rdquo;
+                  </div>
+                )}
 
                 {matches && (
                   <div className="rounded bg-surface-bright p-3">

@@ -48,6 +48,11 @@ export interface Lead {
   created_at: string;
 }
 
+export interface FollowUpResult {
+  sent: boolean;
+  message: string;
+}
+
 export interface MatchResult {
   listing_id: string;
   title: string;
