@@ -18,6 +18,10 @@ class Settings(BaseSettings):
     iyzico_api_key: str | None = None
     iyzico_secret_key: str | None = None
     whatsapp_token: str | None = None
+    # Meta'nın webhook kurulum handshake'inde (GET) döndüğümüz hub.verify_token'la eşleşmeli.
+    whatsapp_verify_token: str | None = None
+    # X-Hub-Signature-256 doğrulaması için; boşsa (henüz Meta onayı yoksa) imza kontrolü atlanır.
+    whatsapp_app_secret: str | None = None
     sentry_dsn: str | None = None
 
     # Pricing Agent: bölgesel emsal ilan embedding'leri için kalıcı ChromaDB dizini.

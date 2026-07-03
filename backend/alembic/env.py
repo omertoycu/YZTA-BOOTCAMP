@@ -6,7 +6,14 @@ from sqlalchemy import engine_from_config, pool
 
 from app.core.config import settings
 from app.core.db import Base
-from app.models import Office, User, Listing, Lead, LeadScore  # noqa: F401  (Base.metadata için import gerekli)
+from app.models import (  # noqa: F401  (Base.metadata için import gerekli)
+    Office,
+    User,
+    Listing,
+    Lead,
+    LeadScore,
+    WhatsAppInboundEvent,
+)
 
 config = context.config
 

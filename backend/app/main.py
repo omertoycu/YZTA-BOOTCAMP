@@ -3,7 +3,7 @@ from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
-from app.api.routes import auth, leads, listings, offices
+from app.api.routes import auth, leads, listings, offices, webhooks
 from app.core.config import settings
 
 if settings.sentry_dsn:
@@ -23,6 +23,7 @@ app.include_router(auth.router)
 app.include_router(offices.router)
 app.include_router(listings.router)
 app.include_router(leads.router)
+app.include_router(webhooks.router)
 
 
 @app.exception_handler(Exception)
