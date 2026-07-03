@@ -23,4 +23,13 @@
 
 ---
 
+## 2026-07-03 — WhatsApp Intake Agent, İlan İçe Aktarma, Konum Bazlı Eşleştirme, Fotoğraf Yükleme, Tasarım Sistemi
+
+**Ömer Faruk Toycu**
+1. Dün: Ofis paneli iskeleti (giriş, portföy/lead listeleri) kuruldu.
+2. Bugün: Story 7'nin (WhatsApp Intake Agent) webhook kod tarafı tamamlandı — Meta Cloud API şemasına göre `POST/GET /webhooks/whatsapp`, `X-Hub-Signature-256` HMAC doğrulaması, `whatsapp_inbound_events` tablosuyla idempotency. Ardından backlog'da olmayan üç ek özellik eklendi: (1) Sahibinden sayfa kaynağı yapıştır → form doldur (`extract-from-html`, JSON-LD + CSS seçiciler), (2) konum/yarıçap bazlı eşleştirme (Nominatim geocoding + DB önbellek, `matching.py` güncellendi), (3) S3-uyumlu ilan fotoğrafı yükleme. Son olarak ofis paneli, verilen mockup'a göre tamamen yeni bir tasarım sistemine (bento-grid dashboard, sol sidebar, 6 adımlı rehberli ilan ekleme sihirbazı) geçirildi. Backend + PostgreSQL Railway'e, ofis paneli Vercel'e deploy edildi; migration'lardaki bootstrap rol şifreleri rotate edildi.
+3. Engel: WhatsApp Intake Agent, Meta Business Manager doğrulaması tamamlanana kadar canlı numarayla test edilemiyor (manuel/kurumsal işlem). Sahibinden seçicileri gerçek HTML görülmeden yazıldı, gerçek yapıştırılmış kaynaklarla doğrulanması gerekiyor. Railway Bucket (S3) kurulumu credential girme aşamasında, ilk gerçek fotoğraf yüklemesiyle public-read erişimi doğrulanacak.
+
+---
+
 *(Sonraki günler eklenecektir.)*

@@ -9,9 +9,11 @@
 
 | İsim | Rol |
 |------|-----|
-| [Ömer Faruk Toycu] | Product Owner |
-| [Ömer Faruk Toycu] | Scrum Master |
-| [Ömer Faruk Toycu] | Developer |
+| Ömer Faruk Toycu | Product Owner |
+| Ömer Faruk Toycu | Scrum Master |
+| Ömer Faruk Toycu | Developer |
+
+> Tek kişilik takım — tüm roller aynı kişi tarafından yürütülmektedir.
 
 ---
 
@@ -27,22 +29,27 @@ PortföyAI, emlak danışmanının CRM'i değil; ilk WhatsApp mesajından imzaya
 
 Türkiye emlak yazılım pazarında "AI destekli CRM" artık bir farklılaştırıcı değil, sektör standardı (Arveya, RE-OS, EmlakCRMx gibi oyuncular zaten lead skorlama ve AI eşleştirme sunuyor — detaylı rakip analizi için [Girişim Analizi Raporu](./PortfoyAI_Girisim_Analizi_ve_Teknik_Rapor.md)'na bakınız). Bu yüzden PortföyAI, Matching/Scoring/Pricing'i "olması gereken temel özellikler" olarak arkada tutup pazarda gerçekten boş olan iki alana odaklanır: **sesli not ile saniyeler içinde ilan oluşturma** ve **markalı, kapanış aracı olarak kullanılabilecek ulaşım/konum raporu**. Danışman arabada müşteriyle gezerken telefonuna konuşur, PortföyAI ilanı taslak olarak hazırlar; danışman onaylar. Aynı danışman, adayına logolu bir PDF ile "eve 12 dakikada, metroya yürüyerek 4 dakikada" diyen somut bir rapor gönderir. Arka planda WhatsApp'tan gelen her lead otomatik nitelendirilir, skorlanır ve uygun portföylerle eşleştirilir.
 
+> **Önemli netleştirme:** PortföyAI, Sahibinden/Hepsiemlak/Emlakjet gibi ilan portallarıyla arka planda otomatik çalışan bir entegrasyon veya *scraping* mekanizması **içermez** — bu portalların bot korumaları (özellikle Sahibinden'in sunucu taraflı isteklere 403 dönmesi) ve ilişkili yasal risk nedeniyle bilinçli olarak tercih edilmedi. Danışman kendi portföyünü kendisi girer: rehberli bir sihirbazla elle, ya da ilanının sayfa kaynağını kendi tarayıcısından kopyalayıp yapıştırarak (URL ile değil — sunucudan atılan istekler engelleniyor, danışmanın kendi tarayıcısından kopyaladığı HTML ise sorunsuz ayrıştırılıyor). Ürün bir ilan sitesi değil, danışmanın kendi verisi üzerinde çalışan bir asistandır.
+
+Backend + PostgreSQL Railway'de, ofis paneli Vercel'de canlıdır (2026-07-03 itibarıyla). WhatsApp Business ve iyzico entegrasyonları kod tarafında tamamlanmış olup Meta/iyzico'nun kurumsal onay süreçlerinin tamamlanmasını beklemektedir.
+
 ---
 
 ## Ürün Özellikleri
 
-### Hero Özellikler (Farklılaştırıcı — rakiplerde yok)
-- 🎙️ **Sesli Not → İlan Otomasyonu** — Danışman sahada telefonuna konuşur ("3+1, 120 metrekare, asansörlü, otoparklı..."); Whisper ile transkript alınır, LLM ile yapılandırılmış ilan taslağına dönüştürülür. Yayına almadan önce danışman onayı **zorunludur** — AI çıktısı asla otomatik yayınlanmaz.
-- 🗺️ **Markalı Ulaşım/Konum Raporu (PDF)** — Google Maps Directions API ile üretilen, ofis logolu, alıcıya doğrudan gönderilebilen kapanış aracı. Piyasada doğrudan muadiline rastlanmayan, en düşük teknik riskli, en yüksek pazarlama değerine sahip özellik.
-- 💬 **Otomatik WhatsApp Takip Mesajı** — Lead ilk temastan sonra belirli aralıklarla otomatik nitelikli takip mesajı alır; danışman hiçbir fırsatı unutmaz.
+### Hero Özellikler (Farklılaştırıcı — rakiplerde yok; Sprint 3'te planlanıyor, henüz kod tarafında yok)
+- 🎙️ **Sesli Not → İlan Otomasyonu** *(planlanan)* — Danışman sahada telefonuna konuşur ("3+1, 120 metrekare, asansörlü, otoparklı..."); Whisper ile transkript alınır, LLM ile yapılandırılmış ilan taslağına dönüştürülür. Yayına almadan önce danışman onayı **zorunludur** — AI çıktısı asla otomatik yayınlanmaz.
+- 🗺️ **Markalı Ulaşım/Konum Raporu (PDF)** *(planlanan)* — Google Maps Directions API ile üretilen, ofis logolu, alıcıya doğrudan gönderilebilen kapanış aracı. Piyasada doğrudan muadiline rastlanmayan, en düşük teknik riskli, en yüksek pazarlama değerine sahip özellik.
+- 💬 **Otomatik WhatsApp Takip Mesajı** *(planlanan)* — Lead ilk temastan sonra belirli aralıklarla otomatik nitelikli takip mesajı alır; danışman hiçbir fırsatı unutmaz.
 
 ### Temel Özellikler (Table Stakes — sektör standardı, ürün için zorunlu ama pazarlamanın merkezinde değil)
-- 🤖 **Intake Agent** — WhatsApp Business API üzerinden gelen mesajları LLM ile ayrıştırır, lead olarak sisteme kaydeder
-- 🔗 **Matching Agent** — Bütçe, oda sayısı, bölge kriterlerine göre lead'i uygun portföylerle eşleştirir
-- 📊 **Scoring Agent** — Yanıt hızı, mesaj sayısı, bütçe tutarlılığı gibi kural bazlı ağırlıklarla lead'i puanlar (ilk versiyon ML değil, kural motoru)
-- 💰 **Pricing Agent** — ChromaDB'de tutulan bölgesel emsal ilan embedding'leri üzerinden k-NN benzerlik ile "benzer ilan fiyat aralığı" önerir (kesin AI fiyat tahmini değil, savunulabilir bir aralık)
-- 🏢 **Multi-tenant Ofis Yönetimi** — Ofis sahibi / danışman / görüntüleyici rolleriyle RBAC, PostgreSQL Row-Level Security ile veri izolasyonu
-- 💳 **Abonelik ve Faturalama** — iyzico Abonelik Yönetimi ile Starter / Professional / Enterprise planları
+- 🤖 **Intake Agent** ✅ — WhatsApp Business Cloud API webhook'undan gelen mesajları lead olarak sisteme kaydeder/günceller; Meta'nın en-az-bir-kez teslimatına karşı idempotency ile mükerrer mesajları tekilleştirir. Kod tamam, Meta Business doğrulaması tamamlanana kadar sadece mock payload'larla test edilebiliyor.
+- 📋 **İlan İçe Aktarma (Sayfa Kaynağı Yapıştır)** ✅ — Danışman, Sahibinden ilanının sayfa kaynağını (Ctrl+U) kopyalayıp yapıştırır; JSON-LD ve CSS seçicileriyle başlık/bölge/fiyat/oda sayısı/m² otomatik çıkarılıp forma doldurulur. Sunucudan hiçbir dış siteye istek atılmaz.
+- 🔗 **Matching Agent** ✅ — Bütçe, oda sayısı ve bölge kriterlerine göre; lead'e yarıçap (`radius_km`) tanımlanmışsa OpenStreetMap Nominatim ile geocode edilmiş coğrafi mesafeye göre eşleştirir
+- 📊 **Scoring Agent** ✅ — Yanıt hızı, mesaj sayısı, bütçe tutarlılığı gibi kural bazlı ağırlıklarla lead'i puanlar (ilk versiyon ML değil, kural motoru)
+- 💰 **Pricing Agent** ✅ — ChromaDB'de tutulan, ofis-içi bölgesel emsal ilan embedding'leri üzerinden k-NN benzerlik ile "benzer ilan fiyat aralığı" önerir (kesin AI fiyat tahmini değil, savunulabilir bir aralık)
+- 🏢 **Multi-tenant Ofis Yönetimi** ✅ — Ofis sahibi / danışman / görüntüleyici rolleriyle RBAC, PostgreSQL Row-Level Security ile veri izolasyonu
+- 💳 **Abonelik ve Faturalama** *(planlanan)* — iyzico Abonelik Yönetimi ile Starter / Professional / Enterprise planları; sandbox aktivasyon maili bekleniyor
 
 ---
 
@@ -57,67 +64,77 @@ Türkiye emlak yazılım pazarında "AI destekli CRM" artık bir farklılaştır
 
 ## Kullanılan Teknolojiler
 
-| Katman | Teknoloji | Gerekçe |
-|--------|-----------|---------|
-| LLM | Google Gemini (Flash-Lite / Flash / Pro karışık) | Yüksek hacimli basit işler Flash-Lite, karmaşık emsal analizi Flash/Pro — maliyet/performans dengesi |
-| Ses İşleme | OpenAI Whisper API | Sesli not → transkripsiyon (düşük gürültülü ortam hedefli MVP) |
-| Agent Framework | LangChain + LangGraph | Intake / Matching / Scoring / Pricing ajanlarının orkestrasyonu |
-| Vektör DB | ChromaDB | Bölgesel emsal ilan embedding'leri (Gemini `text-embedding-004`) |
-| Backend | Python 3.11 + FastAPI + SQLAlchemy + Alembic | REST API, migration yönetimi |
-| Auth | `python-jose` (JWT) + RBAC | Ofis sahibi / danışman / görüntüleyici rolleri |
-| Veritabanı | PostgreSQL (Row-Level Security) | `office_id` bazlı multi-tenant izolasyon |
-| Mesajlaşma | WhatsApp Business Cloud API (başlangıçta bir BSP: VatanSMS/Invekto) | Intake Agent kanalı, otomatik takip mesajları |
-| Ödeme | iyzico Abonelik Yönetimi (v2 API) | Starter/Professional/Enterprise abonelik planları |
-| Harita/Rota | Google Maps Directions API | Ulaşım/konum raporu |
-| PDF Üretimi | WeasyPrint | Markalı, logolu ulaşım raporu çıktısı |
-| Frontend | Next.js (App Router) + TypeScript + Tailwind CSS | Ofis paneli — lead listesi, portföy yönetimi, rapor önizleme |
-| Hata İzleme | Sentry | Prod ortamda LLM/agent hatalarını yakalama |
-| CI/CD | GitHub Actions + Railway | Otomatik test + deploy |
-| Versiyon Kontrolü | GitHub | Bu repo |
+| Katman | Teknoloji | Durum | Gerekçe |
+|--------|-----------|-------|---------|
+| LLM | Google Gemini (`langchain-google-genai` bağımlılığı eklendi) | ⏳ Planlanan | Ajanlar şu an kural bazlı/istatistiksel çalışıyor, henüz hiçbir agent LLM çağrısı yapmıyor; Gemini Sprint 3'te Voice-to-Listing ile devreye girecek |
+| Ses İşleme | OpenAI Whisper API | ⏳ Planlanan (Sprint 3) | Sesli not → transkripsiyon (düşük gürültülü ortam hedefli MVP) |
+| Agent Framework | LangGraph | ✅ Aktif | Matching Agent şu an tek node'lu bir graph olarak çalışıyor; çoklu-node genişleme (Voice/Intake dahil) Sprint 3'te |
+| Vektör DB | ChromaDB (yerel varsayılan embedding modeli, API anahtarı gerekmiyor) | ✅ Aktif | Pricing Agent — ofis-içi (tenant-scoped) bölgesel emsal ilan benzerliği |
+| Backend | Python 3.11 + FastAPI + SQLAlchemy + Alembic | ✅ Aktif, Railway'de canlı | REST API, migration yönetimi |
+| Auth | `python-jose` (JWT) + RBAC | ✅ Aktif | Ofis sahibi / danışman / görüntüleyici rolleri |
+| Veritabanı | PostgreSQL (Row-Level Security), Railway managed | ✅ Aktif, canlı | `office_id` bazlı multi-tenant izolasyon |
+| Mesajlaşma | WhatsApp Business Cloud API (Meta'ya doğrudan, BSP kullanılmıyor) | 🟡 Kod tamam, Meta doğrulaması bekleniyor | Intake Agent webhook kanalı |
+| İlan İçe Aktarma | BeautifulSoup4 + lxml | ✅ Aktif (yalnızca Sahibinden) | Yapıştırılan sayfa kaynağından JSON-LD/CSS seçicilerle alan çıkarımı |
+| Konum/Coğrafya | OpenStreetMap Nominatim (ücretsiz, API key gerektirmez) | ✅ Aktif | Bölge → koordinat geocoding, DB önbellek, yarıçap bazlı eşleştirme |
+| Dosya Depolama | boto3 + S3-uyumlu servis (Railway Bucket / Tigris) | 🟡 Kurulum aşamasında | İlan fotoğrafı yükleme; bucket public-read doğrulaması bekleniyor |
+| Ödeme | iyzico Abonelik Yönetimi (v2 API) | ⏳ Planlanan — sandbox aktivasyonu bekleniyor | Starter/Professional/Enterprise abonelik planları |
+| Harita/Rota | Google Maps Directions API | ⏳ Planlanan (Sprint 3) | Ulaşım/konum raporu |
+| PDF Üretimi | WeasyPrint | ⏳ Planlanan (Sprint 3) | Markalı, logolu ulaşım raporu çıktısı |
+| Frontend | Next.js 16 (App Router) + TypeScript + Tailwind CSS | ✅ Aktif, Vercel'de canlı | Ofis paneli — bento-grid dashboard, rehberli (6 adımlı) ilan ekleme sihirbazı |
+| Hata İzleme | Sentry | ⏳ Planlanan — DSN henüz eklenmedi | Prod ortamda hata yakalama |
+| CI/CD | GitHub Actions (test) + Railway (backend) + Vercel (frontend) | ✅ Aktif | Otomatik test + deploy |
+| Versiyon Kontrolü | GitHub | ✅ Aktif | Bu repo |
 
 ---
 
 ## Ajan Mimarisi
 
+> ✅ = kod tarafında tamamlandı ve test edildi · 🟡 = kod tamam, dış onay/kurulum bekliyor · ⏳ = Sprint 3'te planlanan, henüz yok
+
 ```
-WhatsApp Mesajı / Sesli Not / Manuel Giriş
+WhatsApp Mesajı 🟡 / Sahibinden Sayfa Kaynağı Yapıştırma ✅ / Manuel Giriş ✅ / Sesli Not ⏳
               │
               ▼
-     ┌─────────────────────┐
-     │ LangGraph            │
-     │ Orchestrator         │  ← İstek tipini ayırt eder, ilgili ajana yönlendirir
-     └──┬──────┬──────┬────┘
+     ┌──────────────────────┐
+     │ LangGraph              │
+     │ Orchestrator           │  ← İstek tipini ayırt eder, ilgili ajana yönlendirir
+     └──┬──────┬──────┬──────┘
         │      │      │
         ▼      ▼      ▼
-   [Intake] [Voice-to-  [Matching]
-    Agent    Listing]    Agent
-        │    Agent          │
-        │      │            ▼
-        │      │       [Scoring Agent]
-        │      │            │
-        │      │            ▼
-        │      │      [Pricing Agent]
-        │      │            │
-        └──────┴──────┬─────┘
+   [Intake]  [Listing   [Matching Agent] ✅
+   Agent 🟡   Import      (bölge ya da Nominatim
+        │     Agent ✅     ile geocode edilmiş
+        │     (Sahibinden   yarıçap filtresi)
+        │      paste)           │
+        │      │                ▼
+        │      │          [Scoring Agent] ✅
+        │      │                │
+        │      │                ▼
+        │      │          [Pricing Agent] ✅
+        │      │                │
+        └──────┴──────┬─────────┘
                        ▼
-              ┌─────────────────┐
-              │  CRM Katmanı    │  ← Lead/portföy kaydı, skor, eşleşme
-              └────────┬────────┘
+              ┌──────────────────┐
+              │  CRM Katmanı      │  ← Lead/portföy kaydı, skor, eşleşme, fotoğraf (S3) 🟡
+              └────────┬─────────┘
                        │
                        ▼
-        Ofis Paneli (Next.js) + Ulaşım Raporu (PDF)
-        + Otomatik WhatsApp Takip Mesajı
+        Ofis Paneli (Next.js, Vercel'de canlı) ✅
+        + Voice-to-Listing Agent ⏳ + Ulaşım Raporu (PDF) ⏳
+        + Otomatik WhatsApp Takip Mesajı ⏳
 ```
 
-**Intake Agent:** WhatsApp webhook'undan gelen mesajları LLM ile ayrıştırır, lead olarak kaydeder, ilk otomatik yanıtı gönderir
+**Intake Agent 🟡:** Meta WhatsApp Cloud API webhook'undan gelen mesajları lead olarak kaydeder/günceller (şu an kural bazlı, LLM ayrıştırma yok); `X-Hub-Signature-256` HMAC doğrulaması ve idempotency ile mükerrer mesajları engeller. Kod ve testler tamam, Meta Business doğrulaması tamamlanana kadar canlı numarayla çalışmıyor.
 
-**Voice-to-Listing Agent:** Whisper ile transkript alır, LLM ile yapılandırılmış ilan taslağı üretir; danışman onayı olmadan yayınlanmaz
+**Listing Import Agent ✅:** Danışmanın kendi tarayıcısından kopyaladığı Sahibinden sayfa kaynağını JSON-LD + CSS seçicileriyle ayrıştırıp ilan formunu otomatik doldurur; sunucudan hiçbir dış siteye istek atılmaz. Seçiciler henüz gerçek yapıştırılmış kaynaklarla doğrulanmadı.
 
-**Matching Agent:** Lead kriterlerini (bütçe, oda sayısı, bölge) mevcut portföylerle eşleştirir
+**Matching Agent ✅:** Lead kriterlerini (bütçe, oda sayısı, bölge) mevcut portföylerle eşleştirir; `radius_km` set edilmişse bölge string eşleşmesi yerine Nominatim ile geocode edilmiş coğrafi yarıçap filtresi uygular.
 
-**Scoring Agent:** Kural bazlı ağırlıklı skor üretir — yanıt hızı + mesaj sayısı + bütçe tutarlılığı
+**Scoring Agent ✅:** Kural bazlı ağırlıklı skor üretir — yanıt hızı (%40) + mesaj sayısı (%30) + bütçe tutarlılığı (%30)
 
-**Pricing Agent:** ChromaDB'deki emsal ilan embedding'leri üzerinden k-NN benzerlik ile fiyat aralığı önerir
+**Pricing Agent ✅:** ChromaDB'deki ofis-içi (tenant-scoped) emsal ilan embedding'leri üzerinden k-NN benzerlik ile fiyat aralığı önerir
+
+**Voice-to-Listing Agent ⏳ (Sprint 3):** Whisper ile transkript alır, LLM ile yapılandırılmış ilan taslağı üretir; danışman onayı olmadan yayınlanmaz
 
 ---
 
@@ -182,7 +199,7 @@ Daily Scrum Slack kanalı üzerinden asenkron olarak yürütülmektedir (her üy
 
 ### Sprint Review
 
-**Katılımcılar:** [İsimler yazılacak]
+**Katılımcılar:** Ömer Faruk Toycu (tek kişilik takım — Product Owner / Scrum Master / Developer)
 
 **Tamamlanan Story'ler:**
 - [x] Ofis kaydı + JWT auth
@@ -203,13 +220,16 @@ RLS testinde ortaya çıkan üç güvenlik açığı (superuser bypass, SET LOCA
 ### Sprint Retrospective
 
 **Ne iyi gitti?**
-[Buraya yazılacak]
+- Pivot kararı (EvRadar → PortföyAI) sprint bitimine 3 gün kala alınmasına rağmen README, teknik yol haritası ve backend iskeleti aynı gün yeniden yazılıp kapsam gerçekçi şekilde daraltıldı; sprint hedefine (31 puan) rağmen çalışan bir iskelet teslim edildi.
+- RLS güvenlik testleri kod incelemesiyle değil gerçek Docker/Postgres ortamında uçtan uca yapıldı; bu sayede üç kritik açık (superuser'ların RLS'i atlaması, `SET LOCAL`'in transaction-scoped olması, login'in cross-tenant e-posta arama ihtiyacı) production'a çıkmadan bulunup düzeltildi.
 
 **Ne geliştirilmeli?**
-[Buraya yazılacak]
+- Sprint planlaması pivot riskini hesaba katmadığı için kapsam son 3 günde acil daraltılmak zorunda kaldı; iyzico ve WhatsApp Business gibi manuel/kurumsal onay gerektiren adımlar sprint başında değil sprint sonunda fark edildi.
+- Tek kişilik takım olması code review/pair programming imkânı bırakmıyor; RLS açıkları ancak uçtan uca testle yakalanabildi, statik incelemeyle değil — bu durum ileride başka güvenlik açıklarını da gözden kaçırma riski taşıyor.
 
 **Aksiyon Maddeleri:**
-[Buraya yazılacak]
+- Manuel onay gerektiren dış entegrasyonlar (iyzico, WhatsApp Business) her sprint'in ilk gününde, kod işine paralel olarak başlatılacak (Sprint 2'de uygulandı, bkz. aşağı).
+- Multi-tenant/RLS'e dokunan her değişiklikte `backend/tests/test_rls.py`'nin CI'da zorunlu koşulması karara bağlandı.
 
 ---
 
@@ -221,17 +241,27 @@ RLS testinde ortaya çıkan üç güvenlik açığı (superuser bypass, SET LOCA
 
 Sprint 2'de gerçek entegrasyonları (ödeme, WhatsApp) ve Pricing/Scoring ajanlarını tamamlamayı hedefliyoruz.
 
-> ⚡ **Erken başlangıç notu (2 Temmuz 2026):** Sprint 1 kapanışının ardından, resmi Sprint 2 tarihi beklenmeden Pricing Agent, Scoring Agent ve Next.js ofis paneli story'leri kod tarafında tamamlandı ve uçtan uca doğrulandı (backend: 27/27 test yeşil; frontend: `next build` başarılı, CORS uçtan uca doğrulandı). Detaylar için [TEKNIK_YOL_HARITASI.md](./TEKNIK_YOL_HARITASI.md)'na bakınız.
+> ⚡ **Erken başlangıç notu (2–3 Temmuz 2026, sprint resmi olarak 6 Temmuz'da başlıyor):** Sprint 1 kapanışının hemen ardından, resmi tarih beklenmeden aşağıdaki tabloda listelenen Sprint 2 story'lerinin çoğu ve backlog'da hiç yer almayan ek kapsam (ilan içe aktarma, konum bazlı eşleştirme, fotoğraf yükleme, tasarım sistemi yenilemesi) kod tarafında tamamlandı. Backend + PostgreSQL Railway'de, ofis paneli Vercel'de canlıya alındı (2026-07-03). 53 backend testi yeşil, ruff lint temiz. Detaylar için [TEKNIK_YOL_HARITASI.md](./TEKNIK_YOL_HARITASI.md) ve [CLAUDE.md](./CLAUDE.md)'ye bakınız.
 
-**Planlanan Story'ler (Taslak):**
+**Planlanan Story'ler:**
 
-| # | User Story | Puan (Tahmini) |
-|---|-----------|----------------|
-| 6 | iyzico canlı ödeme akışı: ürün + 3 `pricingPlan` (Starter/Professional/Enterprise) | 8 |
-| 7 | WhatsApp Business API başvurusu + BSP seçimi + Intake Agent webhook entegrasyonu | 8 |
-| 8 | ✅ Pricing Agent: ChromaDB emsal embedding + k-NN benzerlik ile fiyat aralığı önerisi *(erken tamamlandı)* | 8 |
-| 9 | ✅ Scoring Agent: kural bazlı skor motoru (yanıt hızı + mesaj sayısı + bütçe tutarlılığı) *(erken tamamlandı)* | 5 |
-| 10 | ✅ Ofis paneli (Next.js): lead listesi + portföy yönetimi temel ekranları *(erken tamamlandı)* | 8 |
+| # | User Story | Puan (Tahmini) | Durum |
+|---|-----------|----------------|-------|
+| 6 | iyzico canlı ödeme akışı: ürün + 3 `pricingPlan` (Starter/Professional/Enterprise) | 8 | ⏳ Beklemede — iyzico sandbox aktivasyon maili gerekiyor (manuel, `entegrasyon@iyzico.com`) |
+| 7 | WhatsApp Business API başvurusu + BSP seçimi + Intake Agent webhook entegrasyonu | 8 | 🟡 Webhook kodu tamam (HMAC imza doğrulama, idempotency, prod'da secret zorunlu); Meta Business Manager doğrulaması bekleniyor (manuel) |
+| 8 | Pricing Agent: ChromaDB emsal embedding + k-NN benzerlik ile fiyat aralığı önerisi | 8 | ✅ Tamamlandı *(erken)* |
+| 9 | Scoring Agent: kural bazlı skor motoru (yanıt hızı + mesaj sayısı + bütçe tutarlılığı) | 5 | ✅ Tamamlandı *(erken)* |
+| 10 | Ofis paneli (Next.js): lead listesi + portföy yönetimi temel ekranları | 8 | ✅ Tamamlandı, ardından tasarım sistemi tamamen yenilendi (bkz. aşağı) |
+
+**Sprint içinde ortaya çıkan ek kapsam** (orijinal backlog'da yoktu, resmi sprint tarihinden önce tamamlandı):
+
+| Kapsam | Durum |
+|--------|-------|
+| Sahibinden sayfa kaynağı yapıştır → ilan formu otomatik doldur (JSON-LD + CSS seçiciler) | ✅ Kod tamam; seçiciler gerçek yapıştırılmış kaynaklarla henüz doğrulanmadı |
+| Konum/yarıçap bazlı eşleştirme (Nominatim geocoding + DB önbellek) | ✅ Tamamlandı; `radius_km` set edilmezse eski bölge-eşleşmesine geriye dönük uyumlu |
+| İlan fotoğrafı yükleme (S3-uyumlu depo, dosya boyutu/tür doğrulaması) | 🟡 Kod tamam; Railway Bucket (Tigris) kurulumu ve public-read doğrulaması devam ediyor |
+| Yeni tasarım sistemi: bento-grid dashboard + rehberli (6 adımlı) ilan ekleme sihirbazı | ✅ Tamamlandı |
+| Production deployment (Railway backend+DB, Vercel frontend) — orijinalde Sprint 3 story'siydi (#14), erken taşındı | ✅ Canlı; kalan: Sentry DSN, ChromaDB kalıcı disk (Volume) |
 
 ### Daily Scrum
 
@@ -239,15 +269,15 @@ Sprint 2'de gerçek entegrasyonları (ödeme, WhatsApp) ve Pricing/Scoring ajanl
 
 ### Sprint Board Güncellemeleri
 
-*Ekran görüntüleri eklenecektir.*
+*Sprint devam ediyor (bitiş: 19 Temmuz 2026) — ekran görüntüleri sprint sonunda eklenecektir.*
 
 ### Ürün Durumu
 
-*Ekran görüntüleri eklenecektir.*
+*Sprint devam ediyor — ekran görüntüleri sprint sonunda eklenecektir. Bu arada canlı ortamlar: backend Railway'de, ofis paneli Vercel'de.*
 
 ### Sprint Review
 
-*Sprint bitiminde doldurulacaktır.*
+*Sprint devam ediyor (bitiş: 19 Temmuz 2026) — sprint bitiminde doldurulacaktır.*
 
 ### Sprint Retrospective
 
@@ -270,7 +300,7 @@ Sprint 3'te hero özellikleri (Voice-to-Listing, Ulaşım Raporu, Otomatik Takip
 | 11 | Voice-to-Listing: Whisper transkripsiyon + Gemini ile ilan taslağı, danışman onay adımı zorunlu | 8 |
 | 12 | Markalı ulaşım/konum raporu: Google Maps Directions API + WeasyPrint PDF üretimi | 5 |
 | 13 | Otomatik WhatsApp takip mesajı zinciri | 5 |
-| 14 | Production deployment: Railway/Render + Sentry hata izleme + retry/timeout mekanizmaları | 5 |
+| 14 | ~~Production deployment: Railway/Render~~ **Railway+Vercel deploy'u Sprint 2'de erken tamamlandı** — kalan kapsam: Sentry hata izleme + retry/timeout mekanizmaları | 5 |
 | 15 | Onboarding'de zorunlu veri kalitesi kontrolü (eksik/tutarsız portföy girişini engelleme) | 3 |
 
 ### Daily Scrum
