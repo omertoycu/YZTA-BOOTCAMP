@@ -37,10 +37,10 @@ Backend + PostgreSQL Railway'de, ofis paneli Vercel'de canlıdır (2026-07-03 it
 
 ## Ürün Özellikleri
 
-### Hero Özellikler (Farklılaştırıcı — rakiplerde yok; Sprint 3'te planlanıyor, henüz kod tarafında yok)
-- 🎙️ **Sesli Not → İlan Otomasyonu** *(planlanan)* — Danışman sahada telefonuna konuşur ("3+1, 120 metrekare, asansörlü, otoparklı..."); Whisper ile transkript alınır, LLM ile yapılandırılmış ilan taslağına dönüştürülür. Yayına almadan önce danışman onayı **zorunludur** — AI çıktısı asla otomatik yayınlanmaz.
-- 🗺️ **Markalı Ulaşım/Konum Raporu (PDF)** *(planlanan)* — Google Maps Directions API ile üretilen, ofis logolu, alıcıya doğrudan gönderilebilen kapanış aracı. Piyasada doğrudan muadiline rastlanmayan, en düşük teknik riskli, en yüksek pazarlama değerine sahip özellik.
-- 💬 **Otomatik WhatsApp Takip Mesajı** *(planlanan)* — Lead ilk temastan sonra belirli aralıklarla otomatik nitelikli takip mesajı alır; danışman hiçbir fırsatı unutmaz.
+### Hero Özellikler (Farklılaştırıcı — rakiplerde yok)
+- 🎙️ **Sesli Not → İlan Otomasyonu** ✅ — Danışman `/assistant` sayfasında tarayıcıdan mikrofonla kayıt yapar ya da ses dosyası yükler; Gemini'nin native ses girişiyle tek çağrıda transkript + yapılandırılmış ilan taslağı (başlık/bölge/fiyat/oda/m²) üretilir. Danışman taslağı gözden geçirip düzenledikten sonra onaylamadan hiçbir ilan oluşturulmaz.
+- 🗺️ **Markalı Ulaşım/Konum Raporu (PDF)** ✅ — Google Maps Directions API ile üretilen, ofis adı başlıklı, araç/yürüyüş/toplu taşıma sürelerini gösteren PDF; ilan detay sayfasından hedef adres girilerek anında indirilir.
+- 💬 **WhatsApp Takip Mesajı** 🟡 — Danışman, aday panelinden tek tıkla Meta WhatsApp Cloud API üzerinden takip mesajı gönderebiliyor. Tam otomatik (zamanlanmış/kuralla tetiklenen) takip zinciri henüz yok — bu, manuel tetiklenen MVP versiyonu; ayrıca ofisin bir WhatsApp numarasına bağlı olması gerekiyor.
 
 ### Temel Özellikler (Table Stakes — sektör standardı, ürün için zorunlu ama pazarlamanın merkezinde değil)
 - 🤖 **Intake Agent** ✅ — WhatsApp Business Cloud API webhook'undan gelen mesajları lead olarak sisteme kaydeder/günceller; Meta'nın en-az-bir-kez teslimatına karşı idempotency ile mükerrer mesajları tekilleştirir. Kod tamam, Meta Business doğrulaması tamamlanana kadar sadece mock payload'larla test edilebiliyor.
@@ -48,6 +48,7 @@ Backend + PostgreSQL Railway'de, ofis paneli Vercel'de canlıdır (2026-07-03 it
 - 🔗 **Matching Agent** ✅ — Bütçe, oda sayısı ve bölge kriterlerine göre; lead'e yarıçap (`radius_km`) tanımlanmışsa OpenStreetMap Nominatim ile geocode edilmiş coğrafi mesafeye göre eşleştirir
 - 📊 **Scoring Agent** ✅ — Yanıt hızı, mesaj sayısı, bütçe tutarlılığı gibi kural bazlı ağırlıklarla lead'i puanlar (ilk versiyon ML değil, kural motoru)
 - 💰 **Pricing Agent** ✅ — ChromaDB'de tutulan, ofis-içi bölgesel emsal ilan embedding'leri üzerinden k-NN benzerlik ile "benzer ilan fiyat aralığı" önerir (kesin AI fiyat tahmini değil, savunulabilir bir aralık)
+- 📈 **Reports** ✅ — Ofisin portföy/aday verisinden bölge dağılımı, skor dağılımı ve kaynak kırılımı; ek bir API key gerektirmiyor
 - 🏢 **Multi-tenant Ofis Yönetimi** ✅ — Ofis sahibi / danışman / görüntüleyici rolleriyle RBAC, PostgreSQL Row-Level Security ile veri izolasyonu
 - 💳 **Abonelik ve Faturalama** *(planlanan)* — iyzico Abonelik Yönetimi ile Starter / Professional / Enterprise planları; sandbox aktivasyon maili bekleniyor
 
@@ -66,9 +67,8 @@ Backend + PostgreSQL Railway'de, ofis paneli Vercel'de canlıdır (2026-07-03 it
 
 | Katman | Teknoloji | Durum | Gerekçe |
 |--------|-----------|-------|---------|
-| LLM | Google Gemini (`langchain-google-genai` bağımlılığı eklendi) | ⏳ Planlanan | Ajanlar şu an kural bazlı/istatistiksel çalışıyor, henüz hiçbir agent LLM çağrısı yapmıyor; Gemini Sprint 3'te Voice-to-Listing ile devreye girecek |
-| Ses İşleme | OpenAI Whisper API | ⏳ Planlanan (Sprint 3) | Sesli not → transkripsiyon (düşük gürültülü ortam hedefli MVP) |
-| Agent Framework | LangGraph | ✅ Aktif | Matching Agent şu an tek node'lu bir graph olarak çalışıyor; çoklu-node genişleme (Voice/Intake dahil) Sprint 3'te |
+| LLM | Google Gemini (`google-generativeai` SDK, `gemini-2.5-flash`) | ✅ Aktif | Voice-to-Listing: ses dosyasını doğrudan modele göndererek tek çağrıda transkript + yapılandırılmış ilan taslağı üretir. Diğer ajanlar (Matching/Scoring/Pricing) hâlâ kural bazlı/istatistiksel, LLM kullanmıyor |
+| Agent Framework | LangGraph | ✅ Aktif | Matching Agent şu an tek node'lu bir graph olarak çalışıyor; çoklu-node genişleme planlı |
 | Vektör DB | ChromaDB (yerel varsayılan embedding modeli, API anahtarı gerekmiyor) | ✅ Aktif | Pricing Agent — ofis-içi (tenant-scoped) bölgesel emsal ilan benzerliği |
 | Backend | Python 3.11 + FastAPI + SQLAlchemy + Alembic | ✅ Aktif, Railway'de canlı | REST API, migration yönetimi |
 | Auth | `python-jose` (JWT) + RBAC | ✅ Aktif | Ofis sahibi / danışman / görüntüleyici rolleri |
@@ -78,8 +78,8 @@ Backend + PostgreSQL Railway'de, ofis paneli Vercel'de canlıdır (2026-07-03 it
 | Konum/Coğrafya | OpenStreetMap Nominatim (ücretsiz, API key gerektirmez) | ✅ Aktif | Bölge → koordinat geocoding, DB önbellek, yarıçap bazlı eşleştirme |
 | Dosya Depolama | boto3 + S3-uyumlu servis (Railway Bucket / Tigris) | 🟡 Kurulum aşamasında | İlan fotoğrafı yükleme; bucket public-read doğrulaması bekleniyor |
 | Ödeme | iyzico Abonelik Yönetimi (v2 API) | ⏳ Planlanan — sandbox aktivasyonu bekleniyor | Starter/Professional/Enterprise abonelik planları |
-| Harita/Rota | Google Maps Directions API | ⏳ Planlanan (Sprint 3) | Ulaşım/konum raporu |
-| PDF Üretimi | WeasyPrint | ⏳ Planlanan (Sprint 3) | Markalı, logolu ulaşım raporu çıktısı |
+| Harita/Rota | Google Maps Directions API | ✅ Aktif, Railway'de canlı | Ulaşım/konum raporu — araç/yürüyüş/toplu taşıma süresi |
+| PDF Üretimi | WeasyPrint (native Pango/Cairo bağımlılıkları Dockerfile'a eklendi) | ✅ Aktif | Markalı, logolu ulaşım raporu çıktısı |
 | Frontend | Next.js 16 (App Router) + TypeScript + Tailwind CSS | ✅ Aktif, Vercel'de canlı | Ofis paneli — bento-grid dashboard, rehberli (6 adımlı) ilan ekleme sihirbazı |
 | Hata İzleme | Sentry | ⏳ Planlanan — DSN henüz eklenmedi | Prod ortamda hata yakalama |
 | CI/CD | GitHub Actions (test) + Railway (backend) + Vercel (frontend) | ✅ Aktif | Otomatik test + deploy |
@@ -89,10 +89,10 @@ Backend + PostgreSQL Railway'de, ofis paneli Vercel'de canlıdır (2026-07-03 it
 
 ## Ajan Mimarisi
 
-> ✅ = kod tarafında tamamlandı ve test edildi · 🟡 = kod tamam, dış onay/kurulum bekliyor · ⏳ = Sprint 3'te planlanan, henüz yok
+> ✅ = kod tarafında tamamlandı ve test edildi · 🟡 = kod tamam, dış onay/kurulum bekliyor
 
 ```
-WhatsApp Mesajı 🟡 / Sahibinden Sayfa Kaynağı Yapıştırma ✅ / Manuel Giriş ✅ / Sesli Not ⏳
+WhatsApp Mesajı 🟡 / Sahibinden Sayfa Kaynağı Yapıştırma ✅ / Manuel Giriş ✅ / Sesli Not ✅
               │
               ▼
      ┌──────────────────────┐
@@ -120,8 +120,8 @@ WhatsApp Mesajı 🟡 / Sahibinden Sayfa Kaynağı Yapıştırma ✅ / Manuel Gi
                        │
                        ▼
         Ofis Paneli (Next.js, Vercel'de canlı) ✅
-        + Voice-to-Listing Agent ⏳ + Ulaşım Raporu (PDF) ⏳
-        + Otomatik WhatsApp Takip Mesajı ⏳
+        + Voice-to-Listing Agent ✅ + Ulaşım Raporu (PDF) ✅
+        + WhatsApp Takip Mesajı (manuel tetiklenen) 🟡
 ```
 
 **Intake Agent 🟡:** Meta WhatsApp Cloud API webhook'undan gelen mesajları lead olarak kaydeder/günceller (şu an kural bazlı, LLM ayrıştırma yok); `X-Hub-Signature-256` HMAC doğrulaması ve idempotency ile mükerrer mesajları engeller. Kod ve testler tamam, Meta Business doğrulaması tamamlanana kadar canlı numarayla çalışmıyor.
@@ -134,7 +134,11 @@ WhatsApp Mesajı 🟡 / Sahibinden Sayfa Kaynağı Yapıştırma ✅ / Manuel Gi
 
 **Pricing Agent ✅:** ChromaDB'deki ofis-içi (tenant-scoped) emsal ilan embedding'leri üzerinden k-NN benzerlik ile fiyat aralığı önerir
 
-**Voice-to-Listing Agent ⏳ (Sprint 3):** Whisper ile transkript alır, LLM ile yapılandırılmış ilan taslağı üretir; danışman onayı olmadan yayınlanmaz
+**Voice-to-Listing Agent ✅:** Gemini'nin native ses girişiyle tek çağrıda transkript + yapılandırılmış ilan taslağı üretir; danışman onaylayıp `/listings`'e göndermeden hiçbir ilan oluşturulmaz
+
+**Location Report Agent ✅:** Google Maps Directions API ile portföyden hedef adrese araç/yürüyüş/toplu taşıma sürelerini alır, WeasyPrint ile markalı bir PDF'e dönüştürür
+
+**WhatsApp Send 🟡:** Danışmanın panelden tek tıkla tetiklediği, Meta Cloud API üzerinden giden takip mesajı; ofisin `whatsapp_phone_number_id`'si set edilmemişse çalışmaz. Tam otomatik (zamanlanmış) takip zinciri henüz yok
 
 ---
 
@@ -241,7 +245,7 @@ RLS testinde ortaya çıkan üç güvenlik açığı (superuser bypass, SET LOCA
 
 Sprint 2'de gerçek entegrasyonları (ödeme, WhatsApp) ve Pricing/Scoring ajanlarını tamamlamayı hedefliyoruz.
 
-> ⚡ **Erken başlangıç notu (2–3 Temmuz 2026, sprint resmi olarak 6 Temmuz'da başlıyor):** Sprint 1 kapanışının hemen ardından, resmi tarih beklenmeden aşağıdaki tabloda listelenen Sprint 2 story'lerinin çoğu ve backlog'da hiç yer almayan ek kapsam (ilan içe aktarma, konum bazlı eşleştirme, fotoğraf yükleme, tasarım sistemi yenilemesi) kod tarafında tamamlandı. Backend + PostgreSQL Railway'de, ofis paneli Vercel'de canlıya alındı (2026-07-03). 53 backend testi yeşil, ruff lint temiz. Detaylar için [TEKNIK_YOL_HARITASI.md](./TEKNIK_YOL_HARITASI.md) ve [CLAUDE.md](./CLAUDE.md)'ye bakınız.
+> ⚡ **Erken başlangıç notu (2–4 Temmuz 2026, sprint resmi olarak 6 Temmuz'da başlıyor):** Sprint 1 kapanışının hemen ardından, resmi tarih beklenmeden aşağıdaki tabloda listelenen Sprint 2 story'lerinin çoğu, backlog'da hiç yer almayan ek kapsam (ilan içe aktarma, konum bazlı eşleştirme, fotoğraf yükleme, tasarım sistemi yenilemesi, ilan detay sayfası, Reports) ve normalde Sprint 3'e ait iki hero özellik (Voice-to-Listing, Ulaşım Raporu) kod tarafında tamamlandı. Backend + PostgreSQL Railway'de, ofis paneli Vercel'de canlıya alındı (2026-07-03), Gemini/Google Maps entegrasyonları canlı ortama eklendi (2026-07-04). 70 backend testi yeşil, ruff lint temiz — gerçek pytest suite'i izole bir Docker+Postgres ortamında doğrulandı (bu süreçte WeasyPrint'in `pydyf` 0.12 ile kırılan uyumluluğu ve Railway'in Debian trixie tabanında `libgdk-pixbuf` paket adı değişikliği bulunup düzeltildi). Detaylar için [TEKNIK_YOL_HARITASI.md](./TEKNIK_YOL_HARITASI.md) ve [CLAUDE.md](./CLAUDE.md)'ye bakınız.
 
 **Planlanan Story'ler:**
 
@@ -262,6 +266,11 @@ Sprint 2'de gerçek entegrasyonları (ödeme, WhatsApp) ve Pricing/Scoring ajanl
 | İlan fotoğrafı yükleme (S3-uyumlu depo, dosya boyutu/tür doğrulaması) | 🟡 Kod tamam; Railway Bucket (Tigris) kurulumu ve public-read doğrulaması devam ediyor |
 | Yeni tasarım sistemi: bento-grid dashboard + rehberli (6 adımlı) ilan ekleme sihirbazı | ✅ Tamamlandı |
 | Production deployment (Railway backend+DB, Vercel frontend) — orijinalde Sprint 3 story'siydi (#14), erken taşındı | ✅ Canlı; kalan: Sentry DSN, ChromaDB kalıcı disk (Volume) |
+| İlan detay sayfası (`/listings/[id]`) — "İncele" butonu önceden kendi sayfasına link veriyordu, hiçbir etkisi yoktu | ✅ Tamamlandı |
+| Voice-to-Listing: Gemini native ses girişiyle sesli not → ilan taslağı — orijinalde Sprint 3 story'siydi (#11), erken taşındı, Whisper'a gerek kalmadı | ✅ Canlı |
+| Markalı Ulaşım/Konum Raporu (PDF) — orijinalde Sprint 3 story'siydi (#12), erken taşındı | ✅ Canlı |
+| WhatsApp takip mesajı (manuel tetiklenen giden mesaj) — orijinalde Sprint 3 story'sinin (#13) bir parçası | 🟡 Kod tamam; ofisin WhatsApp numarasına bağlı olması gerekiyor |
+| Reports sayfası: bölge/skor/kaynak dağılımı | ✅ Tamamlandı |
 
 ### Daily Scrum
 
@@ -291,15 +300,15 @@ Sprint 2'de gerçek entegrasyonları (ödeme, WhatsApp) ve Pricing/Scoring ajanl
 
 ### Backlog Düzeni ve Story Seçimleri
 
-Sprint 3'te hero özellikleri (Voice-to-Listing, Ulaşım Raporu, Otomatik Takip) canlıya almayı ve deployment/polish adımlarını hedefliyoruz.
+Sprint 3'te hero özelliklerin geri kalanını (Otomatik Takip zinciri) canlıya almayı ve deployment/polish adımlarını hedefliyoruz. Voice-to-Listing ve Ulaşım Raporu, resmi Sprint 3 tarihinden önce Sprint 2 kapsamında erken tamamlandı (bkz. yukarısı).
 
 **Planlanan Story'ler (Taslak):**
 
 | # | User Story | Puan (Tahmini) |
 |---|-----------|----------------|
-| 11 | Voice-to-Listing: Whisper transkripsiyon + Gemini ile ilan taslağı, danışman onay adımı zorunlu | 8 |
-| 12 | Markalı ulaşım/konum raporu: Google Maps Directions API + WeasyPrint PDF üretimi | 5 |
-| 13 | Otomatik WhatsApp takip mesajı zinciri | 5 |
+| 11 | ~~Voice-to-Listing: Whisper transkripsiyon + Gemini ile ilan taslağı~~ **Sprint 2'de erken tamamlandı** — Gemini native ses girişiyle, Whisper'a gerek kalmadan | 8 |
+| 12 | ~~Markalı ulaşım/konum raporu: Google Maps Directions API + WeasyPrint PDF üretimi~~ **Sprint 2'de erken tamamlandı** | 5 |
+| 13 | Otomatik WhatsApp takip mesajı zinciri — manuel tetiklenen giden mesaj (`/leads/{id}/follow-up`) Sprint 2'de erken tamamlandı; kalan kapsam: zamanlanmış/kural bazlı otomatik tetikleme (scheduler) | 5 |
 | 14 | ~~Production deployment: Railway/Render~~ **Railway+Vercel deploy'u Sprint 2'de erken tamamlandı** — kalan kapsam: Sentry hata izleme + retry/timeout mekanizmaları | 5 |
 | 15 | Onboarding'de zorunlu veri kalitesi kontrolü (eksik/tutarsız portföy girişini engelleme) | 3 |
 
