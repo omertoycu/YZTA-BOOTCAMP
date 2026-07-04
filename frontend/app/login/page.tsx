@@ -7,6 +7,7 @@ import { apiFetch, setToken } from "@/lib/api";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { Alert } from "@/components/ui/Alert";
+import { InteractiveDots } from "@/components/InteractiveDots";
 import { cn } from "@/lib/utils";
 
 type Mode = "login" | "register";
@@ -53,14 +54,7 @@ export default function LoginPage() {
   return (
     <div className="grid min-h-screen grid-cols-1 lg:grid-cols-2">
       <div className="relative hidden flex-col justify-between overflow-hidden bg-gradient-to-br from-primary via-inverse-surface to-secondary p-12 text-on-primary lg:flex">
-        <div
-          className="pointer-events-none absolute inset-0 opacity-20"
-          style={{
-            backgroundImage:
-              "radial-gradient(circle at 20% 20%, white 1px, transparent 1px), radial-gradient(circle at 80% 60%, white 1px, transparent 1px)",
-            backgroundSize: "48px 48px",
-          }}
-        />
+        <InteractiveDots />
         <div className="relative">
           <h1 className="text-headline-lg font-black tracking-tight">PortföyAI</h1>
           <p className="mt-1 text-body-sm text-white/70">Closing Assistant</p>
