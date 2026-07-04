@@ -33,3 +33,7 @@ Thumbs.db
 # Claude Code local settings/skills (yerel araç konfigürasyonu, teslim kapsamı dışı)
 .claude/
 CLAUDE.md
+audit.md
+
+# browser-smoke script'inin varsayılan çıktı dizini (normalde scratchpad'e yazılır)
+frontend/smoke-shots/

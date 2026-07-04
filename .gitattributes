@@ -1,0 +1,18 @@
+# Satır sonlarını git normalize etsin — Windows'ta her git add'de basılan
+# yüzlerce "LF will be replaced by CRLF" uyarısını susturur.
+* text=auto
+
+# Shell script'leri her zaman LF (Docker/Linux'ta çalışıyorlar)
+*.sh text eol=lf
+
+# İkili dosyalar
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.webp binary
+*.ico binary
+*.mp4 binary
+*.pdf binary
+*.woff binary
+*.woff2 binary

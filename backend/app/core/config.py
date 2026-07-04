@@ -17,7 +17,6 @@ class Settings(BaseSettings):
     access_token_expire_minutes: int = 60 * 24
 
     gemini_api_key: str | None = None
-    openai_api_key: str | None = None
     google_maps_api_key: str | None = None
     iyzico_api_key: str | None = None
     iyzico_secret_key: str | None = None
