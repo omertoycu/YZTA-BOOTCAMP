@@ -31,6 +31,9 @@ class LeadResponse(BaseModel):
     radius_km: float | None
     message_count: int
     last_contacted_at: datetime | None
+    auto_follow_up_enabled: bool
+    follow_up_stage: int
+    next_follow_up_at: datetime | None
     created_at: datetime
 
     model_config = {"from_attributes": True}
@@ -45,6 +48,10 @@ class MatchResult(BaseModel):
 
 class FollowUpRequest(BaseModel):
     message: str | None = None
+
+
+class AutoFollowUpRequest(BaseModel):
+    enabled: bool
 
 
 class FollowUpResponse(BaseModel):

@@ -21,12 +21,22 @@ class Settings(BaseSettings):
     google_maps_api_key: str | None = None
     iyzico_api_key: str | None = None
     iyzico_secret_key: str | None = None
+    # Sandbox varsayılan; canlıya geçişte https://api.iyzipay.com yapılır, kod aynı.
+    iyzico_base_url: str = "https://sandbox-api.iyzipay.com"
+    # iyzico callback'i tarayıcı üzerinden bu backend'e POST atar — backend'in
+    # dışarıdan erişilebilir adresi (Railway URL'i). Yereldeki varsayılan yeterli.
+    public_base_url: str = "http://localhost:8010"
+    # Ödeme sonucu kullanıcının döndürüleceği panel adresi (Vercel URL'i).
+    frontend_base_url: str = "http://localhost:3000"
     whatsapp_token: str | None = None
     # Meta'nın webhook kurulum handshake'inde (GET) döndüğümüz hub.verify_token'la eşleşmeli.
     whatsapp_verify_token: str | None = None
     # X-Hub-Signature-256 doğrulaması için; boşsa (henüz Meta onayı yoksa) imza kontrolü atlanır.
     whatsapp_app_secret: str | None = None
     sentry_dsn: str | None = None
+    # POST /internal/run-follow-ups'ı tetikleyen cron'un paylaşılan sırrı;
+    # boşsa zamanlanmış görev endpoint'i 503 döner (henüz kurulmadıysa sert hata değil).
+    cron_secret: str | None = None
 
     # İlan fotoğrafları: herhangi bir S3-uyumlu servis (Railway Bucket, Cloudflare R2, vb.).
     # s3_endpoint_url boşsa fotoğraf yükleme endpoint'i 503 döner (henüz kurulmadıysa sert hata değil).

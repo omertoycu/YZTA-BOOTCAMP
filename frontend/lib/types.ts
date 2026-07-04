@@ -45,6 +45,9 @@ export interface Lead {
   radius_km: number | null;
   message_count: number;
   last_contacted_at: string | null;
+  auto_follow_up_enabled: boolean;
+  follow_up_stage: number;
+  next_follow_up_at: string | null;
   created_at: string;
 }
 
@@ -88,6 +91,18 @@ export interface ReportsOverview {
   scored_lead_count: number;
   average_score: number | null;
   score_distribution: ScoreBucket[];
+}
+
+export interface PlanInfo {
+  id: string;
+  name: string;
+  monthly_price: number;
+  features: string[];
+  is_current: boolean;
+}
+
+export interface CheckoutResult {
+  payment_page_url: string;
 }
 
 export interface PricingSuggestion {

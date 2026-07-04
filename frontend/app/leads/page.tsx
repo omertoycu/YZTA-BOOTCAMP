@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Compass, Gauge, MapPin, MessageCircle, Phone, Plus, Sparkles, Users, Wallet } from "lucide-react";
+import { Compass, Gauge, MapPin, MessageCircle, Phone, Plus, Repeat, Sparkles, Users, Wallet } from "lucide-react";
 import { apiFetch, getToken } from "@/lib/api";
 import type { FollowUpResult, Lead, LeadScore, MatchResult } from "@/lib/types";
 import { formatCurrency } from "@/lib/format";
@@ -100,6 +100,22 @@ export default function LeadsPage() {
       setMatchesByLead((prev) => ({ ...prev, [leadId]: matches }));
     } catch (err) {
       setError(err instanceof Error ? err.message : "Eşleştirme yapılamadı");
+    } finally {
+      setPendingAction(null);
+    }
+  }
+
+  async function handleToggleAutoFollowUp(lead: Lead) {
+    setPendingAction(`auto-follow-up-${lead.id}`);
+    setError(null);
+    try {
+      const updated = await apiFetch<Lead>(`/leads/${lead.id}/auto-follow-up`, {
+        method: "PATCH",
+        body: JSON.stringify({ enabled: !lead.auto_follow_up_enabled }),
+      });
+      setLeads((prev) => prev.map((l) => (l.id === updated.id ? updated : l)));
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Otomatik takip güncellenemedi");
     } finally {
       setPendingAction(null);
     }
@@ -264,6 +280,15 @@ export default function LeadsPage() {
                     >
                       <MessageCircle className="h-3.5 w-3.5" />
                       Takip Mesajı Gönder
+                    </Button>
+                    <Button
+                      variant={lead.auto_follow_up_enabled ? "primary" : "outline"}
+                      size="sm"
+                      isLoading={pendingAction === `auto-follow-up-${lead.id}`}
+                      onClick={() => handleToggleAutoFollowUp(lead)}
+                    >
+                      <Repeat className="h-3.5 w-3.5" />
+                      {lead.auto_follow_up_enabled ? "Otomatik Takip: Açık" : "Otomatik Takip"}
                     </Button>
                   </div>
                 </div>

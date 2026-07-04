@@ -4,6 +4,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from app.agents.follow_up import disable_auto_follow_up, enable_auto_follow_up
 from app.agents.graph import build_matching_graph
 from app.agents.scoring import calculate_lead_score
 from app.agents.whatsapp_send import WhatsAppSendError, send_whatsapp_text
@@ -12,7 +13,14 @@ from app.middleware.tenant import get_tenant_db
 from app.models.lead import Lead
 from app.models.lead_score import LeadScore
 from app.models.office import Office
-from app.schemas.lead import FollowUpRequest, FollowUpResponse, LeadCreate, LeadResponse, MatchResult
+from app.schemas.lead import (
+    AutoFollowUpRequest,
+    FollowUpRequest,
+    FollowUpResponse,
+    LeadCreate,
+    LeadResponse,
+    MatchResult,
+)
 from app.schemas.lead_score import LeadScoreResponse
 
 router = APIRouter(prefix="/leads", tags=["leads"])
@@ -123,3 +131,29 @@ def send_follow_up(
     lead.last_contacted_at = datetime.now(timezone.utc)
     db.commit()
     return FollowUpResponse(sent=True, message=message)
+
+
+@router.patch("/{lead_id}/auto-follow-up", response_model=LeadResponse)
+def toggle_auto_follow_up(
+    lead_id: str,
+    payload: AutoFollowUpRequest,
+    db: Session = Depends(get_tenant_db),
+    current_user: dict = Depends(get_current_user),
+):
+    """Otomatik takip zincirini açar/kapatır. Açıldığında zincir baştan başlar
+    (ilk mesaj 1 gün sonra); aday yanıt verirse Intake Agent zinciri kendiliğinden
+    durdurur. Gerçek gönderimi cron tetikler (bkz. POST /internal/run-follow-ups)."""
+    lead = db.get(Lead, lead_id)
+    if not lead:
+        raise HTTPException(status_code=404, detail="Lead bulunamadı")
+
+    if payload.enabled:
+        office = db.get(Office, current_user["office_id"])
+        if not office or not office.whatsapp_phone_number_id:
+            raise HTTPException(status_code=503, detail="Bu ofis için WhatsApp gönderimi henüz bağlı değil")
+        enable_auto_follow_up(lead)
+    else:
+        disable_auto_follow_up(lead)
+
+    db.commit()
+    return lead

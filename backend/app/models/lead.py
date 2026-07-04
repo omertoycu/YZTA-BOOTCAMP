@@ -1,7 +1,7 @@
 import uuid
 from datetime import datetime
 
-from sqlalchemy import Integer, String, Numeric, DateTime, ForeignKey, func
+from sqlalchemy import Boolean, Integer, String, Numeric, DateTime, ForeignKey, func
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -27,4 +27,10 @@ class Lead(Base):
     # tabloda tutulmuyor — sadece idempotency için whatsapp_inbound_events var.
     message_count: Mapped[int] = mapped_column(Integer, default=0)
     last_contacted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    # Otomatik WhatsApp takip zinciri (bkz. app/agents/follow_up.py): danışman
+    # açar, scheduler vadesi gelen aşamayı gönderir, lead yanıt verince
+    # (app/agents/intake.py) zincir kendiliğinden durur.
+    auto_follow_up_enabled: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    follow_up_stage: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    next_follow_up_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())

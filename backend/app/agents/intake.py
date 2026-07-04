@@ -64,6 +64,12 @@ def process_inbound_message(
     else:
         lead.message_count += 1
         lead.last_contacted_at = now
+        # Aday yanıt verdi → otomatik takip zinciri durur, konuşmayı danışman
+        # devralır (bkz. app/agents/follow_up.py). Zincir yeniden gerekirse
+        # danışman panelden tekrar açar.
+        if lead.auto_follow_up_enabled:
+            lead.auto_follow_up_enabled = False
+            lead.next_follow_up_at = None
 
     db.add(
         WhatsAppInboundEvent(
