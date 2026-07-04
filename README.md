@@ -25,41 +25,40 @@
 
 ## Ürün Açıklaması
 
-PortföyAI, emlak danışmanının CRM'i değil; ilk WhatsApp mesajından imzaya kadar hiçbir fırsatı kaçırmamasını sağlayan dijital asistanıdır.
+PortföyAI, emlak danışmanlarının WhatsApp'tan gelen hiçbir müşteriyi kaçırmadan, doğru alıcıyı doğru portföyle buluşturmasını sağlayan bir yapay zeka asistanıdır. Klasik bir CRM değildir; danışmanın günlük işini — ilan girmekten müşteri takibine kadar — hızlandıran bir yardımcıdır.
 
-Türkiye emlak yazılım pazarında "AI destekli CRM" artık bir farklılaştırıcı değil, sektör standardı (Arveya, RE-OS, EmlakCRMx gibi oyuncular zaten lead skorlama ve AI eşleştirme sunuyor — detaylı rakip analizi için [Girişim Analizi Raporu](./PortfoyAI_Girisim_Analizi_ve_Teknik_Rapor.md)'na bakınız). Bu yüzden PortföyAI, Matching/Scoring/Pricing'i "olması gereken temel özellikler" olarak arkada tutup pazarda gerçekten boş olan iki alana odaklanır: **sesli not ile saniyeler içinde ilan oluşturma** ve **markalı, kapanış aracı olarak kullanılabilecek ulaşım/konum raporu**. Danışman arabada müşteriyle gezerken telefonuna konuşur, PortföyAI ilanı taslak olarak hazırlar; danışman onaylar. Aynı danışman, adayına logolu bir PDF ile "eve 12 dakikada, metroya yürüyerek 4 dakikada" diyen somut bir rapor gönderir. Arka planda WhatsApp'tan gelen her lead otomatik nitelendirilir, skorlanır ve uygun portföylerle eşleştirilir.
+Danışman portföyünü kendisi ekler: sesle anlatarak, rehberli bir formla ya da ilan sayfasının kaynağını yapıştırarak. Sistem gelen her müşteri mesajını otomatik değerlendirir, puanlar, uygun portföylerle eşleştirir ve takibi asla unutmaz. Danışman isterse tek tıkla, müşterisine ofis logolu bir ulaşım/konum raporu da gönderebilir.
 
-> **Önemli netleştirme:** PortföyAI, Sahibinden/Hepsiemlak/Emlakjet gibi ilan portallarıyla arka planda otomatik çalışan bir entegrasyon veya *scraping* mekanizması **içermez** — bu portalların bot korumaları (özellikle Sahibinden'in sunucu taraflı isteklere 403 dönmesi) ve ilişkili yasal risk nedeniyle bilinçli olarak tercih edilmedi. Danışman kendi portföyünü kendisi girer: rehberli bir sihirbazla elle, ya da ilanının sayfa kaynağını kendi tarayıcısından kopyalayıp yapıştırarak (URL ile değil — sunucudan atılan istekler engelleniyor, danışmanın kendi tarayıcısından kopyaladığı HTML ise sorunsuz ayrıştırılıyor). Ürün bir ilan sitesi değil, danışmanın kendi verisi üzerinde çalışan bir asistandır.
+> **Not:** PortföyAI, ilan sitelerini (Sahibinden, Hepsiemlak, Emlakjet vb.) arka planda otomatik tarayan bir sistem değildir. Danışman kendi portföyünü kendisi girer; bu hem yasal riskleri ortadan kaldırır hem de veri kalitesini danışmanın kontrolünde tutar.
 
-Backend + PostgreSQL Railway'de, ofis paneli Vercel'de canlıdır (2026-07-03 itibarıyla). WhatsApp Business ve iyzico entegrasyonları kod tarafında tamamlanmış olup Meta/iyzico'nun kurumsal onay süreçlerinin tamamlanmasını beklemektedir.
+Backend Railway'de, ofis paneli Vercel'de canlıdır.
 
 ---
 
 ## Ürün Özellikleri
 
-### Hero Özellikler (Farklılaştırıcı — rakiplerde yok)
-- 🎙️ **Sesli Not → İlan Otomasyonu** ✅ — Danışman `/assistant` sayfasında tarayıcıdan mikrofonla kayıt yapar ya da ses dosyası yükler; Gemini'nin native ses girişiyle tek çağrıda transkript + yapılandırılmış ilan taslağı (başlık/bölge/fiyat/oda/m²) üretilir. Danışman taslağı gözden geçirip düzenledikten sonra onaylamadan hiçbir ilan oluşturulmaz.
-- 🗺️ **Markalı Ulaşım/Konum Raporu (PDF)** ✅ — Google Maps Directions API ile üretilen, ofis adı başlıklı, araç/yürüyüş/toplu taşıma sürelerini gösteren PDF; ilan detay sayfasından hedef adres girilerek anında indirilir.
-- 💬 **Otomatik WhatsApp Takip Zinciri** 🟡 — Danışman aday kartından "Otomatik Takip"i açar; sistem 1., 3. ve 7. günlerde giderek yumuşayan takip mesajlarını kendiliğinden gönderir, aday yanıt verdiği anda zincir otomatik durur ve konuşmayı danışman devralır. Manuel tek-tık takip mesajı da ayrıca mevcut. Kod tarafı cron-tetiklemeli scheduler dahil tamam; canlıda çalışması ofisin bir WhatsApp numarasına bağlanmasını (Meta doğrulaması) bekliyor.
+### Öne Çıkan Özellikler (rakiplerde olmayan)
+- 🎙️ **Sesli Not → İlan** ✅ — Danışman telefonuna konuşur; yapay zeka kaydı dinleyip ilan taslağını (başlık, bölge, fiyat, oda sayısı, m²) otomatik hazırlar. Danışman onaylamadan hiçbir ilan yayınlanmaz.
+- 🗺️ **Markalı Ulaşım/Konum Raporu** ✅ — Danışman bir hedef adres girer; sistem araçla, yürüyerek ve toplu taşımayla süreleri hesaplayıp ofis logolu bir PDF rapor oluşturur.
+- 💬 **Otomatik WhatsApp Takip Zinciri** 🟡 — Danışman "Otomatik Takip"i açtığında sistem müşteriye 1., 3. ve 7. günlerde giderek yumuşayan hatırlatma mesajları gönderir; müşteri yanıt verdiği an zincir otomatik durur. Kod hazır, WhatsApp hattının resmi onayı bekleniyor.
 
-### Temel Özellikler (Table Stakes — sektör standardı, ürün için zorunlu ama pazarlamanın merkezinde değil)
-- 🤖 **Intake Agent** ✅ — WhatsApp Business Cloud API webhook'undan gelen mesajları lead olarak sisteme kaydeder/günceller; Meta'nın en-az-bir-kez teslimatına karşı idempotency ile mükerrer mesajları tekilleştirir. Kod tamam, Meta Business doğrulaması tamamlanana kadar sadece mock payload'larla test edilebiliyor.
-- 📋 **İlan İçe Aktarma (Sayfa Kaynağı Yapıştır)** ✅ — Danışman, Sahibinden veya Emlakjet ilanının sayfa kaynağını (Ctrl+U) kopyalayıp yapıştırır; portal otomatik tespit edilir, JSON-LD ve CSS seçicileriyle başlık/bölge/fiyat/oda sayısı/m² otomatik çıkarılıp forma doldurulur. Sunucudan hiçbir dış siteye istek atılmaz.
-- 🔗 **Matching Agent** ✅ — Bütçe, oda sayısı ve bölge kriterlerine göre; lead'e yarıçap (`radius_km`) tanımlanmışsa OpenStreetMap Nominatim ile geocode edilmiş coğrafi mesafeye göre eşleştirir
-- 📊 **Scoring Agent** ✅ — Yanıt hızı, mesaj sayısı, bütçe tutarlılığı gibi kural bazlı ağırlıklarla lead'i puanlar (ilk versiyon ML değil, kural motoru)
-- 💰 **Pricing Agent** ✅ — ChromaDB'de tutulan, ofis-içi bölgesel emsal ilan embedding'leri üzerinden k-NN benzerlik ile "benzer ilan fiyat aralığı" önerir (kesin AI fiyat tahmini değil, savunulabilir bir aralık)
-- 📈 **Reports** ✅ — Ofisin portföy/aday verisinden bölge dağılımı, skor dağılımı ve kaynak kırılımı; ek bir API key gerektirmiyor
-- 🏢 **Multi-tenant Ofis Yönetimi** ✅ — Ofis sahibi / danışman / görüntüleyici rolleriyle RBAC, PostgreSQL Row-Level Security ile veri izolasyonu
-- 💳 **Abonelik ve Faturalama** 🟡 — iyzico Checkout Form ile 3 plan (Starter ücretsiz / Pro / Ofis); `/billing` sayfasından plan seçilir, ödeme iyzico'nun barındırdığı sayfada tamamlanır, sonuç sunucu tarafında iyzico API'sinden doğrulanır. Kod tamam; sandbox aktivasyon maili bekleniyor
+### Temel Özellikler (sektörde standart, ürünün olmazsa olmazı)
+- 🤖 **Müşteri Kaydı** ✅ — WhatsApp'tan gelen mesajlar otomatik olarak müşteri kaydına dönüşür.
+- 📋 **İlan İçe Aktarma** ✅ — Danışman bir ilan sitesindeki sayfanın kaynağını yapıştırır; başlık, bölge, fiyat, oda sayısı ve m² otomatik olarak forma dolar.
+- 🔗 **Eşleştirme** ✅ — Müşterinin bütçesi, oda tercihi ve bölgesine (istenirse yarıçap bazlı) göre uygun portföyleri bulur.
+- 📊 **Puanlama** ✅ — Müşterinin yanıt hızı, mesaj sayısı ve bütçe tutarlılığına göre bir öncelik skoru üretir.
+- 💰 **Fiyat Önerisi** ✅ — Ofisin geçmiş ilanlarına bakarak benzer portföyler için savunulabilir bir fiyat aralığı önerir.
+- 📈 **Raporlama** ✅ — Ofisin portföy ve müşteri verisinden bölge, skor ve kaynak dağılımını özetler.
+- 🏢 **Çoklu Ofis Desteği** ✅ — Her ofisin verisi diğerlerinden tamamen izole tutulur (rol bazlı erişim: sahip / danışman / görüntüleyici).
+- 💳 **Abonelik ve Faturalama** 🟡 — Üç plan arasından (Başlangıç / Profesyonel / Ofis) seçim yapılıp güvenli ödeme sayfası üzerinden abone olunur. Kod hazır, ödeme sağlayıcısının onayı bekleniyor.
 
 ---
 
 ## Hedef Kitle
 
-- **Birincil hedef:** 1–5 danışmanlı bireysel/mikro emlak ofisleri (büyük zincirler değil — onlar zaten kurumsal CRM'lere bağlı, değişim maliyeti düşük olan küçük ofisler ilk dalga)
-- Şu anda WhatsApp ve Excel ile manuel çalışan, dijitalleşmemiş emlak danışmanları
-- İl/ilçe bazlı emlakçı WhatsApp gruplarında ve emlak odalarında (TÜGEM, İstanbul Emlak Odası vb.) organik olarak ulaşılabilecek bağımsız acenteler
-- Zaman kaybını en çok "sahada not alıp ofise dönünce ilan girme" ve "her lead'i manuel takip etme" adımlarında yaşayan danışmanlar
+- 1–5 danışmanlı bağımsız emlak ofisleri
+- Hâlâ WhatsApp ve Excel ile manuel çalışan, dijitalleşmemiş emlak danışmanları
+- İlan girme ve müşteri takibinde en çok zaman kaybeden, sahada çalışan danışmanlar
 
 ---
 
@@ -193,13 +192,11 @@ Daily Scrum Slack kanalı üzerinden asenkron olarak yürütülmektedir (her üy
 
 ### Sprint Board Güncellemeleri
 
-> 📸 *Sprint bitiminde ekran görüntüleri eklenecektir.*
-> ![Sprint Board](./ProjectManagement/Sprint1Documents/sprintboard_sprint1.png)
+> 📸 *Tek kişilik takım GitHub Projects backlog'unu kullanıyor; board ekran görüntüsü ileride eklenecektir.*
 
 ### Ürün Durumu
 
-> 📸 *Uygulama ekran görüntüleri eklenecektir.*
-> ![Uygulama Ekranı 1](./ProjectManagement/Sprint1Documents/product_ss1.png)
+![Uygulama Ekranı — Portföyler](./ProjectManagement/Sprint1Documents/product_ss1.png)
 
 ### Sprint Review
 
