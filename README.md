@@ -192,7 +192,7 @@ Daily Scrum Slack kanalı üzerinden asenkron olarak yürütülmektedir (her üy
 
 ### Sprint Board Güncellemeleri
 
-> 📸 *Tek kişilik takım GitHub Projects backlog'unu kullanıyor; board ekran görüntüsü ileride eklenecektir.*
+![Sprint 1 Board](./ProjectManagement/Sprint1Documents/sprintboard_sprint1.svg)
 
 ### Ürün Durumu
 
