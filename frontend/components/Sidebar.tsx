@@ -13,6 +13,7 @@ const NAV_LINKS = [
   { href: "/leads", label: "Adaylar", icon: "group" },
   { href: "/assistant", label: "YZ Asistanı", icon: "psychology" },
   { href: "/reports", label: "Reports", icon: "assessment" },
+  { href: "/billing", label: "Abonelik", icon: "credit_card" },
 ];
 
 export function Sidebar() {
@@ -32,7 +33,7 @@ export function Sidebar() {
   }
 
   function handleVoiceToListing() {
-    window.alert("Sesli not → ilan özelliği Sprint 3'te geliyor.");
+    router.push("/assistant");
   }
 
   return (
