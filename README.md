@@ -40,17 +40,17 @@ Backend + PostgreSQL Railway'de, ofis paneli Vercel'de canlıdır (2026-07-03 it
 ### Hero Özellikler (Farklılaştırıcı — rakiplerde yok)
 - 🎙️ **Sesli Not → İlan Otomasyonu** ✅ — Danışman `/assistant` sayfasında tarayıcıdan mikrofonla kayıt yapar ya da ses dosyası yükler; Gemini'nin native ses girişiyle tek çağrıda transkript + yapılandırılmış ilan taslağı (başlık/bölge/fiyat/oda/m²) üretilir. Danışman taslağı gözden geçirip düzenledikten sonra onaylamadan hiçbir ilan oluşturulmaz.
 - 🗺️ **Markalı Ulaşım/Konum Raporu (PDF)** ✅ — Google Maps Directions API ile üretilen, ofis adı başlıklı, araç/yürüyüş/toplu taşıma sürelerini gösteren PDF; ilan detay sayfasından hedef adres girilerek anında indirilir.
-- 💬 **WhatsApp Takip Mesajı** 🟡 — Danışman, aday panelinden tek tıkla Meta WhatsApp Cloud API üzerinden takip mesajı gönderebiliyor. Tam otomatik (zamanlanmış/kuralla tetiklenen) takip zinciri henüz yok — bu, manuel tetiklenen MVP versiyonu; ayrıca ofisin bir WhatsApp numarasına bağlı olması gerekiyor.
+- 💬 **Otomatik WhatsApp Takip Zinciri** 🟡 — Danışman aday kartından "Otomatik Takip"i açar; sistem 1., 3. ve 7. günlerde giderek yumuşayan takip mesajlarını kendiliğinden gönderir, aday yanıt verdiği anda zincir otomatik durur ve konuşmayı danışman devralır. Manuel tek-tık takip mesajı da ayrıca mevcut. Kod tarafı cron-tetiklemeli scheduler dahil tamam; canlıda çalışması ofisin bir WhatsApp numarasına bağlanmasını (Meta doğrulaması) bekliyor.
 
 ### Temel Özellikler (Table Stakes — sektör standardı, ürün için zorunlu ama pazarlamanın merkezinde değil)
 - 🤖 **Intake Agent** ✅ — WhatsApp Business Cloud API webhook'undan gelen mesajları lead olarak sisteme kaydeder/günceller; Meta'nın en-az-bir-kez teslimatına karşı idempotency ile mükerrer mesajları tekilleştirir. Kod tamam, Meta Business doğrulaması tamamlanana kadar sadece mock payload'larla test edilebiliyor.
-- 📋 **İlan İçe Aktarma (Sayfa Kaynağı Yapıştır)** ✅ — Danışman, Sahibinden ilanının sayfa kaynağını (Ctrl+U) kopyalayıp yapıştırır; JSON-LD ve CSS seçicileriyle başlık/bölge/fiyat/oda sayısı/m² otomatik çıkarılıp forma doldurulur. Sunucudan hiçbir dış siteye istek atılmaz.
+- 📋 **İlan İçe Aktarma (Sayfa Kaynağı Yapıştır)** ✅ — Danışman, Sahibinden veya Emlakjet ilanının sayfa kaynağını (Ctrl+U) kopyalayıp yapıştırır; portal otomatik tespit edilir, JSON-LD ve CSS seçicileriyle başlık/bölge/fiyat/oda sayısı/m² otomatik çıkarılıp forma doldurulur. Sunucudan hiçbir dış siteye istek atılmaz.
 - 🔗 **Matching Agent** ✅ — Bütçe, oda sayısı ve bölge kriterlerine göre; lead'e yarıçap (`radius_km`) tanımlanmışsa OpenStreetMap Nominatim ile geocode edilmiş coğrafi mesafeye göre eşleştirir
 - 📊 **Scoring Agent** ✅ — Yanıt hızı, mesaj sayısı, bütçe tutarlılığı gibi kural bazlı ağırlıklarla lead'i puanlar (ilk versiyon ML değil, kural motoru)
 - 💰 **Pricing Agent** ✅ — ChromaDB'de tutulan, ofis-içi bölgesel emsal ilan embedding'leri üzerinden k-NN benzerlik ile "benzer ilan fiyat aralığı" önerir (kesin AI fiyat tahmini değil, savunulabilir bir aralık)
 - 📈 **Reports** ✅ — Ofisin portföy/aday verisinden bölge dağılımı, skor dağılımı ve kaynak kırılımı; ek bir API key gerektirmiyor
 - 🏢 **Multi-tenant Ofis Yönetimi** ✅ — Ofis sahibi / danışman / görüntüleyici rolleriyle RBAC, PostgreSQL Row-Level Security ile veri izolasyonu
-- 💳 **Abonelik ve Faturalama** *(planlanan)* — iyzico Abonelik Yönetimi ile Starter / Professional / Enterprise planları; sandbox aktivasyon maili bekleniyor
+- 💳 **Abonelik ve Faturalama** 🟡 — iyzico Checkout Form ile 3 plan (Starter ücretsiz / Pro / Ofis); `/billing` sayfasından plan seçilir, ödeme iyzico'nun barındırdığı sayfada tamamlanır, sonuç sunucu tarafında iyzico API'sinden doğrulanır. Kod tamam; sandbox aktivasyon maili bekleniyor
 
 ---
 
@@ -245,13 +245,13 @@ RLS testinde ortaya çıkan üç güvenlik açığı (superuser bypass, SET LOCA
 
 Sprint 2'de gerçek entegrasyonları (ödeme, WhatsApp) ve Pricing/Scoring ajanlarını tamamlamayı hedefliyoruz.
 
-> ⚡ **Erken başlangıç notu (2–4 Temmuz 2026, sprint resmi olarak 6 Temmuz'da başlıyor):** Sprint 1 kapanışının hemen ardından, resmi tarih beklenmeden aşağıdaki tabloda listelenen Sprint 2 story'lerinin çoğu, backlog'da hiç yer almayan ek kapsam (ilan içe aktarma, konum bazlı eşleştirme, fotoğraf yükleme, tasarım sistemi yenilemesi, ilan detay sayfası, Reports) ve normalde Sprint 3'e ait iki hero özellik (Voice-to-Listing, Ulaşım Raporu) kod tarafında tamamlandı. Backend + PostgreSQL Railway'de, ofis paneli Vercel'de canlıya alındı (2026-07-03), Gemini/Google Maps entegrasyonları canlı ortama eklendi (2026-07-04). 70 backend testi yeşil, ruff lint temiz — gerçek pytest suite'i izole bir Docker+Postgres ortamında doğrulandı (bu süreçte WeasyPrint'in `pydyf` 0.12 ile kırılan uyumluluğu ve Railway'in Debian trixie tabanında `libgdk-pixbuf` paket adı değişikliği bulunup düzeltildi). Detaylar için [TEKNIK_YOL_HARITASI.md](./TEKNIK_YOL_HARITASI.md) ve [CLAUDE.md](./CLAUDE.md)'ye bakınız.
+> ⚡ **Erken başlangıç notu (2–4 Temmuz 2026, sprint resmi olarak 6 Temmuz'da başlıyor):** Sprint 1 kapanışının hemen ardından, resmi tarih beklenmeden aşağıdaki tabloda listelenen Sprint 2 story'lerinin çoğu, backlog'da hiç yer almayan ek kapsam (ilan içe aktarma, konum bazlı eşleştirme, fotoğraf yükleme, tasarım sistemi yenilemesi, ilan detay sayfası, Reports) ve normalde Sprint 3'e ait iki hero özellik (Voice-to-Listing, Ulaşım Raporu) kod tarafında tamamlandı. Backend + PostgreSQL Railway'de, ofis paneli Vercel'de canlıya alındı (2026-07-03), Gemini/Google Maps entegrasyonları canlı ortama eklendi (2026-07-04). 93 backend testi yeşil, ruff lint temiz — gerçek pytest suite'i izole bir Docker+Postgres ortamında doğrulandı (bu süreçte WeasyPrint'in `pydyf` 0.12 ile kırılan uyumluluğu ve Railway'in Debian trixie tabanında `libgdk-pixbuf` paket adı değişikliği bulunup düzeltildi). Detaylar için [TEKNIK_YOL_HARITASI.md](./TEKNIK_YOL_HARITASI.md) ve [CLAUDE.md](./CLAUDE.md)'ye bakınız.
 
 **Planlanan Story'ler:**
 
 | # | User Story | Puan (Tahmini) | Durum |
 |---|-----------|----------------|-------|
-| 6 | iyzico canlı ödeme akışı: ürün + 3 `pricingPlan` (Starter/Professional/Enterprise) | 8 | ⏳ Beklemede — iyzico sandbox aktivasyon maili gerekiyor (manuel, `entegrasyon@iyzico.com`) |
+| 6 | iyzico canlı ödeme akışı: ürün + 3 `pricingPlan` (Starter/Pro/Ofis) | 8 | 🟡 Kod tamam (Checkout Form + callback doğrulama + `/billing` sayfası); sandbox aktivasyon maili bekleniyor (manuel, `entegrasyon@iyzico.com`) |
 | 7 | WhatsApp Business API başvurusu + BSP seçimi + Intake Agent webhook entegrasyonu | 8 | 🟡 Webhook kodu tamam (HMAC imza doğrulama, idempotency, prod'da secret zorunlu); Meta Business Manager doğrulaması bekleniyor (manuel) |
 | 8 | Pricing Agent: ChromaDB emsal embedding + k-NN benzerlik ile fiyat aralığı önerisi | 8 | ✅ Tamamlandı *(erken)* |
 | 9 | Scoring Agent: kural bazlı skor motoru (yanıt hızı + mesaj sayısı + bütçe tutarlılığı) | 5 | ✅ Tamamlandı *(erken)* |
@@ -261,7 +261,7 @@ Sprint 2'de gerçek entegrasyonları (ödeme, WhatsApp) ve Pricing/Scoring ajanl
 
 | Kapsam | Durum |
 |--------|-------|
-| Sahibinden sayfa kaynağı yapıştır → ilan formu otomatik doldur (JSON-LD + CSS seçiciler) | ✅ Kod tamam; seçiciler gerçek yapıştırılmış kaynaklarla henüz doğrulanmadı |
+| Sahibinden + Emlakjet sayfa kaynağı yapıştır → ilan formu otomatik doldur (JSON-LD + CSS seçiciler, portal otomatik tespiti) | ✅ Kod tamam; seçiciler gerçek yapıştırılmış kaynaklarla henüz doğrulanmadı |
 | Konum/yarıçap bazlı eşleştirme (Nominatim geocoding + DB önbellek) | ✅ Tamamlandı; `radius_km` set edilmezse eski bölge-eşleşmesine geriye dönük uyumlu |
 | İlan fotoğrafı yükleme (S3-uyumlu depo, dosya boyutu/tür doğrulaması) | 🟡 Kod tamam; Railway Bucket (Tigris) kurulumu ve public-read doğrulaması devam ediyor |
 | Yeni tasarım sistemi: bento-grid dashboard + rehberli (6 adımlı) ilan ekleme sihirbazı | ✅ Tamamlandı |
@@ -270,6 +270,7 @@ Sprint 2'de gerçek entegrasyonları (ödeme, WhatsApp) ve Pricing/Scoring ajanl
 | Voice-to-Listing: Gemini native ses girişiyle sesli not → ilan taslağı — orijinalde Sprint 3 story'siydi (#11), erken taşındı, Whisper'a gerek kalmadı | ✅ Canlı |
 | Markalı Ulaşım/Konum Raporu (PDF) — orijinalde Sprint 3 story'siydi (#12), erken taşındı | ✅ Canlı |
 | WhatsApp takip mesajı (manuel tetiklenen giden mesaj) — orijinalde Sprint 3 story'sinin (#13) bir parçası | 🟡 Kod tamam; ofisin WhatsApp numarasına bağlı olması gerekiyor |
+| Otomatik WhatsApp takip zinciri (3 aşamalı, cron-tetiklemeli, aday yanıt verince duran) — Sprint 3 story'sinin (#13) kalan yarısı | 🟡 Kod tamam (scheduler endpoint'i dahil); Meta doğrulaması + cron kurulumu bekleniyor |
 | Reports sayfası: bölge/skor/kaynak dağılımı | ✅ Tamamlandı |
 
 ### Daily Scrum
