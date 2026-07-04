@@ -12,7 +12,7 @@ from app.agents.location_report import LocationReportError, get_travel_summary, 
 from app.agents.pricing import index_listing, suggest_price_range
 from app.agents.voice_listing import MAX_AUDIO_BYTES, VoiceListingError, transcribe_and_extract
 from app.api.deps import get_current_user
-from app.core.storage import MAX_PHOTO_BYTES, upload_photo
+from app.core.storage import MAX_PHOTO_BYTES, fetch_photo, upload_photo
 from app.middleware.tenant import get_tenant_db
 from app.models.listing import Listing
 from app.models.office import Office
@@ -140,10 +140,24 @@ def upload_listing_photo(
     file_bytes = file.file.read(MAX_PHOTO_BYTES + 1)
     if len(file_bytes) > MAX_PHOTO_BYTES:
         raise HTTPException(status_code=413, detail="Fotoğraf çok büyük (maksimum 8MB)")
-    url = upload_photo(file_bytes, file.content_type or "", listing_id)
-    listing.photos = [*listing.photos, url]
+    key = upload_photo(file_bytes, file.content_type or "", listing_id)
+    listing.photos = [*listing.photos, key]
     db.commit()
     return listing
+
+
+@router.get("/photos/{key:path}")
+def get_listing_photo(key: str):
+    """Railway Buckets (Tigris) public bucket erişimini desteklemiyor; fotoğraflar
+    bu route üzerinden backend credential'ıyla bucket'tan çekilip tarayıcıya akıtılır.
+    ListingResponse.photos alanı zaten bu route'a işaret eden URL'leri döner
+    (bkz. app/schemas/listing.py, app/core/storage.py: photo_proxy_url)."""
+    body, content_type = fetch_photo(key)
+    return Response(
+        content=body,
+        media_type=content_type,
+        headers={"Cache-Control": "public, max-age=31536000, immutable"},
+    )
 
 
 @router.post("/{listing_id}/location-report")

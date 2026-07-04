@@ -80,10 +80,14 @@ def test_upload_photo_returns_503_when_s3_not_configured(client):
     assert resp.status_code == 503
 
 
-def test_upload_photo_appends_url_to_listing(client, monkeypatch):
+def test_upload_photo_appends_proxy_url_to_listing(client, monkeypatch):
+    """upload_photo artık bare bir S3 key döner (bucket private olduğu için tam
+    URL değil); API yanıtı bu key'i backend proxy route'una (GET /listings/photos/{key})
+    işaret eden bir URL'e çevirmeli — bkz. app/schemas/listing.py."""
     from app.api.routes import listings as listings_route
 
-    monkeypatch.setattr(listings_route, "upload_photo", lambda file_bytes, content_type, listing_id: "https://cdn.example.com/fake.jpg")
+    fake_key = "listings/fake-listing-id/fake.jpg"
+    monkeypatch.setattr(listings_route, "upload_photo", lambda file_bytes, content_type, listing_id: fake_key)
 
     headers = _register(client, "Ofis Listing Test 6", "owner6@listing-test.com")
     create_resp = client.post(
@@ -100,7 +104,25 @@ def test_upload_photo_appends_url_to_listing(client, monkeypatch):
         headers=headers,
     )
     assert resp.status_code == 200
-    assert resp.json()["photos"] == ["https://cdn.example.com/fake.jpg"]
+    assert resp.json()["photos"] == [f"http://localhost:8010/listings/photos/{fake_key}"]
+
+
+def test_get_listing_photo_streams_bytes(client, monkeypatch):
+    from app.api.routes import listings as listings_route
+
+    monkeypatch.setattr(
+        listings_route, "fetch_photo", lambda key: (b"fake-image-bytes", "image/jpeg")
+    )
+
+    resp = client.get("/listings/photos/listings/some-id/fake.jpg")
+    assert resp.status_code == 200
+    assert resp.content == b"fake-image-bytes"
+    assert resp.headers["content-type"] == "image/jpeg"
+
+
+def test_get_listing_photo_returns_503_when_s3_not_configured(client):
+    resp = client.get("/listings/photos/listings/some-id/missing.jpg")
+    assert resp.status_code == 503
 
 
 def test_upload_photo_unknown_listing_returns_404(client):

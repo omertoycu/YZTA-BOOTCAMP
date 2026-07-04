@@ -40,11 +40,13 @@ class Settings(BaseSettings):
 
     # İlan fotoğrafları: herhangi bir S3-uyumlu servis (Railway Bucket, Cloudflare R2, vb.).
     # s3_endpoint_url boşsa fotoğraf yükleme endpoint'i 503 döner (henüz kurulmadıysa sert hata değil).
+    # Bucket'lar (özellikle Railway'in kendi Bucket kaynağı) public erişim desteklemediği
+    # için fotoğraflar her zaman backend proxy'sinden (public_base_url) servis edilir —
+    # ayrı bir public URL base'e gerek yok.
     s3_endpoint_url: str | None = None
     s3_bucket_name: str | None = None
     s3_access_key_id: str | None = None
     s3_secret_access_key: str | None = None
-    s3_public_url_base: str | None = None
 
     # Pricing Agent: bölgesel emsal ilan embedding'leri için kalıcı ChromaDB dizini.
     chroma_persist_dir: str = "./chroma_data"

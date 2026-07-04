@@ -1,7 +1,9 @@
 import uuid
 from datetime import datetime
 
-from pydantic import BaseModel
+from pydantic import BaseModel, field_serializer
+
+from app.core.storage import photo_proxy_url
 
 
 class ListingCreate(BaseModel):
@@ -24,6 +26,12 @@ class ListingResponse(BaseModel):
     created_at: datetime
 
     model_config = {"from_attributes": True}
+
+    @field_serializer("photos")
+    def _serialize_photos(self, photos: list[str]) -> list[str]:
+        # DB'de bare S3 key saklanıyor (bucket private olduğu için public URL değil);
+        # burada backend proxy route'una işaret eden gerçek URL'e çevriliyor.
+        return [photo_proxy_url(key) for key in photos]
 
 
 class ListingStatusUpdate(BaseModel):
