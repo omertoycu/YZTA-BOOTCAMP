@@ -50,19 +50,27 @@ def _parse_turkish_price(text: str) -> float | None:
         return None
 
 
-def _extract_json_ld(soup: BeautifulSoup) -> dict:
-    """Çoğu ilan sitesi schema.org JSON-LD gömer — CSS class'larından daha
-    kararlı bir kaynak, siteye özel seçicilerden önce bunu dene."""
+def _extract_json_ld_all(soup: BeautifulSoup) -> list[dict]:
+    """Sayfadaki tüm schema.org JSON-LD bloklarını döner — bir sayfada hem ilan
+    (Product/RealEstateListing) hem BreadcrumbList olabilir."""
+    blocks: list[dict] = []
     for script in soup.find_all("script", type="application/ld+json"):
         try:
             data = json.loads(script.string or "")
         except (json.JSONDecodeError, TypeError):
             continue
         if isinstance(data, list):
-            data = next((item for item in data if isinstance(item, dict)), {})
-        if isinstance(data, dict) and data:
-            return data
-    return {}
+            blocks.extend(item for item in data if isinstance(item, dict))
+        elif isinstance(data, dict) and data:
+            blocks.append(data)
+    return blocks
+
+
+def _extract_json_ld(soup: BeautifulSoup) -> dict:
+    """Çoğu ilan sitesi schema.org JSON-LD gömer — CSS class'larından daha
+    kararlı bir kaynak, siteye özel seçicilerden önce bunu dene."""
+    blocks = _extract_json_ld_all(soup)
+    return blocks[0] if blocks else {}
 
 
 def _meta_content(soup: BeautifulSoup, property_name: str) -> str | None:
@@ -102,6 +110,20 @@ def parse_sahibinden(html: str) -> dict:
         if parts:
             district = parts[-1].strip()
 
+    room_count, square_meters = _shared_room_and_sqm(soup)
+
+    return {
+        "title": title,
+        "district": district,
+        "price": price,
+        "room_count": room_count,
+        "square_meters": square_meters,
+    }
+
+
+def _shared_room_and_sqm(soup: BeautifulSoup) -> tuple[str | None, int | None]:
+    """Oda sayısı (2+1 kalıbı) ve m² her iki portalda da serbest metinde geçer —
+    siteye özel seçici gerektirmeyen ortak best-effort çıkarım."""
     room_count = None
     room_label = soup.find(string=re.compile(r"^\s*\d\s*\+\s*\d\s*$"))
     if room_label:
@@ -113,6 +135,57 @@ def parse_sahibinden(html: str) -> dict:
         match = re.search(r"(\d+)\s*(?:m2|m²)", sqm_label, re.I)
         if match:
             square_meters = int(match.group(1))
+    return room_count, square_meters
+
+
+def parse_emlakjet(html: str) -> dict:
+    """Emlakjet ilan sayfasından alanları çıkarır. Sahibinden'deki gibi JSON-LD
+    öncelikli, best-effort — gerçek yapıştırılmış kaynaklarla doğrulanması
+    gerekiyor. Her alan bağımsızdır; bulunamayan alan None döner."""
+    soup = BeautifulSoup(html, "lxml")
+    json_ld_blocks = _extract_json_ld_all(soup)
+    listing_ld = next(
+        (
+            b
+            for b in json_ld_blocks
+            if b.get("@type") in ("Product", "RealEstateListing", "Offer", "Residence")
+        ),
+        json_ld_blocks[0] if json_ld_blocks else {},
+    )
+
+    title = listing_ld.get("name") or _meta_content(soup, "og:title")
+    if not title:
+        h1 = soup.find("h1")
+        title = h1.get_text(strip=True) if h1 else None
+
+    price_text = None
+    offers = listing_ld.get("offers")
+    if isinstance(offers, dict) and offers.get("price"):
+        price_text = str(offers["price"])
+    if not price_text:
+        price_el = soup.find(class_=re.compile("price", re.I))
+        price_text = price_el.get_text(strip=True) if price_el else None
+    price = _parse_turkish_price(price_text) if price_text else None
+
+    # İlçe: JSON-LD adresinden (addressLocality ilçeye denk gelir); yoksa
+    # breadcrumb'ın sondan bir önceki halkası genelde ilçe sayfasıdır.
+    district = None
+    address = listing_ld.get("address")
+    if isinstance(address, dict):
+        district = address.get("addressLocality") or address.get("addressRegion")
+    if not district:
+        breadcrumb = next((b for b in json_ld_blocks if b.get("@type") == "BreadcrumbList"), None)
+        if breadcrumb:
+            items = [
+                i.get("name") or (i.get("item") or {}).get("name")
+                for i in breadcrumb.get("itemListElement", [])
+                if isinstance(i, dict)
+            ]
+            items = [i for i in items if i]
+            if len(items) >= 2:
+                district = items[-2]
+
+    room_count, square_meters = _shared_room_and_sqm(soup)
 
     return {
         "title": title,
@@ -121,6 +194,35 @@ def parse_sahibinden(html: str) -> dict:
         "room_count": room_count,
         "square_meters": square_meters,
     }
+
+
+def detect_source(html: str) -> str:
+    """Yapıştırılan sayfa kaynağının hangi portala ait olduğunu tahmin eder.
+    canonical/og:url en güvenilir sinyal; bulunamazsa ham metinde domain aranır.
+    Varsayılan sahibinden (ilk desteklenen portal)."""
+    soup = BeautifulSoup(html, "lxml")
+    canonical = soup.find("link", rel="canonical")
+    candidates = [
+        (canonical.get("href") or "") if canonical else "",
+        _meta_content(soup, "og:url") or "",
+    ]
+    for candidate in candidates:
+        domain = urlparse(candidate).netloc.lower()
+        if "emlakjet" in domain:
+            return "emlakjet"
+        if "sahibinden" in domain:
+            return "sahibinden"
+    if "emlakjet.com" in html[:20000]:
+        return "emlakjet"
+    return "sahibinden"
+
+
+def parse_listing_html(html: str) -> dict:
+    """Danışmanın yapıştırdığı sayfa kaynağını portala göre ayrıştırır —
+    POST /listings/extract-from-html'in kullandığı tek giriş noktası."""
+    if detect_source(html) == "emlakjet":
+        return parse_emlakjet(html)
+    return parse_sahibinden(html)
 
 
 def extract_listing(url: str) -> dict:

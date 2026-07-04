@@ -6,7 +6,7 @@ from app.agents.listing_import import (
     ListingFetchError,
     UnsupportedListingSiteError,
     extract_listing,
-    parse_sahibinden,
+    parse_listing_html,
 )
 from app.agents.location_report import LocationReportError, get_travel_summary, render_report_pdf
 from app.agents.pricing import index_listing, suggest_price_range
@@ -66,10 +66,11 @@ def extract_from_html(
     payload: ListingExtractFromHtmlRequest,
     current_user: dict = Depends(get_current_user),  # auth zorunlu, açık proxy istismarını önler
 ):
-    """Sahibinden sunucudan atılan istekleri (bot koruması) engellediği için
+    """Portallar sunucudan atılan istekleri (bot koruması) engellediği için
     danışman sayfa kaynağını kendi tarayıcısından kopyalayıp buraya yapıştırır —
-    fetch adımı yok, sadece parse_sahibinden ile ayrıştırma."""
-    fields = parse_sahibinden(payload.html)
+    fetch adımı yok. Kaynağın Sahibinden mi Emlakjet mi olduğu otomatik tespit
+    edilir (bkz. app/agents/listing_import.py: detect_source)."""
+    fields = parse_listing_html(payload.html)
     return ListingExtractResponse(**fields)
 
 

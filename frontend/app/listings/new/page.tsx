@@ -154,7 +154,7 @@ export default function NewListingPage() {
       <div className="rounded-lg bg-surface-container-lowest p-6 shadow-[0px_10px_30px_rgba(0,0,0,0.04)]">
         {step === 1 && (
           <div className="flex flex-col gap-4">
-            <h2 className="text-title-md text-primary">Sahibinden sayfa kaynağını yapıştırın</h2>
+            <h2 className="text-title-md text-primary">Sahibinden veya Emlakjet sayfa kaynağını yapıştırın</h2>
             <p className="text-body-sm text-text-muted">
               İsterseniz kendi ilanınızın sayfasını tarayıcınızda açıp (Ctrl+U ile) sayfa kaynağını
               kopyalayıp buraya yapıştırın — bilgileri otomatik bulmayı deneriz. İsterseniz atlayıp

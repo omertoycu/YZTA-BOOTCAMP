@@ -16,6 +16,28 @@ FAKE_SAHIBINDEN_HTML = """
 """
 
 
+FAKE_EMLAKJET_HTML = """
+<html>
+<head>
+<link rel="canonical" href="https://www.emlakjet.com/ilan/satilik-daire-12345" />
+<script type="application/ld+json">
+{"@type": "Product", "name": "Emlakjet 2+1 bahçe katı",
+ "offers": {"price": "1750000"},
+ "address": {"addressLocality": "Beşiktaş", "addressRegion": "İstanbul"}}
+</script>
+<script type="application/ld+json">
+{"@type": "BreadcrumbList", "itemListElement": [
+  {"name": "İstanbul"}, {"name": "Beşiktaş"}, {"name": "Satılık Daire 12345"}]}
+</script>
+</head>
+<body>
+  <strong>2+1</strong>
+  <span>Net 95 m²</span>
+</body>
+</html>
+"""
+
+
 def _register(client, office_name, email):
     resp = client.post(
         "/auth/register",
@@ -106,6 +128,51 @@ def test_extract_from_html_returns_parsed_fields_without_fetching(client):
     assert body["district"] == "Fenerbahce"
     assert body["room_count"] == "3+1"
     assert body["square_meters"] == 140
+
+
+def test_parse_emlakjet_extracts_fields_from_json_ld():
+    fields = listing_import.parse_emlakjet(FAKE_EMLAKJET_HTML)
+    assert fields["title"] == "Emlakjet 2+1 bahçe katı"
+    assert fields["price"] == 1750000.0
+    assert fields["district"] == "Beşiktaş"
+    assert fields["room_count"] == "2+1"
+    assert fields["square_meters"] == 95
+
+
+def test_parse_emlakjet_falls_back_to_breadcrumb_for_district():
+    html = """
+    <html><head>
+    <script type="application/ld+json">
+    {"@type": "Product", "name": "Adressiz ilan", "offers": {"price": "900000"}}
+    </script>
+    <script type="application/ld+json">
+    {"@type": "BreadcrumbList", "itemListElement": [
+      {"name": "İstanbul"}, {"name": "Üsküdar"}, {"name": "Satılık Daire 999"}]}
+    </script>
+    </head><body></body></html>
+    """
+    fields = listing_import.parse_emlakjet(html)
+    assert fields["district"] == "Üsküdar"
+    assert fields["title"] == "Adressiz ilan"
+
+
+def test_detect_source_prefers_canonical_url():
+    assert listing_import.detect_source(FAKE_EMLAKJET_HTML) == "emlakjet"
+    assert listing_import.detect_source(FAKE_SAHIBINDEN_HTML) == "sahibinden"
+
+
+def test_extract_from_html_auto_detects_emlakjet(client):
+    headers = _register(client, "Ofis Extract Test 6", "owner6@extract-test.com")
+    resp = client.post(
+        "/listings/extract-from-html",
+        json={"html": FAKE_EMLAKJET_HTML},
+        headers=headers,
+    )
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["title"] == "Emlakjet 2+1 bahçe katı"
+    assert body["district"] == "Beşiktaş"
+    assert body["price"] == 1750000.0
 
 
 def test_extract_from_html_handles_garbage_gracefully(client):
