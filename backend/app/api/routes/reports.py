@@ -4,6 +4,7 @@ from fastapi import APIRouter, Depends
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from app.api.routes.leads import LEAD_STATUSES
 from app.middleware.tenant import get_tenant_db
 from app.models.lead import Lead
 from app.models.lead_score import LeadScore
@@ -39,6 +40,7 @@ def get_overview(db: Session = Depends(get_tenant_db)):
     listing_district_counts = Counter(listing.district for listing in listings if listing.district)
     lead_district_counts = Counter(lead.district for lead in leads if lead.district)
     source_counts = Counter(lead.source for lead in leads)
+    status_counts = Counter(lead.status for lead in leads)
 
     scores = list(latest_score_by_lead.values())
     bucket_counts = Counter(_bucket_label(score) for score in scores)
@@ -56,6 +58,9 @@ def get_overview(db: Session = Depends(get_tenant_db)):
             DistrictCount(district=district, count=count)
             for district, count in lead_district_counts.most_common(8)
         ],
+        leads_by_status={status: status_counts.get(status, 0) for status in LEAD_STATUSES},
+        won_lead_count=status_counts.get("won", 0),
+        active_follow_up_count=sum(1 for lead in leads if lead.auto_follow_up_enabled),
         scored_lead_count=len(scores),
         average_score=round(sum(scores) / len(scores), 1) if scores else None,
         score_distribution=[

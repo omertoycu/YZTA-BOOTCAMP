@@ -23,6 +23,12 @@ export default function ListingDetailPage() {
   const [activePhoto, setActivePhoto] = useState(0);
   const [photoFailed, setPhotoFailed] = useState<Record<number, boolean>>({});
 
+  const LISTING_STATUS_LABELS: Record<string, string> = {
+    active: "Aktif",
+    optioned: "Opsiyonlu",
+    sold: "Satıldı",
+  };
+
   const [pricing, setPricing] = useState<PricingSuggestion | null>(null);
   const [pricingLoading, setPricingLoading] = useState(false);
   const [pricingError, setPricingError] = useState<string | null>(null);
@@ -51,6 +57,20 @@ export default function ListingDetailPage() {
       setError(err instanceof Error ? err.message : "Portföy yüklenemedi");
     } finally {
       setIsLoading(false);
+    }
+  }
+
+  async function handleStatusChange(status: string) {
+    if (!listing) return;
+    setError(null);
+    try {
+      const updated = await apiFetch<Listing>(`/listings/${listing.id}/status`, {
+        method: "PATCH",
+        body: JSON.stringify({ status }),
+      });
+      setListing(updated);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Durum güncellenemedi");
     }
   }
 
@@ -170,12 +190,31 @@ export default function ListingDetailPage() {
         <div className="flex flex-col gap-4 lg:col-span-2">
           <div>
             <div className="mb-2 flex flex-wrap items-center gap-2">
-              {listing.status === "active" && <Badge variant="brand">Aktif</Badge>}
+              <Badge variant={listing.status === "active" ? "brand" : listing.status === "sold" ? "success" : "warning"}>
+                {LISTING_STATUS_LABELS[listing.status] ?? listing.status}
+              </Badge>
               <Badge variant="neutral">
                 <CalendarDays className="h-3 w-3" />
                 {new Date(listing.created_at).toLocaleDateString("tr-TR")}
               </Badge>
+              <select
+                value={listing.status}
+                onChange={(e) => handleStatusChange(e.target.value)}
+                aria-label="Portföy durumu"
+                className="rounded border border-outline-variant bg-surface-container-lowest px-2 py-1 text-body-sm text-on-surface focus:border-secondary focus:outline-none"
+              >
+                {Object.entries(LISTING_STATUS_LABELS).map(([value, label]) => (
+                  <option key={value} value={value}>
+                    {label}
+                  </option>
+                ))}
+              </select>
             </div>
+            {listing.status !== "active" && (
+              <p className="mb-2 text-body-sm text-text-muted">
+                Bu portföy eşleştirmelere dahil edilmiyor; emsal verisi ve raporlar için tarihçede kalır.
+              </p>
+            )}
             <h1 className="text-headline-lg text-primary">{listing.title}</h1>
             <p className="mt-1 flex items-center gap-1 text-body-sm text-text-muted">
               <MapPin className="h-4 w-4" />

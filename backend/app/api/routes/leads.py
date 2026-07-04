@@ -11,15 +11,21 @@ from app.agents.whatsapp_send import WhatsAppSendError, send_whatsapp_text
 from app.api.deps import get_current_user
 from app.middleware.tenant import get_tenant_db
 from app.models.lead import Lead
+from app.models.lead_note import LeadNote
 from app.models.lead_score import LeadScore
 from app.models.office import Office
+from app.models.user import User
 from app.schemas.lead import (
     AutoFollowUpRequest,
     FollowUpRequest,
     FollowUpResponse,
     LeadCreate,
+    LeadNoteCreate,
+    LeadNoteResponse,
     LeadResponse,
+    LeadStatusUpdate,
     MatchResult,
+    SendMatchesResponse,
 )
 from app.schemas.lead_score import LeadScoreResponse
 
@@ -29,6 +35,10 @@ DEFAULT_FOLLOW_UP_TEMPLATE = (
     "Merhaba, PortföyAI danışmanınız buradan yazıyor. {district} bölgesinde aradığınız "
     "kriterlere uygun yeni portföylerimiz oldu, size uygun bir zamanda görüşebilir miyiz?"
 )
+
+# Satış hunisi aşamaları — won/lost terminal, gerisi ileri-geri serbest
+# (danışman yanlış tıklamayı düzeltebilmeli, katı bir state machine değil).
+LEAD_STATUSES = ("new", "contacted", "viewing", "negotiation", "won", "lost")
 
 
 @router.post("", response_model=LeadResponse, status_code=201)
@@ -131,6 +141,137 @@ def send_follow_up(
     lead.last_contacted_at = datetime.now(timezone.utc)
     db.commit()
     return FollowUpResponse(sent=True, message=message)
+
+
+@router.patch("/{lead_id}/status", response_model=LeadResponse)
+def update_lead_status(
+    lead_id: str,
+    payload: LeadStatusUpdate,
+    db: Session = Depends(get_tenant_db),
+):
+    """Lead'i satış hunisinde bir aşamaya taşır. Kazanıldı/kaybedildi'ye
+    taşınan lead'in otomatik takip zinciri de kapatılır — kapanmış bir
+    konuşmaya takip mesajı gitmemeli."""
+    if payload.status not in LEAD_STATUSES:
+        raise HTTPException(status_code=400, detail=f"Geçersiz durum. Geçerli değerler: {', '.join(LEAD_STATUSES)}")
+
+    lead = db.get(Lead, lead_id)
+    if not lead:
+        raise HTTPException(status_code=404, detail="Lead bulunamadı")
+
+    lead.status = payload.status
+    if payload.status in ("won", "lost"):
+        disable_auto_follow_up(lead)
+    db.commit()
+    return lead
+
+
+@router.post("/{lead_id}/notes", response_model=LeadNoteResponse, status_code=201)
+def create_lead_note(
+    lead_id: str,
+    payload: LeadNoteCreate,
+    db: Session = Depends(get_tenant_db),
+    current_user: dict = Depends(get_current_user),
+):
+    lead = db.get(Lead, lead_id)
+    if not lead:
+        raise HTTPException(status_code=404, detail="Lead bulunamadı")
+    body = payload.body.strip()
+    if not body:
+        raise HTTPException(status_code=422, detail="Not boş olamaz")
+
+    note = LeadNote(
+        office_id=current_user["office_id"],
+        lead_id=lead.id,
+        author_id=current_user["user_id"],
+        body=body,
+    )
+    db.add(note)
+    # Yazar, commit'ten ÖNCE okunmalı: commit SET LOCAL tenant context'ini
+    # sıfırlar ve sonraki SELECT'i RLS boş döndürür (bkz. CLAUDE.md madde 2/7).
+    author = db.get(User, current_user["user_id"])
+    author_email = author.email if author else None
+    db.commit()
+    response = LeadNoteResponse.model_validate(note)
+    response.author_email = author_email
+    return response
+
+
+@router.get("/{lead_id}/notes", response_model=list[LeadNoteResponse])
+def list_lead_notes(lead_id: str, db: Session = Depends(get_tenant_db)):
+    lead = db.get(Lead, lead_id)
+    if not lead:
+        raise HTTPException(status_code=404, detail="Lead bulunamadı")
+
+    notes = (
+        db.execute(select(LeadNote).where(LeadNote.lead_id == lead.id).order_by(LeadNote.created_at.desc()))
+        .scalars()
+        .all()
+    )
+    # Yazar e-postaları tek sorguda toplanır (not başına ayrı SELECT atılmaz).
+    author_ids = {note.author_id for note in notes}
+    authors = {
+        user.id: user.email
+        for user in db.execute(select(User).where(User.id.in_(author_ids))).scalars().all()
+    } if author_ids else {}
+
+    responses = []
+    for note in notes:
+        response = LeadNoteResponse.model_validate(note)
+        response.author_email = authors.get(note.author_id)
+        responses.append(response)
+    return responses
+
+
+@router.post("/{lead_id}/send-matches", response_model=SendMatchesResponse)
+def send_matches_via_whatsapp(
+    lead_id: str,
+    db: Session = Depends(get_tenant_db),
+    current_user: dict = Depends(get_current_user),
+):
+    """Matching Agent'ın bulduğu portföyleri (en iyi 3) tek WhatsApp mesajı
+    olarak adaya gönderir — danışmanın eşleşmeleri elle yazıp kopyalaması yerine
+    tek tık. Eşleşme yoksa mesaj göndermez, 404 döner."""
+    lead = db.get(Lead, lead_id)
+    if not lead:
+        raise HTTPException(status_code=404, detail="Lead bulunamadı")
+
+    office = db.get(Office, current_user["office_id"])
+    if not office or not office.whatsapp_phone_number_id:
+        raise HTTPException(status_code=503, detail="Bu ofis için WhatsApp gönderimi henüz bağlı değil")
+
+    graph = build_matching_graph(db)
+    result = graph.invoke(
+        {
+            "office_id": str(lead.office_id),
+            "lead_id": str(lead.id),
+            "budget_min": float(lead.budget_min) if lead.budget_min else None,
+            "budget_max": float(lead.budget_max) if lead.budget_max else None,
+            "room_count": lead.room_count,
+            "district": lead.district,
+            "radius_km": float(lead.radius_km) if lead.radius_km else None,
+        }
+    )
+    matches = result["candidate_listings"][:3]
+    if not matches:
+        raise HTTPException(status_code=404, detail="Bu adayın kriterlerine uyan portföy bulunamadı")
+
+    lines = [f"Merhaba! {office.name} olarak kriterlerinize uyan portföylerimiz:"]
+    for i, match in enumerate(matches, start=1):
+        lines.append(f"{i}) {match['title']} — {match['price']:,.0f} TL".replace(",", "."))
+    lines.append("Detaylar ve yer gösterimi için bu numaradan bize ulaşabilirsiniz.")
+    message = "\n".join(lines)
+
+    try:
+        send_whatsapp_text(office.whatsapp_phone_number_id, lead.contact_phone, message)
+    except WhatsAppSendError as exc:
+        if str(exc) == "__not_configured__":
+            raise HTTPException(status_code=503, detail="WhatsApp gönderimi şu an aktif değil") from exc
+        raise HTTPException(status_code=502, detail=str(exc)) from exc
+
+    lead.last_contacted_at = datetime.now(timezone.utc)
+    db.commit()
+    return SendMatchesResponse(sent=True, match_count=len(matches), message=message)
 
 
 @router.patch("/{lead_id}/auto-follow-up", response_model=LeadResponse)

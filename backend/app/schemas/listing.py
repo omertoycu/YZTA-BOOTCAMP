@@ -26,6 +26,10 @@ class ListingResponse(BaseModel):
     model_config = {"from_attributes": True}
 
 
+class ListingStatusUpdate(BaseModel):
+    status: str
+
+
 class ListingExtractRequest(BaseModel):
     url: str
 

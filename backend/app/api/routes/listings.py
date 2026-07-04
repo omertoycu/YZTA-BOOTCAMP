@@ -22,12 +22,17 @@ from app.schemas.listing import (
     ListingExtractRequest,
     ListingExtractResponse,
     ListingResponse,
+    ListingStatusUpdate,
     LocationReportRequest,
     VoiceListingDraftResponse,
 )
 from app.schemas.pricing import PricingSuggestionResponse
 
 router = APIRouter(prefix="/listings", tags=["listings"])
+
+# active: eşleştirmeye girer; optioned (kapora/opsiyon alındı) ve sold girmez —
+# Matching Agent sadece status == "active" portföyleri tarar (bkz. matching.py).
+LISTING_STATUSES = ("active", "optioned", "sold")
 
 
 @router.post("", response_model=ListingResponse, status_code=201)
@@ -99,6 +104,27 @@ def create_voice_draft(
         raise HTTPException(status_code=502, detail=str(exc)) from exc
 
     return VoiceListingDraftResponse(**draft)
+
+
+@router.patch("/{listing_id}/status", response_model=ListingResponse)
+def update_listing_status(
+    listing_id: str,
+    payload: ListingStatusUpdate,
+    db: Session = Depends(get_tenant_db),
+):
+    """Portföyün durumunu değiştirir. Satıldı/opsiyonlu portföyler silinmez —
+    Pricing Agent'ın emsal verisi ve ofis raporları için tarihçe olarak kalır,
+    sadece eşleştirmeden çıkar."""
+    if payload.status not in LISTING_STATUSES:
+        raise HTTPException(
+            status_code=400, detail=f"Geçersiz durum. Geçerli değerler: {', '.join(LISTING_STATUSES)}"
+        )
+    listing = db.get(Listing, listing_id)
+    if not listing:
+        raise HTTPException(status_code=404, detail="Portföy bulunamadı")
+    listing.status = payload.status
+    db.commit()
+    return listing
 
 
 @router.post("/{listing_id}/photos", response_model=ListingResponse)

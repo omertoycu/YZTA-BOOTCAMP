@@ -34,9 +34,12 @@ export interface VoiceListingDraft {
   square_meters: number | null;
 }
 
+export type LeadStatus = "new" | "contacted" | "viewing" | "negotiation" | "won" | "lost";
+
 export interface Lead {
   id: string;
   source: string;
+  status: LeadStatus;
   contact_phone: string;
   district: string | null;
   budget_min: number | null;
@@ -53,6 +56,21 @@ export interface Lead {
 
 export interface FollowUpResult {
   sent: boolean;
+  message: string;
+}
+
+export interface LeadNote {
+  id: string;
+  lead_id: string;
+  author_id: string;
+  author_email: string | null;
+  body: string;
+  created_at: string;
+}
+
+export interface SendMatchesResult {
+  sent: boolean;
+  match_count: number;
   message: string;
 }
 
@@ -88,6 +106,9 @@ export interface ReportsOverview {
   lead_count: number;
   leads_by_source: Record<string, number>;
   leads_by_district: DistrictCount[];
+  leads_by_status: Record<string, number>;
+  won_lead_count: number;
+  active_follow_up_count: number;
   scored_lead_count: number;
   average_score: number | null;
   score_distribution: ScoreBucket[];

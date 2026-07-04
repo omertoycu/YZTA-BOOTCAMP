@@ -43,6 +43,45 @@ function DistrictBarList({ items }: { items: { district: string; count: number }
   );
 }
 
+const FUNNEL_LABELS: Record<string, string> = {
+  new: "Yeni",
+  contacted: "İletişim Kuruldu",
+  viewing: "Yer Gösterimi",
+  negotiation: "Pazarlık",
+  won: "Kazanıldı",
+  lost: "Kaybedildi",
+};
+
+function PipelineFunnel({ byStatus }: { byStatus: Record<string, number> }) {
+  const entries = Object.entries(FUNNEL_LABELS).map(([key, label]) => ({
+    key,
+    label,
+    count: byStatus[key] ?? 0,
+  }));
+  const max = Math.max(...entries.map((e) => e.count), 1);
+  if (entries.every((e) => e.count === 0)) {
+    return <p className="text-body-sm text-text-muted">Henüz veri yok.</p>;
+  }
+  return (
+    <div className="flex flex-col gap-2.5">
+      {entries.map((entry) => (
+        <div key={entry.key} className="flex items-center gap-3">
+          <span className="w-32 shrink-0 text-body-sm text-on-surface">{entry.label}</span>
+          <div className="h-3 flex-1 overflow-hidden rounded-full bg-surface-container">
+            <div
+              className={`h-full rounded-full ${
+                entry.key === "won" ? "bg-emerald-500" : entry.key === "lost" ? "bg-rose-500" : "bg-secondary"
+              }`}
+              style={{ width: `${Math.max((entry.count / max) * 100, entry.count > 0 ? 4 : 0)}%` }}
+            />
+          </div>
+          <span className="w-6 shrink-0 text-right text-body-sm font-medium text-on-surface">{entry.count}</span>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 const SCORE_BUCKET_COLOR: Record<string, string> = {
   "Yüksek (70-100)": "bg-emerald-500",
   "Orta (40-69)": "bg-yellow-500",
@@ -126,14 +165,21 @@ export default function ReportsPage() {
 
       {!isLoading && data && (data.listing_count > 0 || data.lead_count > 0) && (
         <>
-          <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
+          <div className="grid grid-cols-2 gap-4 md:grid-cols-3 lg:grid-cols-6">
             <StatTile label="Toplam Portföy" value={data.listing_count} />
             <StatTile label="Aktif Portföy" value={data.active_listing_count} />
             <StatTile label="Toplam Aday" value={data.lead_count} />
+            <StatTile label="Kazanılan" value={data.won_lead_count} />
+            <StatTile label="Otomatik Takipte" value={data.active_follow_up_count} />
             <StatTile label="Ortalama Skor" value={data.average_score ?? "—"} />
           </div>
 
           <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
+            <div className="rounded-lg bg-surface-container-lowest p-5 shadow-[0px_10px_30px_rgba(0,0,0,0.04)]">
+              <h2 className="mb-4 text-title-md text-primary">Satış Hunisi</h2>
+              <PipelineFunnel byStatus={data.leads_by_status} />
+            </div>
+
             <div className="rounded-lg bg-surface-container-lowest p-5 shadow-[0px_10px_30px_rgba(0,0,0,0.04)]">
               <h2 className="mb-4 text-title-md text-primary">Bölgeye Göre Portföy</h2>
               <DistrictBarList items={data.listings_by_district} />

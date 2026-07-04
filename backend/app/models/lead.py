@@ -14,6 +14,9 @@ class Lead(Base):
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     office_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("offices.id"), nullable=False)
     source: Mapped[str] = mapped_column(String(30), default="manual")  # whatsapp | manual
+    # Satış hunisi aşaması: new → contacted → viewing → negotiation → won/lost
+    # (bkz. app/api/routes/leads.py: LEAD_STATUSES)
+    status: Mapped[str] = mapped_column(String(20), default="new", nullable=False)
     contact_phone: Mapped[str] = mapped_column(String(30), nullable=False)
     district: Mapped[str] = mapped_column(String(120), nullable=True)
     budget_min: Mapped[float] = mapped_column(Numeric(12, 2), nullable=True)

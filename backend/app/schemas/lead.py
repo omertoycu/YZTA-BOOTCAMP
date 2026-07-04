@@ -23,6 +23,7 @@ class LeadCreate(BaseModel):
 class LeadResponse(BaseModel):
     id: uuid.UUID
     source: str
+    status: str
     contact_phone: str
     district: str | None
     budget_min: float | None
@@ -52,6 +53,31 @@ class FollowUpRequest(BaseModel):
 
 class AutoFollowUpRequest(BaseModel):
     enabled: bool
+
+
+class LeadStatusUpdate(BaseModel):
+    status: str
+
+
+class LeadNoteCreate(BaseModel):
+    body: str
+
+
+class LeadNoteResponse(BaseModel):
+    id: uuid.UUID
+    lead_id: uuid.UUID
+    author_id: uuid.UUID
+    author_email: str | None = None
+    body: str
+    created_at: datetime
+
+    model_config = {"from_attributes": True}
+
+
+class SendMatchesResponse(BaseModel):
+    sent: bool
+    match_count: int
+    message: str
 
 
 class FollowUpResponse(BaseModel):

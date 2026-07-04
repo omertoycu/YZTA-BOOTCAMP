@@ -2,9 +2,9 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Compass, Gauge, MapPin, MessageCircle, Phone, Plus, Repeat, Sparkles, Users, Wallet } from "lucide-react";
+import { Compass, Gauge, MapPin, MessageCircle, NotebookPen, Phone, Plus, Repeat, Send, Sparkles, Users, Wallet } from "lucide-react";
 import { apiFetch, getToken } from "@/lib/api";
-import type { FollowUpResult, Lead, LeadScore, MatchResult } from "@/lib/types";
+import type { FollowUpResult, Lead, LeadNote, LeadScore, LeadStatus, MatchResult, SendMatchesResult } from "@/lib/types";
 import { formatCurrency } from "@/lib/format";
 import { Button } from "@/components/ui/Button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/Card";
@@ -20,6 +20,22 @@ function scoreVariant(score: number): NonNullable<BadgeProps["variant"]> {
   return "danger";
 }
 
+const LEAD_STATUS_LABELS: Record<LeadStatus, string> = {
+  new: "Yeni",
+  contacted: "İletişim Kuruldu",
+  viewing: "Yer Gösterimi",
+  negotiation: "Pazarlık",
+  won: "Kazanıldı",
+  lost: "Kaybedildi",
+};
+
+function statusVariant(status: LeadStatus): NonNullable<BadgeProps["variant"]> {
+  if (status === "won") return "success";
+  if (status === "lost") return "danger";
+  if (status === "new") return "neutral";
+  return "warning";
+}
+
 export default function LeadsPage() {
   const router = useRouter();
   const [leads, setLeads] = useState<Lead[]>([]);
@@ -28,6 +44,9 @@ export default function LeadsPage() {
   const [scoresByLead, setScoresByLead] = useState<Record<string, LeadScore>>({});
   const [matchesByLead, setMatchesByLead] = useState<Record<string, MatchResult[]>>({});
   const [followUpResultByLead, setFollowUpResultByLead] = useState<Record<string, string>>({});
+  const [notesByLead, setNotesByLead] = useState<Record<string, LeadNote[]>>({});
+  const [openNotesLead, setOpenNotesLead] = useState<string | null>(null);
+  const [noteDraft, setNoteDraft] = useState("");
   const [pendingAction, setPendingAction] = useState<string | null>(null);
 
   const [contactPhone, setContactPhone] = useState("");
@@ -100,6 +119,65 @@ export default function LeadsPage() {
       setMatchesByLead((prev) => ({ ...prev, [leadId]: matches }));
     } catch (err) {
       setError(err instanceof Error ? err.message : "Eşleştirme yapılamadı");
+    } finally {
+      setPendingAction(null);
+    }
+  }
+
+  async function handleStatusChange(leadId: string, status: LeadStatus) {
+    setError(null);
+    try {
+      const updated = await apiFetch<Lead>(`/leads/${leadId}/status`, {
+        method: "PATCH",
+        body: JSON.stringify({ status }),
+      });
+      setLeads((prev) => prev.map((l) => (l.id === updated.id ? updated : l)));
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Durum güncellenemedi");
+    }
+  }
+
+  async function handleSendMatches(leadId: string) {
+    setPendingAction(`send-matches-${leadId}`);
+    setError(null);
+    try {
+      const result = await apiFetch<SendMatchesResult>(`/leads/${leadId}/send-matches`, { method: "POST" });
+      setFollowUpResultByLead((prev) => ({ ...prev, [leadId]: result.message }));
+      await loadLeads();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Eşleşmeler gönderilemedi");
+    } finally {
+      setPendingAction(null);
+    }
+  }
+
+  async function handleToggleNotes(leadId: string) {
+    if (openNotesLead === leadId) {
+      setOpenNotesLead(null);
+      return;
+    }
+    setOpenNotesLead(leadId);
+    setNoteDraft("");
+    try {
+      const notes = await apiFetch<LeadNote[]>(`/leads/${leadId}/notes`);
+      setNotesByLead((prev) => ({ ...prev, [leadId]: notes }));
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Notlar yüklenemedi");
+    }
+  }
+
+  async function handleAddNote(leadId: string) {
+    if (!noteDraft.trim()) return;
+    setPendingAction(`note-${leadId}`);
+    try {
+      const note = await apiFetch<LeadNote>(`/leads/${leadId}/notes`, {
+        method: "POST",
+        body: JSON.stringify({ body: noteDraft }),
+      });
+      setNotesByLead((prev) => ({ ...prev, [leadId]: [note, ...(prev[leadId] ?? [])] }));
+      setNoteDraft("");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Not eklenemedi");
     } finally {
       setPendingAction(null);
     }
@@ -229,6 +307,9 @@ export default function LeadsPage() {
                       {lead.contact_phone}
                     </div>
                     <div className="flex flex-wrap items-center gap-1.5">
+                      <Badge variant={statusVariant(lead.status)}>
+                        {LEAD_STATUS_LABELS[lead.status] ?? lead.status}
+                      </Badge>
                       <Badge variant="neutral">
                         <MapPin className="h-3 w-3" />
                         {lead.district ?? "Bölge belirtilmedi"}
@@ -253,7 +334,19 @@ export default function LeadsPage() {
                     </div>
                   </div>
 
-                  <div className="flex gap-2">
+                  <div className="flex flex-wrap gap-2">
+                    <select
+                      value={lead.status}
+                      onChange={(e) => handleStatusChange(lead.id, e.target.value as LeadStatus)}
+                      aria-label="Aday durumu"
+                      className="rounded border border-outline-variant bg-surface-container-lowest px-2 py-1 text-body-sm text-on-surface focus:border-secondary focus:outline-none"
+                    >
+                      {Object.entries(LEAD_STATUS_LABELS).map(([value, label]) => (
+                        <option key={value} value={value}>
+                          {label}
+                        </option>
+                      ))}
+                    </select>
                     <Button
                       variant="outline"
                       size="sm"
@@ -290,8 +383,57 @@ export default function LeadsPage() {
                       <Repeat className="h-3.5 w-3.5" />
                       {lead.auto_follow_up_enabled ? "Otomatik Takip: Açık" : "Otomatik Takip"}
                     </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      isLoading={pendingAction === `send-matches-${lead.id}`}
+                      onClick={() => handleSendMatches(lead.id)}
+                    >
+                      <Send className="h-3.5 w-3.5" />
+                      Eşleşenleri Gönder
+                    </Button>
+                    <Button variant="outline" size="sm" onClick={() => handleToggleNotes(lead.id)}>
+                      <NotebookPen className="h-3.5 w-3.5" />
+                      Notlar
+                    </Button>
                   </div>
                 </div>
+
+                {openNotesLead === lead.id && (
+                  <div className="flex flex-col gap-3 rounded bg-surface-bright p-3">
+                    <div className="flex gap-2">
+                      <Input
+                        id={`note-${lead.id}`}
+                        placeholder="Görüşme notu ekleyin..."
+                        value={noteDraft}
+                        onChange={(e) => setNoteDraft(e.target.value)}
+                        className="flex-1"
+                      />
+                      <Button
+                        size="sm"
+                        isLoading={pendingAction === `note-${lead.id}`}
+                        onClick={() => handleAddNote(lead.id)}
+                      >
+                        Ekle
+                      </Button>
+                    </div>
+                    {(notesByLead[lead.id] ?? []).length === 0 ? (
+                      <p className="text-body-sm text-text-muted">Henüz not yok.</p>
+                    ) : (
+                      <ul className="flex flex-col gap-2">
+                        {(notesByLead[lead.id] ?? []).map((note) => (
+                          <li key={note.id} className="rounded bg-surface-container-lowest p-2.5 text-body-sm">
+                            <p className="text-on-surface">{note.body}</p>
+                            <p className="mt-1 text-[11px] text-text-muted">
+                              {note.author_email ?? "danışman"} ·{" "}
+                              {new Date(note.created_at).toLocaleString("tr-TR")}
+                            </p>
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                  </div>
+                )}
 
                 {followUpResultByLead[lead.id] && (
                   <div className="rounded bg-mint-accent p-3 text-body-sm text-on-secondary-container">
