@@ -6,6 +6,7 @@ import {
   CalendarPlus,
   Clock,
   Compass,
+  DollarSign,
   Download,
   Gauge,
   MapPin,
@@ -97,6 +98,12 @@ export default function LeadsPage() {
   const [appointmentLocation, setAppointmentLocation] = useState("");
   const [appointmentSendWhatsapp, setAppointmentSendWhatsapp] = useState(true);
   const [appointmentResultByLead, setAppointmentResultByLead] = useState<Record<string, string>>({});
+
+  // Komisyon takibi
+  const [openDealLead, setOpenDealLead] = useState<string | null>(null);
+  const [dealAmount, setDealAmount] = useState("");
+  const [commissionAmount, setCommissionAmount] = useState("");
+  const [dealClosedAt, setDealClosedAt] = useState("");
 
   const [contactPhone, setContactPhone] = useState("");
   const [district, setDistrict] = useState("");
@@ -372,6 +379,38 @@ export default function LeadsPage() {
     }
   }
 
+  function handleToggleDealForm(lead: Lead) {
+    if (openDealLead === lead.id) {
+      setOpenDealLead(null);
+      return;
+    }
+    setOpenDealLead(lead.id);
+    setDealAmount(lead.deal_amount != null ? String(lead.deal_amount) : "");
+    setCommissionAmount(lead.commission_amount != null ? String(lead.commission_amount) : "");
+    setDealClosedAt(lead.deal_closed_at ? lead.deal_closed_at.slice(0, 10) : "");
+  }
+
+  async function handleSaveDeal(lead: Lead) {
+    setPendingAction(`deal-${lead.id}`);
+    setError(null);
+    try {
+      const updated = await apiFetch<Lead>(`/leads/${lead.id}/deal`, {
+        method: "PATCH",
+        body: JSON.stringify({
+          deal_amount: dealAmount ? Number(dealAmount) : null,
+          commission_amount: commissionAmount ? Number(commissionAmount) : null,
+          deal_closed_at: dealClosedAt ? new Date(dealClosedAt).toISOString() : null,
+        }),
+      });
+      setLeads((prev) => prev.map((l) => (l.id === updated.id ? updated : l)));
+      setOpenDealLead(null);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Anlaşma kaydedilemedi");
+    } finally {
+      setPendingAction(null);
+    }
+  }
+
   async function handleToggleAutoFollowUp(lead: Lead) {
     setPendingAction(`auto-follow-up-${lead.id}`);
     setError(null);
@@ -534,6 +573,12 @@ export default function LeadsPage() {
                           {lead.appointment_location ? ` · ${lead.appointment_location}` : ""}
                         </Badge>
                       )}
+                      {lead.commission_amount != null && (
+                        <Badge variant="success">
+                          <DollarSign className="h-3 w-3" />
+                          Komisyon {formatCurrency(lead.commission_amount)}
+                        </Badge>
+                      )}
                     </div>
                   </div>
 
@@ -628,8 +673,56 @@ export default function LeadsPage() {
                         </Button>
                       </>
                     )}
+                    <Button
+                      variant={lead.commission_amount != null ? "primary" : "outline"}
+                      size="sm"
+                      onClick={() => handleToggleDealForm(lead)}
+                    >
+                      <DollarSign className="h-3.5 w-3.5" />
+                      {lead.commission_amount != null ? "Anlaşmayı Düzenle" : "Anlaşma Kaydet"}
+                    </Button>
                   </div>
                 </div>
+
+                {openDealLead === lead.id && (
+                  <div className="flex flex-col gap-3 rounded bg-surface-bright p-3">
+                    <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+                      <Input
+                        id={`deal-amount-${lead.id}`}
+                        label="Satış/kira bedeli (TL)"
+                        type="number"
+                        value={dealAmount}
+                        onChange={(e) => setDealAmount(e.target.value)}
+                      />
+                      <Input
+                        id={`commission-amount-${lead.id}`}
+                        label="Komisyon (TL)"
+                        type="number"
+                        value={commissionAmount}
+                        onChange={(e) => setCommissionAmount(e.target.value)}
+                      />
+                      <Input
+                        id={`deal-closed-at-${lead.id}`}
+                        label="Kapanış tarihi"
+                        type="date"
+                        value={dealClosedAt}
+                        onChange={(e) => setDealClosedAt(e.target.value)}
+                      />
+                    </div>
+                    <div className="flex justify-between">
+                      <Button variant="ghost" size="sm" onClick={() => setOpenDealLead(null)}>
+                        Vazgeç
+                      </Button>
+                      <Button
+                        size="sm"
+                        isLoading={pendingAction === `deal-${lead.id}`}
+                        onClick={() => handleSaveDeal(lead)}
+                      >
+                        Kaydet
+                      </Button>
+                    </div>
+                  </div>
+                )}
 
                 {openAppointmentLead === lead.id && (
                   <div className="flex flex-col gap-3 rounded bg-surface-bright p-3">

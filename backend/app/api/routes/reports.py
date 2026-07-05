@@ -9,7 +9,7 @@ from app.middleware.tenant import get_tenant_db
 from app.models.lead import Lead
 from app.models.lead_score import LeadScore
 from app.models.listing import Listing
-from app.schemas.reports import DistrictCount, ReportsOverviewResponse, ScoreBucket
+from app.schemas.reports import DistrictCount, DistrictRevenue, ReportsOverviewResponse, ScoreBucket
 
 router = APIRouter(prefix="/reports", tags=["reports"])
 
@@ -45,6 +45,14 @@ def get_overview(db: Session = Depends(get_tenant_db)):
     scores = list(latest_score_by_lead.values())
     bucket_counts = Counter(_bucket_label(score) for score in scores)
 
+    closed_deals = [lead for lead in leads if lead.commission_amount is not None]
+    total_revenue = sum(float(lead.commission_amount) for lead in closed_deals)
+    total_deal_volume = sum(float(lead.deal_amount) for lead in leads if lead.deal_amount is not None)
+    revenue_by_district: Counter = Counter()
+    for lead in closed_deals:
+        if lead.district:
+            revenue_by_district[lead.district] += float(lead.commission_amount)
+
     return ReportsOverviewResponse(
         listing_count=len(listings),
         active_listing_count=sum(1 for listing in listings if listing.status == "active"),
@@ -65,5 +73,14 @@ def get_overview(db: Session = Depends(get_tenant_db)):
         average_score=round(sum(scores) / len(scores), 1) if scores else None,
         score_distribution=[
             ScoreBucket(label=label, count=bucket_counts.get(label, 0)) for label in SCORE_BUCKET_ORDER
+        ],
+        conversion_rate=round(status_counts.get("won", 0) / len(leads) * 100, 1) if leads else None,
+        closed_deal_count=len(closed_deals),
+        total_deal_volume=total_deal_volume,
+        total_revenue=total_revenue,
+        average_commission=round(total_revenue / len(closed_deals), 2) if closed_deals else None,
+        revenue_by_district=[
+            DistrictRevenue(district=district, revenue=revenue)
+            for district, revenue in revenue_by_district.most_common(8)
         ],
     )

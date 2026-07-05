@@ -4,6 +4,7 @@ import json
 
 from sqlalchemy import select
 
+from app.agents import intake
 from app.core.config import settings
 from app.models.office import Office
 
@@ -18,9 +19,11 @@ def _register_office(client, office_name, email):
     return {"Authorization": f"Bearer {resp.json()['access_token']}"}
 
 
-def _set_phone_number_id(db_session, office_name, phone_number_id):
+def _set_phone_number_id(db_session, office_name, phone_number_id, notification_phone=None):
     office = db_session.execute(select(Office).where(Office.name == office_name)).scalar_one()
     office.whatsapp_phone_number_id = phone_number_id
+    if notification_phone:
+        office.notification_phone = notification_phone
     db_session.commit()
 
 
@@ -95,6 +98,49 @@ def test_inbound_message_creates_lead(client, db_session, monkeypatch):
     assert leads[0]["source"] == "whatsapp"
     assert leads[0]["message_count"] == 1
     assert leads[0]["last_contacted_at"] is not None
+
+
+def test_new_lead_notifies_office_notification_phone(client, db_session, monkeypatch):
+    monkeypatch.setattr(settings, "whatsapp_app_secret", WHATSAPP_APP_SECRET)
+    headers = _register_office(client, "Ofis Intake Notify 1", "owner@intake-notify-1.com")
+    _set_phone_number_id(db_session, "Ofis Intake Notify 1", "1000000010", notification_phone="905559990010")
+
+    sent_calls = []
+    monkeypatch.setattr(
+        intake,
+        "send_whatsapp_text",
+        lambda phone_number_id, to, text: sent_calls.append((phone_number_id, to, text)),
+    )
+
+    resp = _post_webhook(client, _build_payload("1000000010", "wamid.NOTIFY1", "905551119999"))
+    assert resp.status_code == 200
+    assert len(sent_calls) == 1
+    assert sent_calls[0][0] == "1000000010"
+    assert sent_calls[0][1] == "905559990010"
+    assert "905551119999" in sent_calls[0][2]
+
+    # İkinci mesaj (var olan lead güncelleniyor) tekrar bildirim GÖNDERMEMELİ.
+    _post_webhook(client, _build_payload("1000000010", "wamid.NOTIFY2", "905551119999"))
+    assert len(sent_calls) == 1
+
+    leads = client.get("/leads", headers=headers).json()
+    assert len(leads) == 1
+    assert leads[0]["message_count"] == 2
+
+
+def test_new_lead_without_notification_phone_does_not_attempt_send(client, db_session, monkeypatch):
+    monkeypatch.setattr(settings, "whatsapp_app_secret", WHATSAPP_APP_SECRET)
+    _register_office(client, "Ofis Intake Notify 2", "owner@intake-notify-2.com")
+    _set_phone_number_id(db_session, "Ofis Intake Notify 2", "1000000011")  # notification_phone yok
+
+    sent_calls = []
+    monkeypatch.setattr(
+        intake, "send_whatsapp_text", lambda *args: sent_calls.append(args)
+    )
+
+    resp = _post_webhook(client, _build_payload("1000000011", "wamid.NOTIFY3", "905551119998"))
+    assert resp.status_code == 200
+    assert sent_calls == []
 
 
 def test_second_message_increments_existing_lead(client, db_session, monkeypatch):

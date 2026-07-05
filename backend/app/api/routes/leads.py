@@ -22,6 +22,7 @@ from app.schemas.lead import (
     AppointmentCreate,
     AppointmentResponse,
     AutoFollowUpRequest,
+    DealUpdate,
     FollowUpRequest,
     FollowUpResponse,
     LeadCreate,
@@ -280,6 +281,27 @@ def update_lead_reminder(
 
     lead.reminder_at = payload.reminder_at
     lead.reminder_note = payload.reminder_note
+    db.commit()
+    return lead
+
+
+@router.patch("/{lead_id}/deal", response_model=LeadResponse)
+def update_lead_deal(
+    lead_id: str,
+    payload: DealUpdate,
+    db: Session = Depends(get_tenant_db),
+):
+    """Komisyon takibi: satış/kira bedeli + danışmanın kazandığı komisyonu
+    kaydeder. Bilinçli olarak `PATCH /{lead_id}/status` (won/lost geçişi) ile
+    birleştirilmedi — danışman sözleşme detaylarını genelde durum
+    değişiminden günler sonra netleştirir, ayrı ayrı güncellenebilmeli."""
+    lead = db.get(Lead, lead_id)
+    if not lead:
+        raise HTTPException(status_code=404, detail="Lead bulunamadı")
+
+    lead.deal_amount = payload.deal_amount
+    lead.commission_amount = payload.commission_amount
+    lead.deal_closed_at = payload.deal_closed_at
     db.commit()
     return lead
 

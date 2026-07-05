@@ -39,6 +39,9 @@ class LeadResponse(BaseModel):
     reminder_note: str | None
     appointment_at: datetime | None
     appointment_location: str | None
+    deal_amount: float | None
+    commission_amount: float | None
+    deal_closed_at: datetime | None
     created_at: datetime
 
     model_config = {"from_attributes": True}
@@ -112,3 +115,9 @@ class AppointmentResponse(BaseModel):
     lead: LeadResponse
     whatsapp_confirmation_sent: bool
     whatsapp_confirmation_error: str | None = None
+
+
+class DealUpdate(BaseModel):
+    deal_amount: float | None = None
+    commission_amount: float | None = None
+    deal_closed_at: datetime | None = None

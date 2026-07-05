@@ -14,6 +14,7 @@ const NAV_LINKS = [
   { href: "/assistant", label: "YZ Asistanı", icon: "psychology" },
   { href: "/reports", label: "Reports", icon: "assessment" },
   { href: "/billing", label: "Abonelik", icon: "credit_card" },
+  { href: "/settings", label: "Ayarlar", icon: "settings" },
 ];
 
 export function Sidebar() {

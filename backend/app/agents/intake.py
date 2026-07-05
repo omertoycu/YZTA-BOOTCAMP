@@ -4,6 +4,7 @@ from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
+from app.agents.whatsapp_send import WhatsAppSendError, send_whatsapp_text
 from app.core.db import set_tenant
 from app.models.lead import Lead
 from app.models.office import Office
@@ -51,6 +52,7 @@ def process_inbound_message(
     ).scalar_one_or_none()
 
     now = datetime.now(timezone.utc)
+    is_new_lead = lead is None
     if lead is None:
         lead = Lead(
             office_id=office_id,
@@ -87,4 +89,28 @@ def process_inbound_message(
         db.rollback()
         return None
 
+    if is_new_lead:
+        _notify_new_lead(db, office_id, lead)
+
     return lead
+
+
+def _notify_new_lead(db: Session, office_id: str, lead: Lead) -> None:
+    """Yeni bir aday geldiğinde danışmana kendi WhatsApp'ından bir bildirim
+    gönderir — panelden uzaktayken de haberdar olsun diye (ürünün "hiçbir
+    fırsatı kaçırmama" vaadinin en kritik boşluğu). Best-effort: bildirim
+    başarısız olsa da (örn. henüz yapılandırılmamış) webhook işlemi zaten
+    tamamlanmış, aday kaydı bundan etkilenmez."""
+    office = db.get(Office, office_id)
+    if not office or not office.notification_phone or not office.whatsapp_phone_number_id:
+        return
+
+    message = (
+        f"Yeni bir aday geldi: {lead.contact_phone}"
+        f"{f' ({lead.district})' if lead.district else ''}. "
+        "Panelden görüntüleyip yanıtlayabilirsiniz."
+    )
+    try:
+        send_whatsapp_text(office.whatsapp_phone_number_id, office.notification_phone, message)
+    except WhatsAppSendError:
+        pass

@@ -11,6 +11,11 @@ class ScoreBucket(BaseModel):
     count: int
 
 
+class DistrictRevenue(BaseModel):
+    district: str
+    revenue: float
+
+
 class ReportsOverviewResponse(BaseModel):
     listing_count: int
     active_listing_count: int
@@ -25,3 +30,11 @@ class ReportsOverviewResponse(BaseModel):
     scored_lead_count: int
     average_score: float | None
     score_distribution: list[ScoreBucket]
+    # Komisyon takibi (bkz. PATCH /leads/{id}/deal) — status="won" şartı aranmaz,
+    # danışman anlaşma detayını status geçişinden bağımsız girebilir.
+    conversion_rate: float | None
+    closed_deal_count: int
+    total_deal_volume: float
+    total_revenue: float
+    average_commission: float | None
+    revenue_by_district: list[DistrictRevenue]

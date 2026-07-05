@@ -19,3 +19,28 @@ def test_get_my_office_returns_own_office(client):
 def test_get_my_office_requires_auth(client):
     resp = client.get("/offices/me")
     assert resp.status_code == 401
+
+
+def test_update_notification_phone(client):
+    headers = _register(client, "Ofis Notify Test 1", "owner@office-notify-test.com")
+
+    resp = client.patch("/offices/me", json={"notification_phone": "905551234567"}, headers=headers)
+    assert resp.status_code == 200
+    assert resp.json()["notification_phone"] == "905551234567"
+
+    resp = client.get("/offices/me", headers=headers)
+    assert resp.json()["notification_phone"] == "905551234567"
+
+
+def test_clear_notification_phone(client):
+    headers = _register(client, "Ofis Notify Test 2", "owner@office-notify-test-2.com")
+    client.patch("/offices/me", json={"notification_phone": "905551234567"}, headers=headers)
+
+    resp = client.patch("/offices/me", json={"notification_phone": None}, headers=headers)
+    assert resp.status_code == 200
+    assert resp.json()["notification_phone"] is None
+
+
+def test_update_office_requires_auth(client):
+    resp = client.patch("/offices/me", json={"notification_phone": "905551234567"})
+    assert resp.status_code == 401

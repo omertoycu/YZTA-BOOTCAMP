@@ -2,6 +2,7 @@ export interface Office {
   id: string;
   name: string;
   subscription_plan: string;
+  notification_phone: string | null;
   created_at: string;
 }
 
@@ -55,6 +56,9 @@ export interface Lead {
   reminder_note: string | null;
   appointment_at: string | null;
   appointment_location: string | null;
+  deal_amount: number | null;
+  commission_amount: number | null;
+  deal_closed_at: string | null;
   created_at: string;
 }
 
@@ -117,6 +121,11 @@ export interface ScoreBucket {
   count: number;
 }
 
+export interface DistrictRevenue {
+  district: string;
+  revenue: number;
+}
+
 export interface ReportsOverview {
   listing_count: number;
   active_listing_count: number;
@@ -130,6 +139,12 @@ export interface ReportsOverview {
   scored_lead_count: number;
   average_score: number | null;
   score_distribution: ScoreBucket[];
+  conversion_rate: number | null;
+  closed_deal_count: number;
+  total_deal_volume: number;
+  total_revenue: number;
+  average_commission: number | null;
+  revenue_by_district: DistrictRevenue[];
 }
 
 export interface PlanInfo {

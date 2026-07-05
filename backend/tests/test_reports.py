@@ -22,6 +22,12 @@ def test_overview_returns_zeroes_for_empty_office(client):
     assert body["average_score"] is None
     assert len(body["score_distribution"]) == 3
     assert all(bucket["count"] == 0 for bucket in body["score_distribution"])
+    assert body["conversion_rate"] is None
+    assert body["closed_deal_count"] == 0
+    assert body["total_deal_volume"] == 0
+    assert body["total_revenue"] == 0
+    assert body["average_commission"] is None
+    assert body["revenue_by_district"] == []
 
 
 def test_overview_aggregates_listings_and_leads(client):
@@ -60,6 +66,44 @@ def test_overview_aggregates_listings_and_leads(client):
 
     assert body["scored_lead_count"] == 1
     assert body["average_score"] is not None
+
+
+def test_overview_aggregates_commission_data(client):
+    headers = _register(client, "Ofis Reports Test 4", "owner4@reports-test.com")
+
+    won_lead = client.post(
+        "/leads", json={"contact_phone": "905551110001", "district": "Kadıköy"}, headers=headers
+    ).json()
+    client.patch(f"/leads/{won_lead['id']}/status", json={"status": "won"}, headers=headers)
+    client.patch(
+        f"/leads/{won_lead['id']}/deal",
+        json={"deal_amount": 4_000_000, "commission_amount": 80_000},
+        headers=headers,
+    )
+
+    other_lead = client.post(
+        "/leads", json={"contact_phone": "905551110002", "district": "Beşiktaş"}, headers=headers
+    ).json()
+    client.patch(
+        f"/leads/{other_lead['id']}/deal",
+        json={"deal_amount": 2_000_000, "commission_amount": 40_000},
+        headers=headers,
+    )
+
+    # Hiç anlaşması olmayan üçüncü bir lead — toplamları etkilememeli.
+    client.post("/leads", json={"contact_phone": "905551110003"}, headers=headers)
+
+    resp = client.get("/reports/overview", headers=headers)
+    assert resp.status_code == 200
+    body = resp.json()
+
+    assert body["closed_deal_count"] == 2
+    assert body["total_deal_volume"] == 6_000_000
+    assert body["total_revenue"] == 120_000
+    assert body["average_commission"] == 60_000
+    assert body["conversion_rate"] == round(1 / 3 * 100, 1)
+    assert {"district": "Kadıköy", "revenue": 80_000} in body["revenue_by_district"]
+    assert {"district": "Beşiktaş", "revenue": 40_000} in body["revenue_by_district"]
 
 
 def test_overview_is_tenant_scoped(client):

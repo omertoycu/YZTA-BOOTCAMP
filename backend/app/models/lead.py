@@ -50,4 +50,11 @@ class Lead(Base):
     appointment_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     appointment_location: Mapped[str | None] = mapped_column(String(255), nullable=True)
     appointment_reminder_sent: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    # Komisyon takibi: kazanılan (won) bir lead'e bağlı satış/kira bedeli ve
+    # danışmanın kazandığı komisyon (bkz. app/api/routes/leads.py: PATCH /{id}/deal).
+    # Bilinçli olarak status="won" geçişine otomatik bağlanmaz — danışman
+    # sözleşme detaylarını genelde durum değişikliğinden günler sonra netleştirir.
+    deal_amount: Mapped[float | None] = mapped_column(Numeric(12, 2), nullable=True)
+    commission_amount: Mapped[float | None] = mapped_column(Numeric(12, 2), nullable=True)
+    deal_closed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
