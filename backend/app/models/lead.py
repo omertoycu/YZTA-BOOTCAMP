@@ -42,4 +42,12 @@ class Lead(Base):
     # hiçbir otomatik mesaj gitmez, sadece panelde danışmana görünür.
     reminder_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     reminder_note: Mapped[str | None] = mapped_column(Text, nullable=True)
+    # Yer gösterme randevusu (bkz. app/agents/calendar_invite.py, app/agents/
+    # appointment_reminder.py): somut bir tarih/saat + konum. reminder_at/note'tan
+    # (yukarıda) farklı — bu bir TAKVİM randevusu, .ics üretilebilir ve randevudan
+    # 24 saat önce otomatik bir WhatsApp hatırlatması tetikler (appointment_reminder_sent
+    # bunun bir kez gönderilmesini garanti eder).
+    appointment_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    appointment_location: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    appointment_reminder_sent: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())

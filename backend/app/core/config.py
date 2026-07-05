@@ -12,6 +12,10 @@ class Settings(BaseSettings):
     # Sadece register/login için: e-posta ile ofis bilinmeden kullanıcı arama,
     # RLS'in tek-tenant modeliyle doğası gereği çelişir. Bkz. migration 0003.
     auth_database_url: str = "postgresql+psycopg2://portfoyai_auth:portfoyai_auth@localhost:5432/portfoyai"
+    # Sadece login'siz ilan vitrini (/public/listings/{id}) için: dar yetkili,
+    # sadece listings+offices SELECT ve listing_views INSERT edebilen rol.
+    # Bkz. migration 0013.
+    public_database_url: str = "postgresql+psycopg2://portfoyai_public:portfoyai_public@localhost:5432/portfoyai"
     jwt_secret: str = "change-me-in-production"
     jwt_algorithm: str = "HS256"
     access_token_expire_minutes: int = 60 * 24

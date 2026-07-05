@@ -6,6 +6,7 @@ from app.models.lead_note import LeadNote
 from app.models.lead_score import LeadScore
 from app.models.whatsapp_inbound_event import WhatsAppInboundEvent
 from app.models.geocoded_district import GeocodedDistrict
+from app.models.listing_view import ListingView
 
 __all__ = [
     "Office",
@@ -16,4 +17,5 @@ __all__ = [
     "LeadScore",
     "WhatsAppInboundEvent",
     "GeocodedDistrict",
+    "ListingView",
 ]

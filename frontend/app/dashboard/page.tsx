@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { apiFetch, getToken } from "@/lib/api";
-import type { Lead, Listing } from "@/lib/types";
+import type { Lead, Listing, StaleListingAlert } from "@/lib/types";
 import { formatCurrency } from "@/lib/format";
 import { Icon } from "@/components/ui/Icon";
 import { ListingCard } from "@/components/ListingCard";
@@ -15,6 +15,7 @@ export default function DashboardPage() {
   const router = useRouter();
   const [listings, setListings] = useState<Listing[]>([]);
   const [leads, setLeads] = useState<Lead[]>([]);
+  const [staleAlerts, setStaleAlerts] = useState<StaleListingAlert[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
@@ -25,12 +26,14 @@ export default function DashboardPage() {
     (async () => {
       setIsLoading(true);
       try {
-        const [listingsData, leadsData] = await Promise.all([
+        const [listingsData, leadsData, staleAlertsData] = await Promise.all([
           apiFetch<Listing[]>("/listings"),
           apiFetch<Lead[]>("/leads"),
+          apiFetch<StaleListingAlert[]>("/listings/stale-alerts"),
         ]);
         setListings(listingsData);
         setLeads(leadsData);
+        setStaleAlerts(staleAlertsData);
       } finally {
         setIsLoading(false);
       }
@@ -64,6 +67,20 @@ export default function DashboardPage() {
           </div>
         </div>
       </header>
+
+      {!isLoading && staleAlerts.length > 0 && (
+        <Link
+          href="/listings"
+          className="flex items-center gap-3 rounded-lg bg-yellow-100 px-5 py-3.5 text-body-sm text-yellow-800 transition-colors hover:bg-yellow-200"
+        >
+          <Icon name="warning" />
+          <span>
+            <span className="font-semibold">{staleAlerts.length} portföy</span>{" "}
+            uzun süredir aktif ve emsallere göre pahalı — en durgunu: &ldquo;{staleAlerts[0].title}&rdquo;{" "}
+            (%{staleAlerts[0].overprice_pct} pahalı, {staleAlerts[0].age_days} gündür aktif)
+          </span>
+        </Link>
+      )}
 
       {isLoading ? (
         <div className="flex items-center justify-center gap-2 py-24 text-body-sm text-text-muted">

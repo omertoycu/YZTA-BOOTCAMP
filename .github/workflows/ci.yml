@@ -35,6 +35,7 @@ jobs:
       DATABASE_URL: postgresql+psycopg2://portfoyai_app:portfoyai_app@localhost:5432/portfoyai_test
       MIGRATIONS_DATABASE_URL: postgresql+psycopg2://portfoyai:portfoyai@localhost:5432/portfoyai_test
       AUTH_DATABASE_URL: postgresql+psycopg2://portfoyai_auth:portfoyai_auth@localhost:5432/portfoyai_test
+      PUBLIC_DATABASE_URL: postgresql+psycopg2://portfoyai_public:portfoyai_public@localhost:5432/portfoyai_test
       JWT_SECRET: ci-test-secret
 
     steps:

@@ -1,5 +1,5 @@
 from fastapi import APIRouter, Depends, File, HTTPException, Response, UploadFile
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from app.agents.listing_import import (
@@ -10,11 +10,13 @@ from app.agents.listing_import import (
 )
 from app.agents.location_report import LocationReportError, get_travel_summary, render_report_pdf
 from app.agents.pricing import index_listing, suggest_price_range
+from app.agents.stale_listing import find_stale_listings
 from app.agents.voice_listing import MAX_AUDIO_BYTES, VoiceListingError, transcribe_and_extract
 from app.api.deps import get_current_user
 from app.core.storage import MAX_PHOTO_BYTES, fetch_photo, upload_photo
 from app.middleware.tenant import get_tenant_db
 from app.models.listing import Listing
+from app.models.listing_view import ListingView
 from app.models.office import Office
 from app.schemas.listing import (
     ListingCreate,
@@ -26,7 +28,8 @@ from app.schemas.listing import (
     LocationReportRequest,
     VoiceListingDraftResponse,
 )
-from app.schemas.pricing import PricingSuggestionResponse
+from app.schemas.pricing import PricingSuggestionResponse, StaleListingAlert
+from app.schemas.public import ListingViewStatsResponse
 
 router = APIRouter(prefix="/listings", tags=["listings"])
 
@@ -199,6 +202,16 @@ def create_location_report(
     )
 
 
+@router.get("/stale-alerts", response_model=list[StaleListingAlert])
+def get_stale_listing_alerts(db: Session = Depends(get_tenant_db)):
+    """30+ gündür aktif ve Pricing Agent'ın emsal aralığına göre pahalı kalan
+    portföyleri işaretler (bkz. app/agents/stale_listing.py) — danışmanı fiyat
+    güncellemesi için dürten, sıfır ek maliyetli bir proaktif uyarı. Statik yol
+    olduğu için /{listing_id}'den ÖNCE tanımlanmalı, yoksa FastAPI "stale-alerts"
+    değerini listing_id olarak yakalar."""
+    return find_stale_listings(db)
+
+
 @router.get("", response_model=list[ListingResponse])
 def list_listings(db: Session = Depends(get_tenant_db)):
     # RLS, current_user'ın office_id'si dışındaki satırları zaten filtreler;
@@ -221,3 +234,21 @@ def get_pricing_suggestion(listing_id: str, db: Session = Depends(get_tenant_db)
     if not listing:
         raise HTTPException(status_code=404, detail="Portföy bulunamadı")
     return suggest_price_range(listing)
+
+
+@router.get("/{listing_id}/view-stats", response_model=ListingViewStatsResponse)
+def get_listing_view_stats(listing_id: str, db: Session = Depends(get_tenant_db)):
+    """İlan vitrini (/public/listings/{id}) kaç kez görüntülendi — danışman
+    panelinde "Vitrin İstatistikleri" olarak gösterilir. Görüntülenme kayıtları
+    portfoyai_public rolüyle atıldığı için (bkz. migration 0013) burada normal
+    tenant-scoped SELECT policy'siyle (portfoyai_app) okunur."""
+    listing = db.get(Listing, listing_id)
+    if not listing:
+        raise HTTPException(status_code=404, detail="Portföy bulunamadı")
+
+    view_count, last_viewed_at = db.execute(
+        select(func.count(ListingView.id), func.max(ListingView.viewed_at)).where(
+            ListingView.listing_id == listing.id
+        )
+    ).one()
+    return ListingViewStatsResponse(view_count=view_count, last_viewed_at=last_viewed_at)

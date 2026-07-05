@@ -3,9 +3,9 @@
 import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
-import { ArrowLeft, Ruler, DoorOpen, MapPin, Sparkles, CalendarDays } from "lucide-react";
+import { ArrowLeft, Ruler, DoorOpen, MapPin, Sparkles, CalendarDays, Eye, Link2, Check } from "lucide-react";
 import { apiFetch, apiFetchBlob, getToken } from "@/lib/api";
-import type { Listing, PricingSuggestion } from "@/lib/types";
+import type { Listing, ListingViewStats, PricingSuggestion } from "@/lib/types";
 import { formatCurrency } from "@/lib/format";
 import { Button } from "@/components/ui/Button";
 import { Badge } from "@/components/ui/Badge";
@@ -38,6 +38,9 @@ export default function ListingDetailPage() {
   const [reportLoading, setReportLoading] = useState(false);
   const [reportError, setReportError] = useState<string | null>(null);
 
+  const [viewStats, setViewStats] = useState<ListingViewStats | null>(null);
+  const [linkCopied, setLinkCopied] = useState(false);
+
   useEffect(() => {
     if (!getToken()) {
       router.replace("/login");
@@ -51,13 +54,25 @@ export default function ListingDetailPage() {
     setIsLoading(true);
     setError(null);
     try {
-      const data = await apiFetch<Listing>(`/listings/${params.id}`);
+      const [data, stats] = await Promise.all([
+        apiFetch<Listing>(`/listings/${params.id}`),
+        apiFetch<ListingViewStats>(`/listings/${params.id}/view-stats`),
+      ]);
       setListing(data);
+      setViewStats(stats);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Portföy yüklenemedi");
     } finally {
       setIsLoading(false);
     }
+  }
+
+  async function handleCopyShareLink() {
+    if (!listing) return;
+    const url = `${window.location.origin}/p/${listing.id}`;
+    await navigator.clipboard.writeText(url);
+    setLinkCopied(true);
+    setTimeout(() => setLinkCopied(false), 2000);
   }
 
   async function handleStatusChange(status: string) {
@@ -254,6 +269,29 @@ export default function ListingDetailPage() {
                     )} (${pricing.comparable_count} emsal)`
                   : pricing.message}
               </p>
+            )}
+          </div>
+
+          <div className="flex flex-col gap-3 rounded-lg bg-surface-container-lowest p-4 shadow-[0px_10px_30px_rgba(0,0,0,0.04)]">
+            <div className="flex items-center justify-between">
+              <h2 className="text-title-md text-primary">İlan Vitrini</h2>
+              <Button variant="outline" size="sm" onClick={handleCopyShareLink}>
+                {linkCopied ? <Check className="h-3.5 w-3.5" /> : <Link2 className="h-3.5 w-3.5" />}
+                {linkCopied ? "Kopyalandı" : "Linki Kopyala"}
+              </Button>
+            </div>
+            <p className="text-body-sm text-text-muted">
+              Login gerektirmeyen markalı bir sayfa oluşturur; adaya WhatsApp&apos;tan bu linki
+              atabilirsiniz.
+            </p>
+            {viewStats && (
+              <Badge variant="brand" className="w-fit">
+                <Eye className="h-3 w-3" />
+                {viewStats.view_count} görüntülenme
+                {viewStats.last_viewed_at
+                  ? ` · son: ${new Date(viewStats.last_viewed_at).toLocaleDateString("tr-TR")}`
+                  : ""}
+              </Badge>
             )}
           </div>
 

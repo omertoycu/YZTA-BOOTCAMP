@@ -3,9 +3,9 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { Building2, Sparkles } from "lucide-react";
+import { AlertTriangle, Building2, Sparkles } from "lucide-react";
 import { apiFetch, getToken } from "@/lib/api";
-import type { Listing, PricingSuggestion } from "@/lib/types";
+import type { Listing, PricingSuggestion, StaleListingAlert } from "@/lib/types";
 import { formatCurrency } from "@/lib/format";
 import { Button } from "@/components/ui/Button";
 import { Icon } from "@/components/ui/Icon";
@@ -22,6 +22,7 @@ export default function ListingsPage() {
   const [pricingByListing, setPricingByListing] = useState<Record<string, PricingSuggestion>>({});
   const [pricingLoading, setPricingLoading] = useState<string | null>(null);
   const [pricingError, setPricingError] = useState<string | null>(null);
+  const [staleAlertsByListing, setStaleAlertsByListing] = useState<Record<string, StaleListingAlert>>({});
 
   useEffect(() => {
     if (!getToken()) {
@@ -36,8 +37,12 @@ export default function ListingsPage() {
     setIsLoading(true);
     setError(null);
     try {
-      const data = await apiFetch<Listing[]>("/listings");
+      const [data, staleAlerts] = await Promise.all([
+        apiFetch<Listing[]>("/listings"),
+        apiFetch<StaleListingAlert[]>("/listings/stale-alerts"),
+      ]);
       setListings(data);
+      setStaleAlertsByListing(Object.fromEntries(staleAlerts.map((a) => [a.listing_id, a])));
     } catch (err) {
       setError(err instanceof Error ? err.message : "Portföyler yüklenemedi");
     } finally {
@@ -96,9 +101,16 @@ export default function ListingsPage() {
       <div className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-3">
         {listings.map((listing) => {
           const suggestion = pricingByListing[listing.id];
+          const staleAlert = staleAlertsByListing[listing.id];
           return (
             <div key={listing.id} className="flex flex-col gap-2">
               <ListingCard listing={listing} />
+              {staleAlert && (
+                <div className="flex items-start gap-2 rounded bg-yellow-100 px-3 py-2.5 text-body-sm text-yellow-800">
+                  <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
+                  <span>{staleAlert.message}</span>
+                </div>
+              )}
               <Button
                 variant="outline"
                 size="sm"

@@ -37,6 +37,8 @@ class LeadResponse(BaseModel):
     next_follow_up_at: datetime | None
     reminder_at: datetime | None
     reminder_note: str | None
+    appointment_at: datetime | None
+    appointment_location: str | None
     created_at: datetime
 
     model_config = {"from_attributes": True}
@@ -98,3 +100,15 @@ class LeadVoiceNoteDraftResponse(BaseModel):
 class LeadReminderUpdate(BaseModel):
     reminder_at: datetime | None = None
     reminder_note: str | None = None
+
+
+class AppointmentCreate(BaseModel):
+    appointment_at: datetime
+    location: str
+    send_whatsapp_confirmation: bool = True
+
+
+class AppointmentResponse(BaseModel):
+    lead: LeadResponse
+    whatsapp_confirmation_sent: bool
+    whatsapp_confirmation_error: str | None = None

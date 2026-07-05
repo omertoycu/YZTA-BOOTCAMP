@@ -13,6 +13,10 @@ SessionLocal = sessionmaker(bind=engine, autoflush=False, autocommit=False, expi
 auth_engine = create_engine(settings.auth_database_url, pool_pre_ping=True)
 AuthSessionLocal = sessionmaker(bind=auth_engine, autoflush=False, autocommit=False, expire_on_commit=False)
 
+# Sadece public.py (login'siz ilan vitrini) kullanmalı — bkz. app/core/config.py: public_database_url
+public_engine = create_engine(settings.public_database_url, pool_pre_ping=True)
+PublicSessionLocal = sessionmaker(bind=public_engine, autoflush=False, autocommit=False, expire_on_commit=False)
+
 
 class Base(DeclarativeBase):
     pass
@@ -28,6 +32,14 @@ def get_db():
 
 def get_auth_db():
     db = AuthSessionLocal()
+    try:
+        yield db
+    finally:
+        db.close()
+
+
+def get_public_db():
+    db = PublicSessionLocal()
     try:
         yield db
     finally:

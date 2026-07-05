@@ -22,6 +22,10 @@ os.environ.setdefault(
     "AUTH_DATABASE_URL",
     "postgresql+psycopg2://portfoyai_auth:portfoyai_auth@localhost:5432/portfoyai_test",
 )
+os.environ.setdefault(
+    "PUBLIC_DATABASE_URL",
+    "postgresql+psycopg2://portfoyai_public:portfoyai_public@localhost:5432/portfoyai_test",
+)
 # Her test session'ı için ayrı, geçici bir ChromaDB dizini — dev index'iyle
 # karışmasın ve testler arası veri birikmesin.
 os.environ.setdefault("CHROMA_PERSIST_DIR", tempfile.mkdtemp(prefix="portfoyai_chroma_test_"))

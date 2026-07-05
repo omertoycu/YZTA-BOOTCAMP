@@ -66,6 +66,7 @@ ENVS=(
   -e "DATABASE_URL=postgresql+psycopg2://portfoyai_app:portfoyai_app@$PG:5432/portfoyai_test"
   -e "MIGRATIONS_DATABASE_URL=postgresql+psycopg2://portfoyai:portfoyai@$PG:5432/portfoyai_test"
   -e "AUTH_DATABASE_URL=postgresql+psycopg2://portfoyai_auth:portfoyai_auth@$PG:5432/portfoyai_test"
+  -e "PUBLIC_DATABASE_URL=postgresql+psycopg2://portfoyai_public:portfoyai_public@$PG:5432/portfoyai_test"
 )
 
 echo ">> pytest çalışıyor..."

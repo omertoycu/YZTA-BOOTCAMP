@@ -6,7 +6,7 @@ import { Sidebar } from "@/components/Sidebar";
 
 export function AppShell({ children }: { children: ReactNode }) {
   const pathname = usePathname();
-  const isFullBleed = pathname === "/login" || pathname === "/";
+  const isFullBleed = pathname === "/login" || pathname === "/" || pathname.startsWith("/p/");
 
   if (isFullBleed) {
     return <main className="min-h-screen">{children}</main>;

@@ -53,7 +53,15 @@ export interface Lead {
   next_follow_up_at: string | null;
   reminder_at: string | null;
   reminder_note: string | null;
+  appointment_at: string | null;
+  appointment_location: string | null;
   created_at: string;
+}
+
+export interface AppointmentResult {
+  lead: Lead;
+  whatsapp_confirmation_sent: boolean;
+  whatsapp_confirmation_error: string | null;
 }
 
 export interface LeadVoiceNoteDraft {
@@ -143,4 +151,31 @@ export interface PricingSuggestion {
   suggested_min: number | null;
   suggested_max: number | null;
   comparables: Array<{ title: string; price: number; district: string; room_count: string }>;
+}
+
+export interface PublicListing {
+  id: string;
+  title: string;
+  district: string;
+  price: number;
+  room_count: string;
+  square_meters: number | null;
+  photos: string[];
+  office_name: string;
+}
+
+export interface ListingViewStats {
+  view_count: number;
+  last_viewed_at: string | null;
+}
+
+export interface StaleListingAlert {
+  listing_id: string;
+  title: string;
+  district: string;
+  price: number;
+  age_days: number;
+  suggested_max: number;
+  overprice_pct: number;
+  message: string;
 }

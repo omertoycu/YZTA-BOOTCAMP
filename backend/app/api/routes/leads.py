@@ -1,9 +1,10 @@
 from datetime import datetime, timezone
 
-from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
+from fastapi import APIRouter, Depends, File, HTTPException, Response, UploadFile
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from app.agents.calendar_invite import build_appointment_ics
 from app.agents.follow_up import disable_auto_follow_up, enable_auto_follow_up
 from app.agents.graph import build_matching_graph
 from app.agents.lead_voice_note import VoiceNoteError, transcribe_and_extract_note
@@ -18,6 +19,8 @@ from app.models.lead_score import LeadScore
 from app.models.office import Office
 from app.models.user import User
 from app.schemas.lead import (
+    AppointmentCreate,
+    AppointmentResponse,
     AutoFollowUpRequest,
     FollowUpRequest,
     FollowUpResponse,
@@ -356,3 +359,84 @@ def toggle_auto_follow_up(
 
     db.commit()
     return lead
+
+
+@router.post("/{lead_id}/appointment", response_model=AppointmentResponse)
+def create_appointment(
+    lead_id: str,
+    payload: AppointmentCreate,
+    db: Session = Depends(get_tenant_db),
+    current_user: dict = Depends(get_current_user),
+):
+    """Yer gösterme randevusu planlar (.ics ile indirilebilir, bkz.
+    GET /{lead_id}/appointment.ics) ve isteğe bağlı bir WhatsApp onay mesajı
+    gönderir. Randevu her koşulda kaydedilir — WhatsApp onayı başarısız olsa
+    bile (örn. henüz bağlı değil), danışman zaten sözlü onaylamış olabilir;
+    başarısızlık response'ta ayrıca bildirilir, sert hataya düşülmez."""
+    lead = db.get(Lead, lead_id)
+    if not lead:
+        raise HTTPException(status_code=404, detail="Lead bulunamadı")
+
+    lead.appointment_at = payload.appointment_at
+    lead.appointment_location = payload.location
+    lead.appointment_reminder_sent = False
+
+    whatsapp_confirmation_sent = False
+    whatsapp_confirmation_error = None
+    if payload.send_whatsapp_confirmation:
+        office = db.get(Office, current_user["office_id"])
+        if not office or not office.whatsapp_phone_number_id:
+            whatsapp_confirmation_error = "Bu ofis için WhatsApp gönderimi henüz bağlı değil"
+        else:
+            local_time = payload.appointment_at.strftime("%d.%m.%Y %H:%M")
+            message = (
+                f"Randevunuz onaylandı: {local_time} — {payload.location}. Görüşmek üzere!"
+            )
+            try:
+                send_whatsapp_text(office.whatsapp_phone_number_id, lead.contact_phone, message)
+                whatsapp_confirmation_sent = True
+            except WhatsAppSendError as exc:
+                whatsapp_confirmation_error = str(exc) if str(exc) != "__not_configured__" else (
+                    "WhatsApp gönderimi şu an aktif değil"
+                )
+
+    db.commit()
+    return AppointmentResponse(
+        lead=lead,
+        whatsapp_confirmation_sent=whatsapp_confirmation_sent,
+        whatsapp_confirmation_error=whatsapp_confirmation_error,
+    )
+
+
+@router.delete("/{lead_id}/appointment", response_model=LeadResponse)
+def cancel_appointment(lead_id: str, db: Session = Depends(get_tenant_db)):
+    lead = db.get(Lead, lead_id)
+    if not lead:
+        raise HTTPException(status_code=404, detail="Lead bulunamadı")
+
+    lead.appointment_at = None
+    lead.appointment_location = None
+    lead.appointment_reminder_sent = False
+    db.commit()
+    return lead
+
+
+@router.get("/{lead_id}/appointment.ics")
+def get_appointment_ics(lead_id: str, db: Session = Depends(get_tenant_db)):
+    lead = db.get(Lead, lead_id)
+    if not lead:
+        raise HTTPException(status_code=404, detail="Lead bulunamadı")
+    if not lead.appointment_at:
+        raise HTTPException(status_code=404, detail="Bu aday için planlanmış bir randevu yok")
+
+    ics_bytes = build_appointment_ics(
+        summary=f"Yer Gösterimi — {lead.contact_phone}",
+        location=lead.appointment_location or "",
+        start=lead.appointment_at,
+        uid=f"appointment-{lead.id}@portfoyai.app",
+    )
+    return Response(
+        content=ics_bytes,
+        media_type="text/calendar",
+        headers={"Content-Disposition": 'attachment; filename="randevu.ics"'},
+    )

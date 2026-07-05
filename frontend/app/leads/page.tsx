@@ -3,8 +3,10 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
+  CalendarPlus,
   Clock,
   Compass,
+  Download,
   Gauge,
   MapPin,
   Mic,
@@ -19,10 +21,12 @@ import {
   Upload,
   Users,
   Wallet,
+  X,
 } from "lucide-react";
-import { apiFetch, apiUpload, getToken } from "@/lib/api";
+import { apiFetch, apiFetchBlob, apiUpload, getToken } from "@/lib/api";
 import { useAudioRecorder } from "@/lib/useAudioRecorder";
 import type {
+  AppointmentResult,
   FollowUpResult,
   Lead,
   LeadNote,
@@ -86,6 +90,13 @@ export default function LeadsPage() {
   const [suggestedStatusDraft, setSuggestedStatusDraft] = useState<LeadStatus | "">("");
   const [reminderDateDraft, setReminderDateDraft] = useState("");
   const [reminderNoteDraft, setReminderNoteDraft] = useState("");
+
+  // Yer gösterme randevusu + takvim daveti
+  const [openAppointmentLead, setOpenAppointmentLead] = useState<string | null>(null);
+  const [appointmentDateTime, setAppointmentDateTime] = useState("");
+  const [appointmentLocation, setAppointmentLocation] = useState("");
+  const [appointmentSendWhatsapp, setAppointmentSendWhatsapp] = useState(true);
+  const [appointmentResultByLead, setAppointmentResultByLead] = useState<Record<string, string>>({});
 
   const [contactPhone, setContactPhone] = useState("");
   const [district, setDistrict] = useState("");
@@ -285,6 +296,82 @@ export default function LeadsPage() {
     }
   }
 
+  function handleToggleAppointmentForm(lead: Lead) {
+    if (openAppointmentLead === lead.id) {
+      setOpenAppointmentLead(null);
+      return;
+    }
+    setOpenAppointmentLead(lead.id);
+    setAppointmentDateTime(lead.appointment_at ? lead.appointment_at.slice(0, 16) : "");
+    setAppointmentLocation(lead.appointment_location ?? "");
+    setAppointmentSendWhatsapp(true);
+  }
+
+  async function handleCreateAppointment(lead: Lead) {
+    if (!appointmentDateTime || !appointmentLocation.trim()) return;
+    setPendingAction(`appointment-${lead.id}`);
+    setError(null);
+    try {
+      const result = await apiFetch<AppointmentResult>(`/leads/${lead.id}/appointment`, {
+        method: "POST",
+        body: JSON.stringify({
+          appointment_at: new Date(appointmentDateTime).toISOString(),
+          location: appointmentLocation.trim(),
+          send_whatsapp_confirmation: appointmentSendWhatsapp,
+        }),
+      });
+      setLeads((prev) => prev.map((l) => (l.id === result.lead.id ? result.lead : l)));
+      setAppointmentResultByLead((prev) => ({
+        ...prev,
+        [lead.id]: result.whatsapp_confirmation_sent
+          ? "Randevu kaydedildi, WhatsApp onay mesajı gönderildi."
+          : `Randevu kaydedildi. ${result.whatsapp_confirmation_error ?? ""}`,
+      }));
+      setOpenAppointmentLead(null);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Randevu kaydedilemedi");
+    } finally {
+      setPendingAction(null);
+    }
+  }
+
+  async function handleCancelAppointment(lead: Lead) {
+    setPendingAction(`appointment-cancel-${lead.id}`);
+    setError(null);
+    try {
+      const updated = await apiFetch<Lead>(`/leads/${lead.id}/appointment`, { method: "DELETE" });
+      setLeads((prev) => prev.map((l) => (l.id === updated.id ? updated : l)));
+      setAppointmentResultByLead((prev) => {
+        const next = { ...prev };
+        delete next[lead.id];
+        return next;
+      });
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Randevu iptal edilemedi");
+    } finally {
+      setPendingAction(null);
+    }
+  }
+
+  async function handleDownloadIcs(lead: Lead) {
+    try {
+      const blob = await apiFetchBlob(`/leads/${lead.id}/appointment.ics`);
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = "randevu.ics";
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      // Devrimi bir sonraki tick'e ertele — hemen iptal edilirse tarayıcının
+      // indirmeyi başlatması (özellikle otomasyon ortamlarında) yarışa girip
+      // sessizce başarısız olabiliyor.
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Takvim daveti indirilemedi");
+    }
+  }
+
   async function handleToggleAutoFollowUp(lead: Lead) {
     setPendingAction(`auto-follow-up-${lead.id}`);
     setError(null);
@@ -440,6 +527,13 @@ export default function LeadsPage() {
                           {lead.reminder_note ? `: ${lead.reminder_note}` : ""}
                         </Badge>
                       )}
+                      {lead.appointment_at && (
+                        <Badge variant="brand">
+                          <CalendarPlus className="h-3 w-3" />
+                          Randevu {new Date(lead.appointment_at).toLocaleString("tr-TR")}
+                          {lead.appointment_location ? ` · ${lead.appointment_location}` : ""}
+                        </Badge>
+                      )}
                     </div>
                   </div>
 
@@ -509,8 +603,81 @@ export default function LeadsPage() {
                       <Mic className="h-3.5 w-3.5" />
                       Sesli Not
                     </Button>
+                    <Button
+                      variant={lead.appointment_at ? "primary" : "outline"}
+                      size="sm"
+                      onClick={() => handleToggleAppointmentForm(lead)}
+                    >
+                      <CalendarPlus className="h-3.5 w-3.5" />
+                      {lead.appointment_at ? "Randevuyu Düzenle" : "Randevu Planla"}
+                    </Button>
+                    {lead.appointment_at && (
+                      <>
+                        <Button variant="outline" size="sm" onClick={() => handleDownloadIcs(lead)}>
+                          <Download className="h-3.5 w-3.5" />
+                          Takvime Ekle
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          isLoading={pendingAction === `appointment-cancel-${lead.id}`}
+                          onClick={() => handleCancelAppointment(lead)}
+                        >
+                          <X className="h-3.5 w-3.5" />
+                          İptal Et
+                        </Button>
+                      </>
+                    )}
                   </div>
                 </div>
+
+                {openAppointmentLead === lead.id && (
+                  <div className="flex flex-col gap-3 rounded bg-surface-bright p-3">
+                    <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                      <Input
+                        id={`appointment-datetime-${lead.id}`}
+                        label="Randevu tarihi ve saati"
+                        type="datetime-local"
+                        value={appointmentDateTime}
+                        onChange={(e) => setAppointmentDateTime(e.target.value)}
+                      />
+                      <Input
+                        id={`appointment-location-${lead.id}`}
+                        label="Konum"
+                        placeholder="Örn. Kadıköy, İstanbul"
+                        value={appointmentLocation}
+                        onChange={(e) => setAppointmentLocation(e.target.value)}
+                      />
+                    </div>
+                    <label className="flex items-center gap-2 text-body-sm text-on-surface">
+                      <input
+                        type="checkbox"
+                        checked={appointmentSendWhatsapp}
+                        onChange={(e) => setAppointmentSendWhatsapp(e.target.checked)}
+                      />
+                      Adaya WhatsApp'tan onay mesajı gönder
+                    </label>
+                    <div className="flex justify-between">
+                      <Button variant="ghost" size="sm" onClick={() => setOpenAppointmentLead(null)}>
+                        Vazgeç
+                      </Button>
+                      <Button
+                        size="sm"
+                        isLoading={pendingAction === `appointment-${lead.id}`}
+                        disabled={!appointmentDateTime || !appointmentLocation.trim()}
+                        onClick={() => handleCreateAppointment(lead)}
+                      >
+                        Randevuyu Kaydet
+                      </Button>
+                    </div>
+                  </div>
+                )}
+
+                {appointmentResultByLead[lead.id] && (
+                  <div className="rounded bg-mint-accent p-3 text-body-sm text-on-secondary-container">
+                    {appointmentResultByLead[lead.id]}
+                  </div>
+                )}
 
                 {openVoiceNoteLead === lead.id && (
                   <div className="flex flex-col gap-3 rounded bg-surface-bright p-3">

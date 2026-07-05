@@ -29,6 +29,9 @@ services:
       # arama gerekir, bu yüzden BYPASSRLS'li ama sadece offices+users'a erişimi olan
       # dar yetkili bir rol (bkz. migration 0003).
       AUTH_DATABASE_URL: postgresql+psycopg2://portfoyai_auth:portfoyai_auth@postgres:5432/portfoyai
+      # Sadece login'siz ilan vitrini (/public/listings/{id}): sadece listings+offices
+      # SELECT ve listing_views INSERT edebilen dar yetkili rol (bkz. migration 0013).
+      PUBLIC_DATABASE_URL: postgresql+psycopg2://portfoyai_public:portfoyai_public@postgres:5432/portfoyai
     ports:
       - "8000:8000"
     depends_on:
