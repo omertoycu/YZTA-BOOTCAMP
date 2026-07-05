@@ -122,13 +122,18 @@ def score_lead(
 @router.post("/{lead_id}/follow-up", response_model=FollowUpResponse)
 def send_follow_up(
     lead_id: str,
-    payload: FollowUpRequest,
+    payload: FollowUpRequest = FollowUpRequest(),
     db: Session = Depends(get_tenant_db),
     current_user: dict = Depends(get_current_user),
 ):
     """Lead'e manuel tetiklenen bir WhatsApp takip mesajı gönderir. Otomatik
     (zamanlanmış) takip zinciri ayrı bir altyapı (cron/scheduler) gerektirir —
-    bu, danışmanın panelden bir tıkla tetiklediği MVP versiyonu."""
+    bu, danışmanın panelden bir tıkla tetiklediği MVP versiyonu.
+
+    payload'un varsayılanı var: frontend'in "Takip Mesajı Gönder" butonu hiç
+    body göndermiyor (sadece override mesajı yazılacaksa body atılır) — varsayılan
+    olmadan FastAPI, body tamamen eksik olduğunda 422 "Field required" döner ve bu
+    hiç WhatsApp bağlantısı kontrolüne bile ulaşmadan buton her zaman patlar."""
     lead = db.get(Lead, lead_id)
     if not lead:
         raise HTTPException(status_code=404, detail="Lead bulunamadı")

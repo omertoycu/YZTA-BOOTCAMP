@@ -64,6 +64,29 @@ def test_follow_up_sends_default_template(client, db_session, monkeypatch):
     assert sent_calls[0][1] == "905551112233"
 
 
+def test_follow_up_works_with_no_request_body(client, db_session, monkeypatch):
+    """Regresyon testi: frontend'in "Takip Mesajı Gönder" butonu hiç body
+    göndermiyor (bkz. app/leads/page.tsx: apiFetch(..., { method: "POST" })).
+    payload'un varsayılanı olmadan FastAPI, body tamamen eksikken WhatsApp
+    bağlantı kontrolüne hiç ulaşmadan 422 "Field required" döndürüyordu —
+    yani bu buton hiçbir zaman gerçek bir isteği tamamlayamıyordu."""
+    headers = _register(client, "Ofis FollowUp Test 4", "owner4@followup-test.com")
+    _set_phone_number_id(db_session, "Ofis FollowUp Test 4", "1000000012")
+    lead_id = _create_lead(client, headers, district="Üsküdar")
+
+    sent_calls = []
+    monkeypatch.setattr(
+        leads_route,
+        "send_whatsapp_text",
+        lambda phone_number_id, to, text: sent_calls.append((phone_number_id, to, text)),
+    )
+
+    resp = client.post(f"/leads/{lead_id}/follow-up", headers=headers)
+    assert resp.status_code == 200
+    assert resp.json()["sent"] is True
+    assert len(sent_calls) == 1
+
+
 def test_follow_up_returns_502_on_send_failure(client, db_session, monkeypatch):
     headers = _register(client, "Ofis FollowUp Test 3", "owner3@followup-test.com")
     _set_phone_number_id(db_session, "Ofis FollowUp Test 3", "1000000011")

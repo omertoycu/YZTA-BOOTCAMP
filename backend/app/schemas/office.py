@@ -9,6 +9,7 @@ class OfficeResponse(BaseModel):
     name: str
     subscription_plan: str
     notification_phone: str | None
+    whatsapp_phone_number_id: str | None
     created_at: datetime
 
     model_config = {"from_attributes": True}
@@ -16,3 +17,4 @@ class OfficeResponse(BaseModel):
 
 class OfficeUpdate(BaseModel):
     notification_phone: str | None = None
+    whatsapp_phone_number_id: str | None = None

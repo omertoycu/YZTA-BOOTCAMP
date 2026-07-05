@@ -16,6 +16,19 @@ export function clearToken() {
 
 export class ApiError extends Error {}
 
+// FastAPI validation hatalarında (422) `detail` düz bir string değil, her biri
+// {msg, loc, ...} şeklinde nesnelerden oluşan bir DİZİ olur (örn. body hiç
+// gönderilmediğinde "Field required"). Bunu doğrudan Error()'a vermek
+// String(dizi) → "[object Object]" gibi okunaksız bir mesaja dönüşürdü.
+function formatErrorDetail(detail: unknown, fallback: string): string {
+  if (typeof detail === "string") return detail;
+  if (Array.isArray(detail)) {
+    const messages = detail.map((item) => (item && typeof item === "object" && "msg" in item ? String(item.msg) : String(item)));
+    if (messages.length > 0) return messages.join(", ");
+  }
+  return fallback;
+}
+
 async function handleResponse<T>(res: Response): Promise<T> {
   if (res.status === 401) {
     clearToken();
@@ -25,10 +38,10 @@ async function handleResponse<T>(res: Response): Promise<T> {
   }
 
   if (!res.ok) {
-    let detail = res.statusText;
+    let detail: string = res.statusText;
     try {
       const body = await res.json();
-      detail = body.detail || detail;
+      detail = formatErrorDetail(body.detail, detail);
     } catch {
       // yanıt gövdesi JSON değilse statusText ile devam et
     }
@@ -69,10 +82,10 @@ export async function apiFetchBlob(path: string, options: RequestInit = {}): Pro
   }
 
   if (!res.ok) {
-    let detail = res.statusText;
+    let detail: string = res.statusText;
     try {
       const body = await res.json();
-      detail = body.detail || detail;
+      detail = formatErrorDetail(body.detail, detail);
     } catch {
       // yanıt gövdesi JSON değilse statusText ile devam et
     }

@@ -3,6 +3,7 @@ export interface Office {
   name: string;
   subscription_plan: string;
   notification_phone: string | null;
+  whatsapp_phone_number_id: string | null;
   created_at: string;
 }
 
