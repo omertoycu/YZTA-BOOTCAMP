@@ -2,9 +2,36 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Compass, Gauge, MapPin, MessageCircle, NotebookPen, Phone, Plus, Repeat, Send, Sparkles, Users, Wallet } from "lucide-react";
-import { apiFetch, getToken } from "@/lib/api";
-import type { FollowUpResult, Lead, LeadNote, LeadScore, LeadStatus, MatchResult, SendMatchesResult } from "@/lib/types";
+import {
+  Clock,
+  Compass,
+  Gauge,
+  MapPin,
+  Mic,
+  MessageCircle,
+  NotebookPen,
+  Phone,
+  Plus,
+  Repeat,
+  Send,
+  Sparkles,
+  Square,
+  Upload,
+  Users,
+  Wallet,
+} from "lucide-react";
+import { apiFetch, apiUpload, getToken } from "@/lib/api";
+import { useAudioRecorder } from "@/lib/useAudioRecorder";
+import type {
+  FollowUpResult,
+  Lead,
+  LeadNote,
+  LeadScore,
+  LeadStatus,
+  LeadVoiceNoteDraft,
+  MatchResult,
+  SendMatchesResult,
+} from "@/lib/types";
 import { formatCurrency } from "@/lib/format";
 import { Button } from "@/components/ui/Button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/Card";
@@ -48,6 +75,17 @@ export default function LeadsPage() {
   const [openNotesLead, setOpenNotesLead] = useState<string | null>(null);
   const [noteDraft, setNoteDraft] = useState("");
   const [pendingAction, setPendingAction] = useState<string | null>(null);
+
+  // Sesli Not → CRM güncellemesi: tek seferde tek aday için açık, panel tek bir
+  // paylaşılan recorder örneğini kullanır (bkz. lib/useAudioRecorder.ts).
+  const voiceNoteRecorder = useAudioRecorder();
+  const [openVoiceNoteLead, setOpenVoiceNoteLead] = useState<string | null>(null);
+  const [voiceNotePhase, setVoiceNotePhase] = useState<"processing" | "review" | null>(null);
+  const [voiceDraft, setVoiceDraft] = useState<LeadVoiceNoteDraft | null>(null);
+  const [noteSummaryDraft, setNoteSummaryDraft] = useState("");
+  const [suggestedStatusDraft, setSuggestedStatusDraft] = useState<LeadStatus | "">("");
+  const [reminderDateDraft, setReminderDateDraft] = useState("");
+  const [reminderNoteDraft, setReminderNoteDraft] = useState("");
 
   const [contactPhone, setContactPhone] = useState("");
   const [district, setDistrict] = useState("");
@@ -178,6 +216,70 @@ export default function LeadsPage() {
       setNoteDraft("");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Not eklenemedi");
+    } finally {
+      setPendingAction(null);
+    }
+  }
+
+  function handleToggleVoiceNote(leadId: string) {
+    voiceNoteRecorder.reset();
+    setVoiceNotePhase(null);
+    setVoiceDraft(null);
+    setOpenVoiceNoteLead((prev) => (prev === leadId ? null : leadId));
+  }
+
+  async function handleAnalyzeVoiceNote(leadId: string) {
+    if (!voiceNoteRecorder.audioFile) return;
+    setVoiceNotePhase("processing");
+    setError(null);
+    try {
+      const result = await apiUpload<LeadVoiceNoteDraft>(`/leads/${leadId}/voice-note`, voiceNoteRecorder.audioFile);
+      setVoiceDraft(result);
+      setNoteSummaryDraft(result.note_summary ?? "");
+      setSuggestedStatusDraft(result.suggested_status ?? "");
+      setReminderDateDraft(result.reminder_at ? result.reminder_at.slice(0, 10) : "");
+      setReminderNoteDraft(result.reminder_note ?? "");
+      setVoiceNotePhase("review");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Ses işlenemedi");
+      setVoiceNotePhase(null);
+    }
+  }
+
+  async function handleConfirmVoiceNote(lead: Lead) {
+    setPendingAction(`voice-note-confirm-${lead.id}`);
+    setError(null);
+    try {
+      if (noteSummaryDraft.trim()) {
+        const note = await apiFetch<LeadNote>(`/leads/${lead.id}/notes`, {
+          method: "POST",
+          body: JSON.stringify({ body: noteSummaryDraft.trim() }),
+        });
+        setNotesByLead((prev) => ({ ...prev, [lead.id]: [note, ...(prev[lead.id] ?? [])] }));
+      }
+      if (suggestedStatusDraft && suggestedStatusDraft !== lead.status) {
+        const updated = await apiFetch<Lead>(`/leads/${lead.id}/status`, {
+          method: "PATCH",
+          body: JSON.stringify({ status: suggestedStatusDraft }),
+        });
+        setLeads((prev) => prev.map((l) => (l.id === updated.id ? updated : l)));
+      }
+      if (reminderDateDraft) {
+        const updated = await apiFetch<Lead>(`/leads/${lead.id}/reminder`, {
+          method: "PATCH",
+          body: JSON.stringify({
+            reminder_at: new Date(`${reminderDateDraft}T09:00:00`).toISOString(),
+            reminder_note: reminderNoteDraft.trim() || null,
+          }),
+        });
+        setLeads((prev) => prev.map((l) => (l.id === updated.id ? updated : l)));
+      }
+      setOpenVoiceNoteLead(null);
+      voiceNoteRecorder.reset();
+      setVoiceNotePhase(null);
+      setVoiceDraft(null);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Onaylanamadı");
     } finally {
       setPendingAction(null);
     }
@@ -331,6 +433,13 @@ export default function LeadsPage() {
                           Skor: {score.score}/100
                         </Badge>
                       )}
+                      {lead.reminder_at && (
+                        <Badge variant="warning">
+                          <Clock className="h-3 w-3" />
+                          Hatırlatma {new Date(lead.reminder_at).toLocaleDateString("tr-TR")}
+                          {lead.reminder_note ? `: ${lead.reminder_note}` : ""}
+                        </Badge>
+                      )}
                     </div>
                   </div>
 
@@ -396,8 +505,155 @@ export default function LeadsPage() {
                       <NotebookPen className="h-3.5 w-3.5" />
                       Notlar
                     </Button>
+                    <Button variant="outline" size="sm" onClick={() => handleToggleVoiceNote(lead.id)}>
+                      <Mic className="h-3.5 w-3.5" />
+                      Sesli Not
+                    </Button>
                   </div>
                 </div>
+
+                {openVoiceNoteLead === lead.id && (
+                  <div className="flex flex-col gap-3 rounded bg-surface-bright p-3">
+                    {voiceNoteRecorder.stage === "idle" && voiceNotePhase === null && (
+                      <div className="flex flex-col items-center gap-3 py-4">
+                        <button
+                          type="button"
+                          onClick={voiceNoteRecorder.start}
+                          className="flex h-14 w-14 items-center justify-center rounded-full bg-primary text-on-primary shadow-lg transition-transform hover:scale-105"
+                        >
+                          <Mic className="h-6 w-6" />
+                        </button>
+                        <p className="text-body-sm text-text-muted">
+                          Görüşme sonrası aday hakkında sesli not bırakın — sistem görüşme notu,
+                          durum ve hatırlatma önerisi çıkarsın.
+                        </p>
+                        <label className="flex cursor-pointer items-center gap-2 rounded-full border border-outline-variant px-3 py-1.5 text-body-sm text-on-surface hover:bg-surface-container-lowest">
+                          <Upload className="h-3.5 w-3.5" />
+                          Ses dosyası yükle
+                          <input
+                            type="file"
+                            accept="audio/*"
+                            className="hidden"
+                            onChange={voiceNoteRecorder.handleFileUpload}
+                          />
+                        </label>
+                      </div>
+                    )}
+
+                    {voiceNoteRecorder.stage === "recording" && voiceNotePhase === null && (
+                      <div className="flex flex-col items-center gap-3 py-4">
+                        <button
+                          type="button"
+                          onClick={voiceNoteRecorder.stop}
+                          className="flex h-14 w-14 animate-pulse items-center justify-center rounded-full bg-error text-on-error shadow-lg"
+                        >
+                          <Square className="h-6 w-6" />
+                        </button>
+                        <p className="font-mono text-title-md text-primary">
+                          {String(Math.floor(voiceNoteRecorder.recordSeconds / 60)).padStart(2, "0")}:
+                          {String(voiceNoteRecorder.recordSeconds % 60).padStart(2, "0")}
+                        </p>
+                        <p className="text-body-sm text-text-muted">Kaydediliyor... durdurmak için dokunun</p>
+                      </div>
+                    )}
+
+                    {voiceNoteRecorder.stage === "recorded" && voiceNotePhase === null && voiceNoteRecorder.audioUrl && (
+                      <div className="flex flex-col items-center gap-3 py-2">
+                        {/* eslint-disable-next-line jsx-a11y/media-has-caption */}
+                        <audio src={voiceNoteRecorder.audioUrl} controls className="w-full" />
+                        <div className="flex gap-2">
+                          <Button variant="outline" size="sm" onClick={voiceNoteRecorder.reset}>
+                            Yeniden Kaydet
+                          </Button>
+                          <Button size="sm" onClick={() => handleAnalyzeVoiceNote(lead.id)}>
+                            <Sparkles className="h-3.5 w-3.5" />
+                            Analiz Et
+                          </Button>
+                        </div>
+                      </div>
+                    )}
+
+                    {voiceNotePhase === "processing" && (
+                      <div className="flex flex-col items-center gap-2 py-6">
+                        <Spinner />
+                        <p className="text-body-sm text-text-muted">Gemini dinliyor ve notu çıkarıyor...</p>
+                      </div>
+                    )}
+
+                    {voiceNotePhase === "review" && voiceDraft && (
+                      <div className="flex flex-col gap-3">
+                        <div className="rounded bg-surface-container-lowest p-2.5 text-body-sm">
+                          <p className="mb-1 font-label text-label-caps text-text-muted">Transkript</p>
+                          <p className="italic text-on-surface">&ldquo;{voiceDraft.transcript}&rdquo;</p>
+                        </div>
+                        <Input
+                          id={`voice-note-summary-${lead.id}`}
+                          label="Görüşme notu"
+                          value={noteSummaryDraft}
+                          onChange={(e) => setNoteSummaryDraft(e.target.value)}
+                        />
+                        <div className="grid grid-cols-2 gap-3">
+                          <div className="flex flex-col gap-1.5">
+                            <label
+                              htmlFor={`voice-note-status-${lead.id}`}
+                              className="font-label text-label-caps text-on-surface-variant"
+                            >
+                              Önerilen durum
+                            </label>
+                            <select
+                              id={`voice-note-status-${lead.id}`}
+                              value={suggestedStatusDraft}
+                              onChange={(e) => setSuggestedStatusDraft(e.target.value as LeadStatus | "")}
+                              className="h-10 rounded border border-outline-variant bg-surface-container-lowest px-2 text-body-sm text-on-surface focus:border-secondary focus:outline-none"
+                            >
+                              <option value="">Değiştirme</option>
+                              {Object.entries(LEAD_STATUS_LABELS).map(([value, label]) => (
+                                <option key={value} value={value}>
+                                  {label}
+                                </option>
+                              ))}
+                            </select>
+                          </div>
+                          <Input
+                            id={`voice-note-reminder-date-${lead.id}`}
+                            label="Hatırlatma tarihi"
+                            type="date"
+                            value={reminderDateDraft}
+                            onChange={(e) => setReminderDateDraft(e.target.value)}
+                          />
+                        </div>
+                        {reminderDateDraft && (
+                          <Input
+                            id={`voice-note-reminder-note-${lead.id}`}
+                            label="Hatırlatma notu"
+                            value={reminderNoteDraft}
+                            onChange={(e) => setReminderNoteDraft(e.target.value)}
+                          />
+                        )}
+                        <div className="mt-1 flex justify-between">
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => {
+                              voiceNoteRecorder.reset();
+                              setVoiceNotePhase(null);
+                              setVoiceDraft(null);
+                            }}
+                          >
+                            Baştan Başla
+                          </Button>
+                          <Button
+                            size="sm"
+                            isLoading={pendingAction === `voice-note-confirm-${lead.id}`}
+                            onClick={() => handleConfirmVoiceNote(lead)}
+                          >
+                            Onayla ve Kaydet
+                          </Button>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
 
                 {openNotesLead === lead.id && (
                   <div className="flex flex-col gap-3 rounded bg-surface-bright p-3">

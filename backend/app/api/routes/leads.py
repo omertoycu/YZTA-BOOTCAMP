@@ -1,12 +1,14 @@
 from datetime import datetime, timezone
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.agents.follow_up import disable_auto_follow_up, enable_auto_follow_up
 from app.agents.graph import build_matching_graph
+from app.agents.lead_voice_note import VoiceNoteError, transcribe_and_extract_note
 from app.agents.scoring import calculate_lead_score
+from app.agents.voice_listing import MAX_AUDIO_BYTES
 from app.agents.whatsapp_send import WhatsAppSendError, send_whatsapp_text
 from app.api.deps import get_current_user
 from app.middleware.tenant import get_tenant_db
@@ -22,8 +24,10 @@ from app.schemas.lead import (
     LeadCreate,
     LeadNoteCreate,
     LeadNoteResponse,
+    LeadReminderUpdate,
     LeadResponse,
     LeadStatusUpdate,
+    LeadVoiceNoteDraftResponse,
     MatchResult,
     SendMatchesResponse,
 )
@@ -221,6 +225,60 @@ def list_lead_notes(lead_id: str, db: Session = Depends(get_tenant_db)):
         response.author_email = authors.get(note.author_id)
         responses.append(response)
     return responses
+
+
+@router.post("/{lead_id}/voice-note", response_model=LeadVoiceNoteDraftResponse)
+def create_lead_voice_note(
+    lead_id: str,
+    file: UploadFile = File(...),
+    db: Session = Depends(get_tenant_db),
+    current_user: dict = Depends(get_current_user),
+):
+    """Danışmanın saha dönüşü bir aday hakkında kaydettiği sesli notu Gemini ile
+    görüşme notu özeti + önerilen pipeline durumu + hatırlatma taslağına çevirir.
+    Hiçbir şey otomatik yazılmaz — frontend, danışman taslağı gözden geçirip
+    onayladıktan sonra mevcut POST /leads/{id}/notes, PATCH /leads/{id}/status
+    ve PATCH /leads/{id}/reminder uç noktalarını çağırarak kalıcı hale getirir."""
+    lead = db.get(Lead, lead_id)
+    if not lead:
+        raise HTTPException(status_code=404, detail="Lead bulunamadı")
+
+    audio_bytes = file.file.read(MAX_AUDIO_BYTES + 1)
+    if len(audio_bytes) > MAX_AUDIO_BYTES:
+        raise HTTPException(status_code=413, detail="Ses kaydı çok büyük (maksimum 20MB)")
+    if not audio_bytes:
+        raise HTTPException(status_code=422, detail="Boş ses kaydı")
+
+    content_type = (file.content_type or "audio/webm").split(";")[0].strip()
+
+    try:
+        draft = transcribe_and_extract_note(audio_bytes, content_type)
+    except VoiceNoteError as exc:
+        if str(exc) == "__not_configured__":
+            raise HTTPException(status_code=503, detail="Sesli not işleme şu an aktif değil") from exc
+        raise HTTPException(status_code=502, detail=str(exc)) from exc
+
+    return LeadVoiceNoteDraftResponse(**draft)
+
+
+@router.patch("/{lead_id}/reminder", response_model=LeadResponse)
+def update_lead_reminder(
+    lead_id: str,
+    payload: LeadReminderUpdate,
+    db: Session = Depends(get_tenant_db),
+):
+    """Danışmanın kendine bıraktığı kişisel hatırlatmayı (tarih + not) set eder
+    ya da temizler (reminder_at=null gönderilerek). Otomatik WhatsApp takip
+    zincirinden (auto_follow_up_enabled/next_follow_up_at) tamamen bağımsızdır —
+    adaya hiçbir otomatik mesaj gitmez, sadece danışman panelinde görünür."""
+    lead = db.get(Lead, lead_id)
+    if not lead:
+        raise HTTPException(status_code=404, detail="Lead bulunamadı")
+
+    lead.reminder_at = payload.reminder_at
+    lead.reminder_note = payload.reminder_note
+    db.commit()
+    return lead
 
 
 @router.post("/{lead_id}/send-matches", response_model=SendMatchesResponse)

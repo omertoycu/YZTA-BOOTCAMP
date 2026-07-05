@@ -35,6 +35,8 @@ class LeadResponse(BaseModel):
     auto_follow_up_enabled: bool
     follow_up_stage: int
     next_follow_up_at: datetime | None
+    reminder_at: datetime | None
+    reminder_note: str | None
     created_at: datetime
 
     model_config = {"from_attributes": True}
@@ -83,3 +85,16 @@ class SendMatchesResponse(BaseModel):
 class FollowUpResponse(BaseModel):
     sent: bool
     message: str
+
+
+class LeadVoiceNoteDraftResponse(BaseModel):
+    transcript: str
+    note_summary: str | None
+    suggested_status: str | None
+    reminder_at: datetime | None
+    reminder_note: str | None
+
+
+class LeadReminderUpdate(BaseModel):
+    reminder_at: datetime | None = None
+    reminder_note: str | None = None

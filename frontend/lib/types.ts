@@ -51,7 +51,17 @@ export interface Lead {
   auto_follow_up_enabled: boolean;
   follow_up_stage: number;
   next_follow_up_at: string | null;
+  reminder_at: string | null;
+  reminder_note: string | null;
   created_at: string;
+}
+
+export interface LeadVoiceNoteDraft {
+  transcript: string;
+  note_summary: string | null;
+  suggested_status: LeadStatus | null;
+  reminder_at: string | null;
+  reminder_note: string | null;
 }
 
 export interface FollowUpResult {

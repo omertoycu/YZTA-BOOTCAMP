@@ -1,8 +1,9 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { apiFetch, apiUpload, getToken } from "@/lib/api";
+import { useAudioRecorder } from "@/lib/useAudioRecorder";
 import type { Listing, VoiceListingDraft } from "@/lib/types";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
@@ -10,29 +11,15 @@ import { Alert } from "@/components/ui/Alert";
 import { Spinner } from "@/components/ui/Spinner";
 import { Icon } from "@/components/ui/Icon";
 
-const RECORDER_MIME_CANDIDATES = [
-  "audio/webm;codecs=opus",
-  "audio/webm",
-  "audio/ogg;codecs=opus",
-  "audio/mp4",
-];
-
-function pickRecorderMimeType(): string | undefined {
-  if (typeof MediaRecorder === "undefined") return undefined;
-  return RECORDER_MIME_CANDIDATES.find((type) => MediaRecorder.isTypeSupported(type));
-}
-
-type Stage = "idle" | "recording" | "recorded" | "processing" | "review";
+type Phase = "processing" | "review" | null;
 
 export default function AssistantPage() {
   const router = useRouter();
-  const [stage, setStage] = useState<Stage>("idle");
+  const recorder = useAudioRecorder();
+  const [phase, setPhase] = useState<Phase>(null);
   const [error, setError] = useState<string | null>(null);
-  const [audioUrl, setAudioUrl] = useState<string | null>(null);
-  const [audioFile, setAudioFile] = useState<File | null>(null);
   const [draft, setDraft] = useState<VoiceListingDraft | null>(null);
   const [isCreating, setIsCreating] = useState(false);
-  const [recordSeconds, setRecordSeconds] = useState(0);
 
   const [title, setTitle] = useState("");
   const [district, setDistrict] = useState("");
@@ -40,86 +27,34 @@ export default function AssistantPage() {
   const [roomCount, setRoomCount] = useState("");
   const [squareMeters, setSquareMeters] = useState("");
 
-  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
-  const chunksRef = useRef<Blob[]>([]);
-  const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
-
   useEffect(() => {
     if (!getToken()) router.replace("/login");
   }, [router]);
 
-  useEffect(() => {
-    return () => {
-      if (timerRef.current) clearInterval(timerRef.current);
-      mediaRecorderRef.current?.stream.getTracks().forEach((t) => t.stop());
-    };
-  }, []);
-
-  async function startRecording() {
-    setError(null);
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      const mimeType = pickRecorderMimeType();
-      const recorder = mimeType ? new MediaRecorder(stream, { mimeType }) : new MediaRecorder(stream);
-      chunksRef.current = [];
-      recorder.ondataavailable = (e) => {
-        if (e.data.size > 0) chunksRef.current.push(e.data);
-      };
-      recorder.onstop = () => {
-        const blob = new Blob(chunksRef.current, { type: recorder.mimeType || "audio/webm" });
-        const extension = (recorder.mimeType || "audio/webm").includes("mp4") ? "mp4" : "webm";
-        setAudioFile(new File([blob], `sesli-not.${extension}`, { type: blob.type }));
-        setAudioUrl(URL.createObjectURL(blob));
-        stream.getTracks().forEach((t) => t.stop());
-      };
-      mediaRecorderRef.current = recorder;
-      recorder.start();
-      setStage("recording");
-      setRecordSeconds(0);
-      timerRef.current = setInterval(() => setRecordSeconds((s) => s + 1), 1000);
-    } catch {
-      setError("Mikrofona erişilemedi. Tarayıcı izinlerini kontrol edin ya da bir ses dosyası yükleyin.");
-    }
-  }
-
-  function stopRecording() {
-    if (timerRef.current) clearInterval(timerRef.current);
-    mediaRecorderRef.current?.stop();
-    setStage("recorded");
-  }
-
-  function handleFileUpload(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    setError(null);
-    setAudioFile(file);
-    setAudioUrl(URL.createObjectURL(file));
-    setStage("recorded");
-  }
+  const displayError = error ?? recorder.error;
 
   async function handleAnalyze() {
-    if (!audioFile) return;
-    setStage("processing");
+    if (!recorder.audioFile) return;
+    setPhase("processing");
     setError(null);
     try {
-      const result = await apiUpload<VoiceListingDraft>("/listings/voice-draft", audioFile);
+      const result = await apiUpload<VoiceListingDraft>("/listings/voice-draft", recorder.audioFile);
       setDraft(result);
       setTitle(result.title ?? "");
       setDistrict(result.district ?? "");
       setPrice(result.price != null ? String(result.price) : "");
       setRoomCount(result.room_count ?? "");
       setSquareMeters(result.square_meters != null ? String(result.square_meters) : "");
-      setStage("review");
+      setPhase("review");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Ses işlenemedi");
-      setStage("recorded");
+      setPhase(null);
     }
   }
 
   function reset() {
-    setStage("idle");
-    setAudioFile(null);
-    setAudioUrl(null);
+    recorder.reset();
+    setPhase(null);
     setDraft(null);
     setError(null);
   }
@@ -162,14 +97,14 @@ export default function AssistantPage() {
         </p>
       </div>
 
-      {error && <Alert>{error}</Alert>}
+      {displayError && <Alert>{displayError}</Alert>}
 
       <div className="rounded-lg bg-surface-container-lowest p-6 shadow-[0px_10px_30px_rgba(0,0,0,0.04)]">
-        {stage === "idle" && (
+        {phase === null && recorder.stage === "idle" && (
           <div className="flex flex-col items-center gap-4 py-6">
             <button
               type="button"
-              onClick={startRecording}
+              onClick={recorder.start}
               className="flex h-20 w-20 items-center justify-center rounded-full bg-primary text-on-primary shadow-lg transition-transform hover:scale-105"
             >
               <Icon name="mic" className="text-[36px]" />
@@ -183,32 +118,32 @@ export default function AssistantPage() {
             <label className="flex cursor-pointer items-center gap-2 rounded-full border border-outline-variant px-4 py-2 text-body-sm text-on-surface hover:bg-surface-bright">
               <Icon name="upload_file" className="text-[18px]" />
               Ses dosyası yükle
-              <input type="file" accept="audio/*" className="hidden" onChange={handleFileUpload} />
+              <input type="file" accept="audio/*" className="hidden" onChange={recorder.handleFileUpload} />
             </label>
           </div>
         )}
 
-        {stage === "recording" && (
+        {phase === null && recorder.stage === "recording" && (
           <div className="flex flex-col items-center gap-4 py-6">
             <button
               type="button"
-              onClick={stopRecording}
+              onClick={recorder.stop}
               className="flex h-20 w-20 animate-pulse items-center justify-center rounded-full bg-error text-on-error shadow-lg"
             >
               <Icon name="stop" className="text-[36px]" />
             </button>
             <p className="font-mono text-title-md text-primary">
-              {String(Math.floor(recordSeconds / 60)).padStart(2, "0")}:
-              {String(recordSeconds % 60).padStart(2, "0")}
+              {String(Math.floor(recorder.recordSeconds / 60)).padStart(2, "0")}:
+              {String(recorder.recordSeconds % 60).padStart(2, "0")}
             </p>
             <p className="text-body-sm text-text-muted">Kaydediliyor... durdurmak için dokunun</p>
           </div>
         )}
 
-        {stage === "recorded" && audioUrl && (
+        {phase === null && recorder.stage === "recorded" && recorder.audioUrl && (
           <div className="flex flex-col items-center gap-4 py-4">
             {/* eslint-disable-next-line jsx-a11y/media-has-caption */}
-            <audio src={audioUrl} controls className="w-full" />
+            <audio src={recorder.audioUrl} controls className="w-full" />
             <div className="flex gap-2">
               <Button variant="outline" onClick={reset}>
                 Yeniden Kaydet
@@ -221,14 +156,14 @@ export default function AssistantPage() {
           </div>
         )}
 
-        {stage === "processing" && (
+        {phase === "processing" && (
           <div className="flex flex-col items-center gap-3 py-10">
             <Spinner className="h-8 w-8" />
             <p className="text-body-sm text-text-muted">Gemini dinliyor ve ilan taslağı hazırlıyor...</p>
           </div>
         )}
 
-        {stage === "review" && draft && (
+        {phase === "review" && draft && (
           <div className="flex flex-col gap-4">
             <div className="rounded bg-surface-container p-3 text-body-sm text-on-surface">
               <p className="mb-1 font-label text-label-caps text-text-muted">Transkript</p>
