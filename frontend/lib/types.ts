@@ -27,6 +27,10 @@ export interface ListingExtract {
   square_meters: number | null;
 }
 
+export interface ListingPortfolioExtract {
+  listings: ListingExtract[];
+}
+
 export interface VoiceListingDraft {
   transcript: string;
   title: string | null;

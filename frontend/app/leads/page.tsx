@@ -50,6 +50,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Input } from "@/components/ui/Input";
 import { Badge, type BadgeProps } from "@/components/ui/Badge";
 import { Alert } from "@/components/ui/Alert";
+import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { Spinner } from "@/components/ui/Spinner";
 import { EmptyState } from "@/components/ui/EmptyState";
 
@@ -87,6 +88,7 @@ export default function LeadsPage() {
   const [openNotesLead, setOpenNotesLead] = useState<string | null>(null);
   const [noteDraft, setNoteDraft] = useState("");
   const [pendingAction, setPendingAction] = useState<string | null>(null);
+  const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null);
 
   // WhatsApp konuşma geçmişi ("Mesajlar" paneli)
   const [messagesByLead, setMessagesByLead] = useState<Record<string, WhatsAppMessage[]>>({});
@@ -261,14 +263,12 @@ export default function LeadsPage() {
   }
 
   async function handleDeleteLead(leadId: string) {
-    if (!window.confirm("Bu adayı kalıcı olarak silmek istediğinize emin misiniz? Bu işlem geri alınamaz.")) {
-      return;
-    }
     setPendingAction(`delete-${leadId}`);
     setError(null);
     try {
       await apiFetch(`/leads/${leadId}`, { method: "DELETE" });
       setLeads((prev) => prev.filter((l) => l.id !== leadId));
+      setPendingDeleteId(null);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Aday silinemedi");
     } finally {
@@ -840,7 +840,7 @@ export default function LeadsPage() {
                       variant="destructive"
                       size="sm"
                       isLoading={pendingAction === `delete-${lead.id}`}
-                      onClick={() => handleDeleteLead(lead.id)}
+                      onClick={() => setPendingDeleteId(lead.id)}
                     >
                       <Trash2 className="h-3.5 w-3.5" />
                       Sil
@@ -1271,6 +1271,15 @@ export default function LeadsPage() {
           );
         })}
       </div>
+
+      <ConfirmDialog
+        open={pendingDeleteId !== null}
+        title="Adayı sil"
+        description="Bu adayı kalıcı olarak silmek istediğinize emin misiniz? Bu işlem geri alınamaz."
+        isLoading={pendingDeleteId !== null && pendingAction === `delete-${pendingDeleteId}`}
+        onConfirm={() => pendingDeleteId && handleDeleteLead(pendingDeleteId)}
+        onCancel={() => setPendingDeleteId(null)}
+      />
     </div>
   );
 }

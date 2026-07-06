@@ -7,6 +7,7 @@ from app.agents.listing_import import (
     UnsupportedListingSiteError,
     extract_listing,
     parse_listing_html,
+    parse_sahibinden_portfolio,
 )
 from app.agents.location_report import LocationReportError, get_travel_summary, render_report_pdf
 from app.agents.pricing import index_listing, remove_listing_from_index, suggest_price_range
@@ -23,6 +24,7 @@ from app.schemas.listing import (
     ListingExtractFromHtmlRequest,
     ListingExtractRequest,
     ListingExtractResponse,
+    ListingPortfolioExtractResponse,
     ListingResponse,
     ListingStatusUpdate,
     LocationReportRequest,
@@ -80,6 +82,22 @@ def extract_from_html(
     edilir (bkz. app/agents/listing_import.py: detect_source)."""
     fields = parse_listing_html(payload.html)
     return ListingExtractResponse(**fields)
+
+
+@router.post("/extract-portfolio-from-html", response_model=ListingPortfolioExtractResponse)
+def extract_portfolio_from_html(
+    payload: ListingExtractFromHtmlRequest,
+    current_user: dict = Depends(get_current_user),  # auth zorunlu, açık proxy istismarını önler
+):
+    """Danışmanın Sahibinden'deki KENDİ portföyünün listelendiği sayfadan
+    (view-source ile kopyalanan kaynak) TÜM ilanları tek seferde ayrıştırır —
+    tek ilan sayfasından (extract-from-html) farklı bir HTML yapısı kullanır,
+    bu yüzden ayrı endpoint (bkz. listing_import.parse_sahibinden_portfolio).
+    Fetch adımı yok, sadece yapıştırılan metin ayrıştırılır; hiçbir portföy
+    otomatik oluşturulmaz, danışman ayrıştırılan listeyi gözden geçirip
+    seçtiklerini onaylar."""
+    listings = parse_sahibinden_portfolio(payload.html)
+    return ListingPortfolioExtractResponse(listings=[ListingExtractResponse(**item) for item in listings])
 
 
 @router.post("/voice-draft", response_model=VoiceListingDraftResponse)

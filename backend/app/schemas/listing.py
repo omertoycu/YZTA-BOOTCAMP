@@ -54,6 +54,10 @@ class ListingExtractResponse(BaseModel):
     square_meters: int | None
 
 
+class ListingPortfolioExtractResponse(BaseModel):
+    listings: list[ListingExtractResponse]
+
+
 class LocationReportRequest(BaseModel):
     target_address: str
     target_label: str | None = None

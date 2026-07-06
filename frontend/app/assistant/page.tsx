@@ -13,6 +13,8 @@ import { Icon } from "@/components/ui/Icon";
 
 type Phase = "processing" | "review" | null;
 
+const MAX_PHOTO_BYTES = 8 * 1024 * 1024; // 8MB, backend ile aynı sınır
+
 export default function AssistantPage() {
   const router = useRouter();
   const recorder = useAudioRecorder();
@@ -26,10 +28,40 @@ export default function AssistantPage() {
   const [price, setPrice] = useState("");
   const [roomCount, setRoomCount] = useState("");
   const [squareMeters, setSquareMeters] = useState("");
+  const [photos, setPhotos] = useState<File[]>([]);
+  const [photoPreviewUrls, setPhotoPreviewUrls] = useState<string[]>([]);
 
   useEffect(() => {
     if (!getToken()) router.replace("/login");
   }, [router]);
+
+  useEffect(() => {
+    const urls = photos.map((file) => URL.createObjectURL(file));
+    setPhotoPreviewUrls(urls);
+    return () => urls.forEach((url) => URL.revokeObjectURL(url));
+  }, [photos]);
+
+  function handlePhotoSelect(e: React.ChangeEvent<HTMLInputElement>) {
+    const files = Array.from(e.target.files ?? []);
+    const accepted: File[] = [];
+    const rejected: string[] = [];
+    for (const file of files) {
+      if (!file.type.startsWith("image/")) {
+        rejected.push(`${file.name} (desteklenmeyen dosya türü)`);
+      } else if (file.size > MAX_PHOTO_BYTES) {
+        rejected.push(`${file.name} (8MB sınırını aşıyor)`);
+      } else {
+        accepted.push(file);
+      }
+    }
+    setPhotos((prev) => [...prev, ...accepted]);
+    setError(rejected.length > 0 ? `Eklenemeyen fotoğraflar: ${rejected.join(", ")}` : null);
+    e.target.value = "";
+  }
+
+  function removePhoto(index: number) {
+    setPhotos((prev) => prev.filter((_, i) => i !== index));
+  }
 
   const displayError = error ?? recorder.error;
 
@@ -57,6 +89,7 @@ export default function AssistantPage() {
     setPhase(null);
     setDraft(null);
     setError(null);
+    setPhotos([]);
   }
 
   const parsedPrice = Number(price);
@@ -77,6 +110,24 @@ export default function AssistantPage() {
           square_meters: squareMeters ? Number(squareMeters) : null,
         }),
       });
+
+      const failedPhotos: string[] = [];
+      for (const file of photos) {
+        try {
+          await apiUpload(`/listings/${listing.id}/photos`, file);
+        } catch {
+          failedPhotos.push(file.name);
+        }
+      }
+
+      if (failedPhotos.length > 0) {
+        window.alert(
+          `İlan kaydedildi ancak şu fotoğraflar yüklenemedi: ${failedPhotos.join(
+            ", "
+          )}. Portföy detayından tekrar ekleyebilirsiniz.`
+        );
+      }
+
       router.push(`/listings/${listing.id}`);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Portföy oluşturulamadı");
@@ -199,6 +250,35 @@ export default function AssistantPage() {
               value={squareMeters}
               onChange={(e) => setSquareMeters(e.target.value)}
             />
+
+            <div className="flex flex-col gap-2">
+              <p className="font-label text-label-caps text-text-muted">Fotoğraf ekleyin (opsiyonel)</p>
+              <div className="grid grid-cols-4 gap-2">
+                {photos.map((file, i) => (
+                  <div key={i} className="group relative aspect-square overflow-hidden rounded">
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img src={photoPreviewUrls[i]} alt={file.name} className="h-full w-full object-cover" />
+                    {i === 0 && (
+                      <span className="absolute left-1 top-1 rounded-full bg-primary/80 px-2 py-0.5 text-[10px] font-semibold text-on-primary">
+                        Kapak
+                      </span>
+                    )}
+                    <button
+                      type="button"
+                      onClick={() => removePhoto(i)}
+                      className="absolute right-1 top-1 flex h-6 w-6 items-center justify-center rounded-full bg-primary/80 text-on-primary opacity-0 transition-opacity group-hover:opacity-100"
+                    >
+                      <Icon name="close" className="text-[16px]" />
+                    </button>
+                  </div>
+                ))}
+                <label className="flex aspect-square cursor-pointer flex-col items-center justify-center gap-1 rounded border-2 border-dashed border-outline-variant text-text-muted hover:bg-surface-bright">
+                  <Icon name="add_photo_alternate" />
+                  <span className="text-center text-[11px] leading-tight">Fotoğraf seç</span>
+                  <input type="file" accept="image/*" multiple className="hidden" onChange={handlePhotoSelect} />
+                </label>
+              </div>
+            </div>
 
             <div className="mt-2 flex justify-between">
               <Button variant="ghost" onClick={reset}>

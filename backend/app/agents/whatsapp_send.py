@@ -10,6 +10,21 @@ class WhatsAppSendError(Exception):
     """Mesaj gönderilemedi (yapılandırma eksik, Meta API hatası)."""
 
 
+def _describe_meta_error(exc: httpx.HTTPStatusError) -> str:
+    """Meta'nın gerçek hata mesajını (ör. "24 saat penceresi doldu", "alıcı
+    numara onaylı değil") kullanıcıya yansıtır — sadece durum koduyla
+    ("Meta hata döndürdü (durum kodu 400)") danışman ne yapması gerektiğini
+    hiç anlayamıyordu. Meta'nın yanıtı JSON değilse/beklenen şekilde değilse
+    eski genel mesaja düşülür."""
+    try:
+        detail = exc.response.json().get("error", {}).get("message")
+    except (ValueError, AttributeError):
+        detail = None
+    if detail:
+        return f"Meta hata döndürdü: {detail}"
+    return f"Meta hata döndürdü (durum kodu {exc.response.status_code})."
+
+
 def send_whatsapp_text(phone_number_id: str, to: str, text: str) -> None:
     """Meta WhatsApp Cloud API üzerinden serbest metin mesaj gönderir.
 
@@ -38,6 +53,6 @@ def send_whatsapp_text(phone_number_id: str, to: str, text: str) -> None:
             )
             response.raise_for_status()
     except httpx.HTTPStatusError as exc:
-        raise WhatsAppSendError(f"Meta hata döndürdü (durum kodu {exc.response.status_code}).") from exc
+        raise WhatsAppSendError(_describe_meta_error(exc)) from exc
     except httpx.RequestError as exc:
         raise WhatsAppSendError("WhatsApp'a mesaj gönderilemedi, tekrar deneyin.") from exc

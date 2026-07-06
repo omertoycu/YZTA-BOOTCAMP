@@ -196,6 +196,68 @@ def parse_emlakjet(html: str) -> dict:
     }
 
 
+def parse_sahibinden_portfolio(html: str) -> list[dict]:
+    """Danışmanın Sahibinden'deki KENDİ portföyünün listelendiği sayfadan
+    ("İlanlarım" / mağaza sayfası) tüm ilanları TEK seferde ayrıştırır.
+    Bu, tek ilan sayfasından farklı bir HTML yapısı kullanır (`.classified`
+    kartları) — bu yüzden ayrı bir fonksiyon. Danışman bu sayfanın kaynağını
+    da (Ctrl+U → view-source) kendi tarayıcısından kopyalayıp yapıştırır;
+    outbound istek yok, sadece yapıştırılan metin ayrıştırılır.
+
+    Sahibinden aynı ilanı bazen (öne çıkan/vitrin) kartıyla sayfada iki kez
+    gösteriyor — kartın data-box-url'i (ilanın kalıcı detay linki) ile
+    içerik-bazlı tekilleştirme yapılır. Her kart bağımsız best-effort'tur;
+    bir kart eksik alan içerse bile diğerleri etkilenmez."""
+    soup = BeautifulSoup(html, "lxml")
+    cards = soup.find_all("div", class_="classified")
+
+    results: list[dict] = []
+    seen_urls: set[str] = set()
+    for card in cards:
+        source_url = card.get("data-box-url")
+        if source_url:
+            if source_url in seen_urls:
+                continue
+            seen_urls.add(source_url)
+
+        title_el = card.select_one("p.title a")
+        title = title_el.get_text(strip=True) if title_el else None
+
+        price_el = card.select_one("p.price")
+        price = _parse_turkish_price(price_el.get_text(strip=True)) if price_el else None
+
+        district = None
+        location_el = card.select_one("p.location")
+        if location_el:
+            parts = [p for p in re.split(r"[/,]", location_el.get_text(" ", strip=True)) if p.strip()]
+            if parts:
+                district = parts[-1].strip()
+
+        room_el = card.select_one("p.rooms")
+        room_count = room_el.get_text(strip=True) if room_el else None
+
+        square_meters = None
+        sqm_el = card.select_one("p.m2")
+        if sqm_el:
+            match = re.search(r"(\d+)", sqm_el.get_text(strip=True))
+            if match:
+                square_meters = int(match.group(1))
+
+        if not title and price is None and not district:
+            continue  # boş/tanınmayan kart, atla
+
+        results.append(
+            {
+                "title": title,
+                "district": district,
+                "price": price,
+                "room_count": room_count,
+                "square_meters": square_meters,
+            }
+        )
+    return results
+
+
 def detect_source(html: str) -> str:
     """Yapıştırılan sayfa kaynağının hangi portala ait olduğunu tahmin eder.
     canonical/og:url en güvenilir sinyal; bulunamazsa ham metinde domain aranır.

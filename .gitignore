@@ -37,3 +37,8 @@ audit.md
 
 # browser-smoke script'inin varsayılan çıktı dizini (normalde scratchpad'e yazılır)
 frontend/smoke-shots/
+
+# Danışmanın gerçek Sahibinden portföy sayfası kaynağı (bulk-import parser'ı
+# gerçek veriyle doğrulamak için) — gerçek işletme/ilan verisi içerir, teslim
+# kapsamı dışı, asla commit edilmemeli.
+/template.html

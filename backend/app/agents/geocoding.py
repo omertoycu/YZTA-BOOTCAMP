@@ -1,3 +1,4 @@
+import time
 from math import asin, cos, radians, sin, sqrt
 
 import httpx
@@ -10,6 +11,14 @@ from app.models.geocoded_district import GeocodedDistrict
 
 NOMINATIM_URL = "https://nominatim.openstreetmap.org/search"
 EARTH_RADIUS_KM = 6371.0
+
+# Nominatim'in kullanım politikası saniyede 1 istekle sınırlı. Bir eşleştirme
+# isteğinde birden çok bölge art arda (önbellekte olmayan) geocode edilirse,
+# bu bekleme olmadan ikinci ve sonraki her istek 429/blok yiyip sessizce None
+# dönüyordu — aranan bölgenin tam içindeki gerçek bir portföy bile sadece bu
+# yüzden "eşleşme yok" sayılabiliyordu (gerçek prod hatası).
+MIN_REQUEST_INTERVAL_SECONDS = 1.1
+_last_request_at = 0.0
 
 
 def _normalize(district: str) -> str:
@@ -31,6 +40,12 @@ def geocode_district(db: Session, district: str) -> tuple[float, float] | None:
     ).scalar_one_or_none()
     if cached:
         return float(cached.latitude), float(cached.longitude)
+
+    global _last_request_at
+    elapsed = time.monotonic() - _last_request_at
+    if elapsed < MIN_REQUEST_INTERVAL_SECONDS:
+        time.sleep(MIN_REQUEST_INTERVAL_SECONDS - elapsed)
+    _last_request_at = time.monotonic()
 
     try:
         with get_http_client() as client:

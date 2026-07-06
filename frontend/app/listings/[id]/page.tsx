@@ -13,6 +13,7 @@ import { Alert } from "@/components/ui/Alert";
 import { Spinner } from "@/components/ui/Spinner";
 import { Icon } from "@/components/ui/Icon";
 import { Input } from "@/components/ui/Input";
+import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 
 export default function ListingDetailPage() {
   const router = useRouter();
@@ -40,6 +41,9 @@ export default function ListingDetailPage() {
 
   const [viewStats, setViewStats] = useState<ListingViewStats | null>(null);
   const [linkCopied, setLinkCopied] = useState(false);
+
+  const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false);
+  const [deleteLoading, setDeleteLoading] = useState(false);
 
   useEffect(() => {
     if (!getToken()) {
@@ -105,15 +109,15 @@ export default function ListingDetailPage() {
 
   async function handleDeleteListing() {
     if (!listing) return;
-    if (!window.confirm("Bu portföyü kalıcı olarak silmek istediğinize emin misiniz? Bu işlem geri alınamaz.")) {
-      return;
-    }
     setError(null);
+    setDeleteLoading(true);
     try {
       await apiFetch(`/listings/${listing.id}`, { method: "DELETE" });
       router.push("/listings");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Portföy silinemedi");
+      setDeleteLoading(false);
+      setConfirmDeleteOpen(false);
     }
   }
 
@@ -238,7 +242,7 @@ export default function ListingDetailPage() {
                   </option>
                 ))}
               </select>
-              <Button variant="destructive" size="sm" onClick={handleDeleteListing}>
+              <Button variant="destructive" size="sm" onClick={() => setConfirmDeleteOpen(true)}>
                 <Trash2 className="h-3.5 w-3.5" />
                 Sil
               </Button>
@@ -351,6 +355,15 @@ export default function ListingDetailPage() {
           </div>
         </div>
       </div>
+
+      <ConfirmDialog
+        open={confirmDeleteOpen}
+        title="Portföyü sil"
+        description="Bu portföyü kalıcı olarak silmek istediğinize emin misiniz? Bu işlem geri alınamaz."
+        isLoading={deleteLoading}
+        onConfirm={handleDeleteListing}
+        onCancel={() => setConfirmDeleteOpen(false)}
+      />
     </div>
   );
 }

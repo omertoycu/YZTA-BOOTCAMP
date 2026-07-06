@@ -38,6 +38,43 @@ FAKE_EMLAKJET_HTML = """
 """
 
 
+FAKE_SAHIBINDEN_PORTFOLIO_HTML = """
+<html><body>
+<div class="classified " data-box-url="https://sahibinden.com/ilan/satilik-3plus1-daire-111/detay">
+  <div class="image"><a class="classified-image"><img src="https://i0.shbdn.com/a.jpg" alt=""/></a></div>
+  <span class="breadcrumb-badge">SATILIK</span>
+  <div class="gallery-info"><ul>
+    <li><p class="price"> 2.500.000 TL</p><p class="date">04 Temmuz 2026</p></li>
+    <li><p class="title"><a>Altıparmak'ta Satılık 3+1 Daire</a></p></li>
+    <li><p class="location with-icon">Bursa / Osmangazi</p>
+        <p class="m2 with-icon">115 m<sup>2</sup></p>
+        <p class="rooms with-icon">3+1</p></li>
+  </ul></div>
+</div>
+<div class="classified " data-box-url="https://sahibinden.com/ilan/kiralik-arsa-222/detay">
+  <div class="image"><a class="classified-image"><img src="https://i0.shbdn.com/b.jpg" alt=""/></a></div>
+  <span class="breadcrumb-badge">SATILIK</span>
+  <div class="gallery-info"><ul>
+    <li><p class="price"> 900.000 TL</p><p class="date">01 Temmuz 2026</p></li>
+    <li><p class="title"><a>Acil Satılık Arsa</a></p></li>
+    <li><p class="location with-icon">Bursa / Nilüfer</p></li>
+  </ul></div>
+</div>
+<div class="classified searchResultsPromoSuper " data-box-url="https://sahibinden.com/ilan/satilik-3plus1-daire-111/detay">
+  <div class="image"><a class="classified-image"><img src="https://i0.shbdn.com/a.jpg" alt=""/></a></div>
+  <span class="breadcrumb-badge">SATILIK</span>
+  <div class="gallery-info"><ul>
+    <li><p class="price"> 2.500.000 TL</p><p class="date">04 Temmuz 2026</p></li>
+    <li><p class="title"><a>Altıparmak'ta Satılık 3+1 Daire</a></p></li>
+    <li><p class="location with-icon">Bursa / Osmangazi</p>
+        <p class="m2 with-icon">115 m<sup>2</sup></p>
+        <p class="rooms with-icon">3+1</p></li>
+  </ul></div>
+</div>
+</body></html>
+"""
+
+
 def _register(client, office_name, email):
     resp = client.post(
         "/auth/register",
@@ -186,3 +223,43 @@ def test_extract_from_html_handles_garbage_gracefully(client):
     body = resp.json()
     assert body["title"] is None
     assert body["price"] is None
+
+
+def test_parse_sahibinden_portfolio_extracts_all_cards_and_dedupes_promo():
+    """Sahibinden danışmanın kendi portföyünün listelendiği sayfada aynı
+    ilanı bazen (öne çıkan/vitrin) kartıyla ikinci kez gösteriyor — bu iki
+    kart aynı data-box-url'e sahip olduğu için tekilleştirilmeli."""
+    results = listing_import.parse_sahibinden_portfolio(FAKE_SAHIBINDEN_PORTFOLIO_HTML)
+    assert len(results) == 2
+
+    first, second = results
+    assert first["title"] == "Altıparmak'ta Satılık 3+1 Daire"
+    assert first["district"] == "Osmangazi"
+    assert first["price"] == 2500000.0
+    assert first["room_count"] == "3+1"
+    assert first["square_meters"] == 115
+
+    assert second["title"] == "Acil Satılık Arsa"
+    assert second["district"] == "Nilüfer"
+    assert second["price"] == 900000.0
+    assert second["room_count"] is None
+    assert second["square_meters"] is None
+
+
+def test_extract_portfolio_from_html_requires_auth(client):
+    resp = client.post("/listings/extract-portfolio-from-html", json={"html": FAKE_SAHIBINDEN_PORTFOLIO_HTML})
+    assert resp.status_code == 401
+
+
+def test_extract_portfolio_from_html_returns_parsed_list(client):
+    headers = _register(client, "Ofis Extract Test 7", "owner7@extract-test.com")
+    resp = client.post(
+        "/listings/extract-portfolio-from-html",
+        json={"html": FAKE_SAHIBINDEN_PORTFOLIO_HTML},
+        headers=headers,
+    )
+    assert resp.status_code == 200
+    body = resp.json()
+    assert len(body["listings"]) == 2
+    assert body["listings"][0]["title"] == "Altıparmak'ta Satılık 3+1 Daire"
+    assert body["listings"][1]["district"] == "Nilüfer"

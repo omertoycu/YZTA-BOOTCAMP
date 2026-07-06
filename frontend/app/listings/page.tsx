@@ -12,6 +12,7 @@ import { Icon } from "@/components/ui/Icon";
 import { Spinner } from "@/components/ui/Spinner";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { Alert } from "@/components/ui/Alert";
+import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { ListingCard } from "@/components/ListingCard";
 
 export default function ListingsPage() {
@@ -23,6 +24,8 @@ export default function ListingsPage() {
   const [pricingLoading, setPricingLoading] = useState<string | null>(null);
   const [pricingError, setPricingError] = useState<string | null>(null);
   const [staleAlertsByListing, setStaleAlertsByListing] = useState<Record<string, StaleListingAlert>>({});
+  const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null);
+  const [deleteLoading, setDeleteLoading] = useState(false);
 
   useEffect(() => {
     if (!getToken()) {
@@ -64,15 +67,16 @@ export default function ListingsPage() {
   }
 
   async function handleDeleteListing(listingId: string) {
-    if (!window.confirm("Bu portföyü kalıcı olarak silmek istediğinize emin misiniz? Bu işlem geri alınamaz.")) {
-      return;
-    }
     setError(null);
+    setDeleteLoading(true);
     try {
       await apiFetch(`/listings/${listingId}`, { method: "DELETE" });
       setListings((prev) => prev.filter((l) => l.id !== listingId));
+      setPendingDeleteId(null);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Portföy silinemedi");
+    } finally {
+      setDeleteLoading(false);
     }
   }
 
@@ -85,12 +89,20 @@ export default function ListingsPage() {
             Ofisinizin tüm gayrimenkul portföyünü tek yerden yönetin.
           </p>
         </div>
-        <Link href="/listings/new">
-          <Button>
-            <Icon name="add" />
-            Yeni İlan Ekle
-          </Button>
-        </Link>
+        <div className="flex gap-2">
+          <Link href="/listings/import">
+            <Button variant="outline">
+              <Icon name="cloud_download" />
+              Sahibinden&apos;den Toplu Aktar
+            </Button>
+          </Link>
+          <Link href="/listings/new">
+            <Button>
+              <Icon name="add" />
+              Yeni İlan Ekle
+            </Button>
+          </Link>
+        </div>
       </div>
 
       {error && <Alert>{error}</Alert>}
@@ -117,7 +129,7 @@ export default function ListingsPage() {
           const staleAlert = staleAlertsByListing[listing.id];
           return (
             <div key={listing.id} className="flex flex-col gap-2">
-              <ListingCard listing={listing} onDelete={() => handleDeleteListing(listing.id)} />
+              <ListingCard listing={listing} onDelete={() => setPendingDeleteId(listing.id)} />
               {staleAlert && (
                 <div className="flex items-start gap-2 rounded bg-yellow-100 px-3 py-2.5 text-body-sm text-yellow-800">
                   <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
@@ -147,6 +159,15 @@ export default function ListingsPage() {
           );
         })}
       </div>
+
+      <ConfirmDialog
+        open={pendingDeleteId !== null}
+        title="Portföyü sil"
+        description="Bu portföyü kalıcı olarak silmek istediğinize emin misiniz? Bu işlem geri alınamaz."
+        isLoading={deleteLoading}
+        onConfirm={() => pendingDeleteId && handleDeleteListing(pendingDeleteId)}
+        onCancel={() => setPendingDeleteId(null)}
+      />
     </div>
   );
 }

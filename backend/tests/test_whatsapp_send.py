@@ -1,7 +1,11 @@
+import httpx
+import pytest
 from sqlalchemy import select
 
 from app.agents import whatsapp_send
+from app.agents.whatsapp_send import WhatsAppSendError, send_whatsapp_text
 from app.api.routes import leads as leads_route
+from app.core.config import settings
 from app.models.office import Office
 
 
@@ -99,3 +103,73 @@ def test_follow_up_returns_502_on_send_failure(client, db_session, monkeypatch):
 
     resp = client.post(f"/leads/{lead_id}/follow-up", json={}, headers=headers)
     assert resp.status_code == 502
+
+
+class _FakeMetaResponse:
+    """httpx.Response'ı taklit eder — send_whatsapp_text'in Meta hata body'sini
+    okuyup okuyamadığını (_describe_meta_error) gerçek bir ağ isteği atmadan
+    test etmek için."""
+
+    def __init__(self, status_code: int, payload: dict | None = None, is_json: bool = True):
+        self.status_code = status_code
+        self._payload = payload
+        self._is_json = is_json
+
+    def raise_for_status(self):
+        if self.status_code >= 400:
+            raise httpx.HTTPStatusError("error", request=None, response=self)
+
+    def json(self):
+        if not self._is_json:
+            raise ValueError("not json")
+        return self._payload
+
+
+class _FakeHttpClient:
+    def __init__(self, response: _FakeMetaResponse):
+        self._response = response
+
+    def post(self, url, headers=None, json=None):
+        return self._response
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *args):
+        return False
+
+
+def test_send_whatsapp_text_raises_not_configured_without_token(monkeypatch):
+    monkeypatch.setattr(settings, "whatsapp_token", None)
+    with pytest.raises(WhatsAppSendError, match="__not_configured__"):
+        send_whatsapp_text("123", "905551234567", "merhaba")
+
+
+def test_send_whatsapp_text_surfaces_meta_error_message(monkeypatch):
+    """Regresyon testi: canlıda Takip Mesajı Gönder 502 verdiğinde danışman
+    sadece "Meta hata döndürdü (durum kodu 400)." görüyordu, asıl sebep
+    (ör. 24 saatlik mesajlaşma penceresi doldu) hiç yansımıyordu."""
+    monkeypatch.setattr(settings, "whatsapp_token", "fake-token")
+    response = _FakeMetaResponse(
+        400,
+        {
+            "error": {
+                "message": "(#131047) Message failed to send because more than 24 hours "
+                "have passed since the customer last replied to this number.",
+                "code": 131047,
+            }
+        },
+    )
+    monkeypatch.setattr(whatsapp_send, "get_http_client", lambda: _FakeHttpClient(response))
+
+    with pytest.raises(WhatsAppSendError, match="24 hours"):
+        send_whatsapp_text("123", "905551234567", "merhaba")
+
+
+def test_send_whatsapp_text_falls_back_to_status_code_when_body_not_json(monkeypatch):
+    monkeypatch.setattr(settings, "whatsapp_token", "fake-token")
+    response = _FakeMetaResponse(500, is_json=False)
+    monkeypatch.setattr(whatsapp_send, "get_http_client", lambda: _FakeHttpClient(response))
+
+    with pytest.raises(WhatsAppSendError, match="durum kodu 500"):
+        send_whatsapp_text("123", "905551234567", "merhaba")

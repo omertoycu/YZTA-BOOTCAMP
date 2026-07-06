@@ -88,6 +88,32 @@ def test_match_without_radius_keeps_exact_district_behavior(client, monkeypatch)
     assert calls == []
 
 
+def test_match_without_radius_is_case_and_whitespace_insensitive(client, monkeypatch):
+    """Gerçek prod hatası: lead'in bölgesi 'nilüfer' (küçük harf), ilanın
+    bölgesi 'Nilüfer' (büyük N) yazılınca tam string eşleşmesi eşleşen bir
+    ilanı sessizce kaçırıyordu. district VE room_count karşılaştırması artık
+    case/whitespace-insensitive olmalı."""
+    monkeypatch.setattr(matching, "geocode_district", lambda db, district: None)
+
+    headers = _register(client, "Ofis Geo Test 4", "owner4@geo-test.com")
+    client.post(
+        "/listings",
+        json={"title": "Büyük harfli ilan", "district": "Nilüfer", "price": 15000, "room_count": " 3+1 "},
+        headers=headers,
+    )
+    lead_resp = client.post(
+        "/leads",
+        json={"contact_phone": "5551112266", "district": "nilüfer", "room_count": "3+1"},
+        headers=headers,
+    )
+    lead_id = lead_resp.json()["id"]
+
+    match_resp = client.post(f"/leads/{lead_id}/match", headers=headers)
+    assert match_resp.status_code == 200
+    titles = {m["title"] for m in match_resp.json()}
+    assert titles == {"Büyük harfli ilan"}
+
+
 def test_geocode_failure_falls_back_to_exact_district_match(client, monkeypatch):
     """Lead'in bölgesi geocode edilemiyorsa (None dönerse) sert hata yerine
     eski bölge string eşleşmesine sessizce düşülmeli."""
@@ -110,6 +136,102 @@ def test_geocode_failure_falls_back_to_exact_district_match(client, monkeypatch)
     assert match_resp.status_code == 200
     titles = {m["title"] for m in match_resp.json()}
     assert titles == {"Bilinmeyen bölge ilanı"}
+
+
+def test_per_listing_geocode_failure_falls_back_to_same_district_match(client, monkeypatch):
+    """Gerçek prod hatası: radius aramasında bir portföyün geocode'u ağ
+    hatası/Nominatim rate-limit'i yüzünden başarısız olursa, sistem onu
+    sessizce eliyordu — bölgesi aranan bölgeyle birebir aynı olsa bile.
+    Böyle bir portföy artık dahil edilmeli; sadece bölgesi de farklıysa
+    (mesafe hiç doğrulanamadığı için) atlanmalı."""
+
+    def _partial_geocode(db, district):
+        normalized = (district or "").strip().lower()
+        if normalized == "kadikoy":
+            return FAKE_COORDS["kadikoy"]
+        return None  # diğer tüm bölgeler için geocode "başarısız" simüle edilir
+
+    monkeypatch.setattr(matching, "geocode_district", _partial_geocode)
+
+    headers = _register(client, "Ofis Geo Test 5", "owner5@geo-test.com")
+    client.post(
+        "/listings",
+        json={"title": "Aynı bölge, geocode başarısız", "district": "Kadikoy", "price": 15000, "room_count": "2+1"},
+        headers=headers,
+    )
+    client.post(
+        "/listings",
+        json={"title": "Farklı bölge, geocode başarısız", "district": "Besiktas", "price": 15000, "room_count": "2+1"},
+        headers=headers,
+    )
+
+    lead_resp = client.post(
+        "/leads",
+        json={"contact_phone": "5551112277", "district": "Kadikoy", "radius_km": 10},
+        headers=headers,
+    )
+    lead_id = lead_resp.json()["id"]
+
+    match_resp = client.post(f"/leads/{lead_id}/match", headers=headers)
+    assert match_resp.status_code == 200
+    titles = {m["title"] for m in match_resp.json()}
+    assert titles == {"Aynı bölge, geocode başarısız"}
+
+
+def test_room_count_matches_regardless_of_plus_spacing(client, monkeypatch):
+    """"3 + 1" (boşluklu) ile "3+1" aynı daire tipi sayılmalı — format farkı
+    yüzünden birebir aynı daire tipi gerçek bir eşleşmeyi kaçırıyordu."""
+    monkeypatch.setattr(matching, "geocode_district", lambda db, district: None)
+
+    headers = _register(client, "Ofis Geo Test 6", "owner6@geo-test.com")
+    client.post(
+        "/listings",
+        json={"title": "Boşluklu oda sayısı", "district": "Kadikoy", "price": 15000, "room_count": "3 + 1"},
+        headers=headers,
+    )
+    lead_resp = client.post(
+        "/leads",
+        json={"contact_phone": "5551112288", "district": "Kadikoy", "room_count": "3+1"},
+        headers=headers,
+    )
+    lead_id = lead_resp.json()["id"]
+
+    match_resp = client.post(f"/leads/{lead_id}/match", headers=headers)
+    assert match_resp.status_code == 200
+    titles = {m["title"] for m in match_resp.json()}
+    assert titles == {"Boşluklu oda sayısı"}
+
+
+def test_budget_slightly_over_max_still_matches_with_tolerance(client, monkeypatch):
+    """Bütçenin ~%3 üzerindeki bir portföy artık tamamen elenmek yerine
+    ±%5 tolerans payı içinde "yakın eşleşme" olarak sunulmalı."""
+    monkeypatch.setattr(matching, "geocode_district", lambda db, district: None)
+
+    headers = _register(client, "Ofis Geo Test 7", "owner7@geo-test.com")
+    client.post(
+        "/listings",
+        json={"title": "Bütçenin biraz üzerinde", "district": "Kadikoy", "price": 10300, "room_count": "2+1"},
+        headers=headers,
+    )
+    client.post(
+        "/listings",
+        json={"title": "Bütçenin çok üzerinde", "district": "Kadikoy", "price": 20000, "room_count": "2+1"},
+        headers=headers,
+    )
+    lead_resp = client.post(
+        "/leads",
+        json={"contact_phone": "5551112299", "district": "Kadikoy", "budget_max": 10000},
+        headers=headers,
+    )
+    lead_id = lead_resp.json()["id"]
+
+    match_resp = client.post(f"/leads/{lead_id}/match", headers=headers)
+    assert match_resp.status_code == 200
+    matches = match_resp.json()
+    titles = {m["title"] for m in matches}
+    assert titles == {"Bütçenin biraz üzerinde"}
+    over_budget_match = next(m for m in matches if m["title"] == "Bütçenin biraz üzerinde")
+    assert "üzerinde" in over_budget_match["match_reason"]
 
 
 def test_haversine_km_known_distance():
