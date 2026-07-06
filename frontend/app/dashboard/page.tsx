@@ -129,8 +129,8 @@ export default function DashboardPage() {
             )}
           </div>
           <Link
-            href="/settings"
-            aria-label="Hesap ayarları"
+            href="/profile"
+            aria-label="Profil"
             className="flex h-10 w-10 items-center justify-center rounded-full border-2 border-white bg-mint-accent text-secondary shadow-sm transition-transform hover:scale-105"
           >
             <Icon name="person" filled />

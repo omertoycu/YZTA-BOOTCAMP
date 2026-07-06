@@ -7,6 +7,15 @@ export interface Office {
   created_at: string;
 }
 
+export type UserRole = "owner" | "agent" | "viewer";
+
+export interface CurrentUser {
+  id: string;
+  email: string;
+  role: UserRole;
+  created_at: string;
+}
+
 export type ListingType = "sale" | "rent";
 
 export interface Listing {

@@ -7,7 +7,7 @@ from app.api.routes import listings as listings_route
 def _register(client, office_name, email):
     resp = client.post(
         "/auth/register",
-        json={"office_name": office_name, "owner_email": email, "owner_password": "supersecret123"},
+        json={"office_name": office_name, "owner_email": email, "owner_password": "Supersecret123!"},
     )
     token = resp.json()["access_token"]
     return {"Authorization": f"Bearer {token}"}

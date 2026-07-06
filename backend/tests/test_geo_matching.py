@@ -18,7 +18,7 @@ def _fake_geocode(db, district):
 def _register(client, office_name, email):
     resp = client.post(
         "/auth/register",
-        json={"office_name": office_name, "owner_email": email, "owner_password": "supersecret123"},
+        json={"office_name": office_name, "owner_email": email, "owner_password": "Supersecret123!"},
     )
     token = resp.json()["access_token"]
     return {"Authorization": f"Bearer {token}"}
@@ -283,3 +283,114 @@ def test_geocode_district_caches_after_first_lookup(db_session, monkeypatch):
     second = geocoding.geocode_district(db_session, district_name.lower())
     assert second == (40.99, 29.03)
     assert fake_client.call_count == 1
+
+
+def test_matches_via_neighborhood_mentioned_in_title_when_district_field_is_coarser(client, monkeypatch):
+    """Gerçek prod hatası (kullanıcı bildirdi): "Bursa Osmangazi Çekirge"
+    bölgesinde ev arandığında, Çekirge'de gerçek bir ilan olmasına rağmen
+    sistem eşleşme bulamadı — çünkü Sahibinden'in konum alanı sadece il/ilçe
+    düzeyinde ("Osmangazi"), mahalle adı ("Çekirge") sadece başlıkta geçiyor.
+    Artık başlık da taranmalı."""
+    monkeypatch.setattr(matching, "geocode_district", lambda db, district: None)
+
+    headers = _register(client, "Ofis Mahalle Test 1", "owner1@mahalle-test.com")
+    client.post(
+        "/listings",
+        json={
+            "title": "BEGO GAYRİMENKULDEN ÇEKİRGEDE ACİL SATILIK ARSA",
+            "district": "Osmangazi",
+            "price": 900000,
+            "room_count": "2+1",
+        },
+        headers=headers,
+    )
+    client.post(
+        "/listings",
+        json={
+            "title": "Elmasbahçelerde satılık daire",
+            "district": "Osmangazi",
+            "price": 900000,
+            "room_count": "2+1",
+        },
+        headers=headers,
+    )
+
+    lead_resp = client.post(
+        "/leads",
+        json={"contact_phone": "5551113300", "district": "Çekirge", "room_count": "2+1"},
+        headers=headers,
+    )
+    lead_id = lead_resp.json()["id"]
+
+    match_resp = client.post(f"/leads/{lead_id}/match", headers=headers)
+    assert match_resp.status_code == 200
+    titles = {m["title"] for m in match_resp.json()}
+    assert titles == {"BEGO GAYRİMENKULDEN ÇEKİRGEDE ACİL SATILIK ARSA"}
+
+
+def test_matches_via_title_even_with_radius_search(client, monkeypatch):
+    """Aynı mahalle-başlık sinyali radius aramasında da devreye girmeli —
+    başlıkta bölge adı geçen bir portföy için mesafe hesaplamaya bile gerek
+    yok, doğrudan eşleşme kabul edilmeli."""
+
+    def _geocode_only_center(db, district):
+        if (district or "").strip().lower() == "çekirge":
+            return (40.19, 29.02)
+        return None  # diğer tüm bölgeler (ör. Osmangazi'nin kendisi) için "başarısız"
+
+    monkeypatch.setattr(matching, "geocode_district", _geocode_only_center)
+
+    headers = _register(client, "Ofis Mahalle Test 2", "owner2@mahalle-test.com")
+    client.post(
+        "/listings",
+        json={
+            "title": "Çekirgede satılık daire",
+            "district": "Osmangazi",
+            "price": 900000,
+            "room_count": "2+1",
+        },
+        headers=headers,
+    )
+
+    lead_resp = client.post(
+        "/leads",
+        json={"contact_phone": "5551113311", "district": "Çekirge", "room_count": "2+1", "radius_km": 5},
+        headers=headers,
+    )
+    lead_id = lead_resp.json()["id"]
+
+    match_resp = client.post(f"/leads/{lead_id}/match", headers=headers)
+    assert match_resp.status_code == 200
+    titles = {m["title"] for m in match_resp.json()}
+    assert titles == {"Çekirgede satılık daire"}
+
+
+def test_neighborhood_match_is_turkish_capital_i_safe(client, monkeypatch):
+    """Regresyon: hem başlık hem aranan bölge Türkçe büyük "İ" içerdiğinde
+    (ör. "İZMİR"), Python'un str.lower()'ının bunu bir COMBINING DOT ABOVE
+    karakterine ayırması alt-dize aramasını kırmamalı (bkz. app/core/text.py)."""
+    monkeypatch.setattr(matching, "geocode_district", lambda db, district: None)
+
+    headers = _register(client, "Ofis Mahalle Test 3", "owner3@mahalle-test.com")
+    client.post(
+        "/listings",
+        json={
+            "title": "İZMİR KONAK'TA SATILIK DAİRE",
+            "district": "Konak",
+            "price": 900000,
+            "room_count": "2+1",
+        },
+        headers=headers,
+    )
+
+    lead_resp = client.post(
+        "/leads",
+        json={"contact_phone": "5551113322", "district": "izmir", "room_count": "2+1"},
+        headers=headers,
+    )
+    lead_id = lead_resp.json()["id"]
+
+    match_resp = client.post(f"/leads/{lead_id}/match", headers=headers)
+    assert match_resp.status_code == 200
+    titles = {m["title"] for m in match_resp.json()}
+    assert titles == {"İZMİR KONAK'TA SATILIK DAİRE"}

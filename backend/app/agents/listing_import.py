@@ -6,6 +6,7 @@ import httpx
 from bs4 import BeautifulSoup
 
 from app.core.http import get_http_client
+from app.core.text import fold_turkish_i
 
 SUPPORTED_DOMAINS = {"sahibinden.com", "www.sahibinden.com"}
 
@@ -80,22 +81,11 @@ def _meta_content(soup: BeautifulSoup, property_name: str) -> str | None:
     return None
 
 
-def _fold_turkish_i(text: str) -> str:
-    """Python'un str.lower()'ı Türkçe büyük "İ"yi TEK bir küçük harfe değil,
-    "i" + görünmez bir COMBINING DOT ABOVE karakterine ayırır (Unicode'un
-    varsayılan, yerel-ayardan bağımsız case-folding kuralı) — bu da
-    "KİRALIK".lower()'ı "kiralik" değil "ki̇ralik" yapıp aramamızı sessizce
-    kırıyordu (gerçek bug, "kiralık" ilanların hepsi None'a düşüyordu).
-    Çözüm: İ/I/ı'nın hepsini büyük/küçük harf farkı önemsemeden düz "i"ye
-    indirip sonra normal .lower() uyguluyoruz."""
-    return text.replace("İ", "i").replace("I", "i").replace("ı", "i").lower()
-
-
 def _detect_listing_type(*texts: str | None) -> str | None:
     """Başlık/etiket metninde "kiralık" ya da "satılık" ifadesi arar — Sahibinden
     ilan başlıklarında ve kart etiketlerinde bu neredeyse her zaman geçer.
     İkisi de geçiyorsa veya hiçbiri geçmiyorsa None döner (danışman elle seçer)."""
-    combined = _fold_turkish_i(" ".join(t for t in texts if t))
+    combined = fold_turkish_i(" ".join(t for t in texts if t))
     has_rent = "kiralik" in combined
     has_sale = "satilik" in combined
     if has_rent and not has_sale:

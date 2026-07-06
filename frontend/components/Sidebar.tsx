@@ -4,7 +4,8 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { Menu, X } from "lucide-react";
-import { clearToken, getToken } from "@/lib/api";
+import { apiFetch, clearToken, getToken } from "@/lib/api";
+import type { Office } from "@/lib/types";
 import { Icon } from "@/components/ui/Icon";
 import { cn } from "@/lib/utils";
 
@@ -22,12 +23,23 @@ const NAV_LINKS = [
 export function Sidebar() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [isMobileOpen, setIsMobileOpen] = useState(false);
+  const [office, setOffice] = useState<Office | null>(null);
   const pathname = usePathname();
   const router = useRouter();
 
   useEffect(() => {
     setIsAuthenticated(Boolean(getToken()));
   }, [pathname]);
+
+  // Hangi ofis hesabıyla giriş yapıldığı arayüzde hiçbir yerde
+  // belirtilmiyordu — sidebar her sayfada göründüğü için burada tek seferden
+  // çekilip footer'da (ve /profile'da) gösteriliyor.
+  useEffect(() => {
+    if (!isAuthenticated) return;
+    apiFetch<Office>("/offices/me")
+      .then(setOffice)
+      .catch(() => setOffice(null));
+  }, [isAuthenticated]);
 
   // Sayfa değiştiğinde mobil açılır menüyü otomatik kapat.
   useEffect(() => {
@@ -81,6 +93,20 @@ export function Sidebar() {
   function renderFooter() {
     return (
       <div className="mt-auto border-t border-surface-variant pt-6">
+        <Link
+          href="/profile"
+          className="mb-4 flex items-center gap-3 rounded-xl px-3 py-2.5 transition-colors hover:bg-surface-container-low"
+        >
+          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-mint-accent text-sm font-semibold text-secondary">
+            {office?.name?.charAt(0).toUpperCase() ?? <Icon name="apartment" className="text-[18px]" />}
+          </div>
+          <div className="flex-1 overflow-hidden">
+            <p className="truncate text-body-sm font-medium text-on-surface">
+              {office?.name ?? "Yükleniyor..."}
+            </p>
+            <p className="truncate text-[11px] text-text-muted">Hesap ve profil bilgileri</p>
+          </div>
+        </Link>
         <button
           onClick={handleVoiceToListing}
           className="mb-6 flex w-full items-center justify-center gap-2 rounded-full bg-primary px-6 py-4 text-on-primary shadow-md transition-all hover:shadow-lg"

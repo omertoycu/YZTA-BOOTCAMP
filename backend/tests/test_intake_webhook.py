@@ -14,7 +14,7 @@ WHATSAPP_APP_SECRET = "test-whatsapp-secret"
 def _register_office(client, office_name, email):
     resp = client.post(
         "/auth/register",
-        json={"office_name": office_name, "owner_email": email, "owner_password": "supersecret123"},
+        json={"office_name": office_name, "owner_email": email, "owner_password": "Supersecret123!"},
     )
     return {"Authorization": f"Bearer {resp.json()['access_token']}"}
 

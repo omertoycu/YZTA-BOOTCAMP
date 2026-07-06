@@ -5,6 +5,7 @@ from sqlalchemy.orm import Session
 
 from app.agents.geocoding import geocode_district, haversine_km
 from app.agents.state import AgentState
+from app.core.text import fold_turkish_i
 from app.models.listing import Listing
 
 # Bütçenin biraz üzerinde/altında kalan ama aksi halde tam uyan bir portföyü
@@ -18,10 +19,10 @@ _ROOM_SEPARATOR = re.compile(r"\s*\+\s*")
 def _normalize(value: str) -> str:
     """district/room_count karşılaştırmalarını case+whitespace-insensitive
     yapar — "Nilüfer" ile "nilüfer", "3+1" ile " 3+1 " aynı kabul edilmeli.
-    Danışmanın/Gemini'nin/adayın yazdığı metin asla garanti aynı harf
-    büyüklüğünde olmuyor; tam string eşleşmesi gerçek eşleşen portföyleri
-    sessizce kaçırıyordu (bkz. matching_node docstring)."""
-    return value.strip().lower()
+    fold_turkish_i kullanıyor (sadece basit .lower() değil) çünkü "İzmir" gibi
+    büyük Türkçe İ içeren bir bölge adı da aynı sessiz eşleştirme hatasına
+    düşebilirdi (bkz. app/core/text.py, app/agents/listing_import.py)."""
+    return fold_turkish_i(value.strip())
 
 
 def _normalize_room_count(value: str) -> str:
@@ -31,31 +32,48 @@ def _normalize_room_count(value: str) -> str:
     return _ROOM_SEPARATOR.sub("+", _normalize(value))
 
 
+def _title_mentions_area(title: str | None, area: str) -> bool:
+    """Sahibinden'in konum alanı genelde sadece il/ilçe düzeyinde (örn. "Bursa
+    / Osmangazi") — mahalle bilgisi (örn. "Çekirge") neredeyse hep ilanın
+    BAŞLIĞINDA geçer ("ÇEKİRGEDE SATILIK..."). Lead "Çekirge" arıyorsa ve
+    hiçbir listing.district buna birebir uymuyorsa (hepsi "Osmangazi"), gerçek
+    bir eşleşme sessizce kaçırılır — bu yüzden başlığı da tarıyoruz (gerçek
+    prod hatası, kullanıcı bildirdi)."""
+    if not title or not area.strip():
+        return False
+    return _normalize(area) in _normalize(title)
+
+
 def matching_node(state: AgentState, db: Session) -> AgentState:
-    """Sprint 1 MVP: vektör benzerliği değil, basit SQL filtresi.
+    """Sprint 1 MVP: vektör benzerliği değil, basit SQL filtresi + Python-side
+    bölge eşleştirmesi.
 
     Bütçe aralığı + oda sayısı + bölge eşleşmesiyle uygun portföyleri döner.
     Bütçe filtresi ±%5 toleranslıdır (BUDGET_TOLERANCE_RATIO) — sınırın az
     üzerinde/altında kalan bir portföy artık tamamen elenmiyor, sadece
-    match_reason'da bunu belirtiyoruz. `radius_km` set edilmişse ve lead'in
-    bölgesi geocode edilebiliyorsa, tam bölge string eşleşmesi yerine coğrafi
-    yarıçap filtresi uygulanır (bkz. app/agents/geocoding.py) — geocode
-    başarısız olursa (ağ hatası, rate-limit, bilinmeyen bölge) o portföy için
-    sessizce bölge string eşleşmesine düşülür (bölge adı aranan bölgeyle
-    birebir aynıysa dahil edilir, değilse mesafe doğrulanamadığından atlanır;
-    aksi halde tek bir Nominatim rate-limit hatası, aslında aranan bölgenin
-    tam içindeki gerçek bir eşleşen portföyü de listeden düşürüyordu). Hem
-    bölge hem oda sayısı karşılaştırmaları case/whitespace-insensitive
-    (_normalize) — aksi halde "Nilüfer" ilanı "nilüfer" arayan bir lead'e
-    hiç eşleşmiyordu (gerçek bir prod hatası, bkz. commit notu).
+    match_reason'da bunu belirtiyoruz.
+
+    Bölge eşleşmesi artık İKİ sinyale bakıyor: listing.district (il/ilçe
+    düzeyinde, ör. "Osmangazi") VE listing.title (mahalle düzeyinde, ör.
+    "ÇEKİRGEDE SATILIK..." — Sahibinden'in konum alanı sadece il/ilçe
+    gösterdiği için mahalle adı neredeyse hep başlıkta geçer, bkz.
+    _title_mentions_area). Bu sayede lead "Çekirge" ararken listing.district
+    sadece "Osmangazi" olsa bile başlığında "Çekirge" geçen bir portföy artık
+    kaçırılmıyor (gerçek prod hatası, kullanıcı bildirdi).
+
+    `radius_km` set edilmişse ve lead'in bölgesi geocode edilebiliyorsa, bu iki
+    sinyalden biri zaten eşleşmiyorsa coğrafi yarıçap filtresi uygulanır (bkz.
+    app/agents/geocoding.py) — geocode başarısız olursa (ağ hatası, rate-limit,
+    bilinmeyen bölge) o portföy güvenli tarafta kalınıp atlanır (aksi halde tek
+    bir Nominatim hatası, aranan bölgenin tam içindeki gerçek bir portföyü de
+    listeden düşürüyordu). Hem bölge hem oda sayısı karşılaştırmaları
+    case/whitespace-insensitive (_normalize).
     Bölgesel emsal embedding tabanlı benzerlik Sprint 2'de Pricing Agent ile birlikte eklendi.
     """
     radius_km = state.get("radius_km")
     center = geocode_district(db, state["district"]) if radius_km and state.get("district") else None
 
     query = select(Listing).where(Listing.status == "active")
-    if not center and state.get("district"):
-        query = query.where(func.lower(func.trim(Listing.district)) == _normalize(state["district"]))
     if state.get("room_count"):
         target_room = _normalize_room_count(state["room_count"])
         query = query.where(
@@ -72,24 +90,30 @@ def matching_node(state: AgentState, db: Session) -> AgentState:
 
     listings = db.execute(query).scalars().all()
 
-    target_district = _normalize(state["district"]) if state.get("district") else None
+    target_area = state.get("district")
+    target_district = _normalize(target_area) if target_area else None
 
     candidates = []
     for listing in listings:
         distance = None
-        if center:
+        area_matched = bool(target_district) and (
+            _normalize(listing.district or "") == target_district
+            or _title_mentions_area(listing.title, target_area)
+        )
+
+        if center and not area_matched:
             listing_coords = geocode_district(db, listing.district)
-            if listing_coords is not None:
-                distance = haversine_km(*center, *listing_coords)
-                if distance > radius_km:
-                    continue
-            elif not target_district or _normalize(listing.district or "") != target_district:
-                # Geocoding başarısız oldu ve bölge adı aranan bölgeyle
-                # birebir aynı değil — mesafeyi doğrulayamadığımız için
+            if listing_coords is None:
+                # Bölge/başlık eşleşmesi yok, mesafe de doğrulanamadı —
                 # güvenli tarafta kalıp bu portföyü atlıyoruz.
                 continue
+            distance = haversine_km(*center, *listing_coords)
+            if distance > radius_km:
+                continue
+        elif not center and target_district and not area_matched:
+            continue
 
-        reason = _build_match_reason(listing, distance, budget_max, budget_min)
+        reason = _build_match_reason(listing, distance, budget_max, budget_min, area_matched)
         candidates.append(
             {
                 "listing_id": str(listing.id),
@@ -103,9 +127,13 @@ def matching_node(state: AgentState, db: Session) -> AgentState:
     return state
 
 
-def _build_match_reason(listing: Listing, distance: float | None, budget_max, budget_min) -> str:
+def _build_match_reason(
+    listing: Listing, distance: float | None, budget_max, budget_min, area_matched: bool
+) -> str:
     if distance is not None:
         reason = f"{listing.district} bölgesi, aradığınız konuma ~{distance:.1f} km mesafede"
+    elif area_matched:
+        reason = f"{listing.district} bölgesinde (veya başlığında), bütçe ve oda sayısı kriterine uyuyor"
     else:
         reason = f"{listing.district} bölgesinde, bütçe ve oda sayısı kriterine uyuyor"
 

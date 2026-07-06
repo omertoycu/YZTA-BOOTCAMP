@@ -1,7 +1,7 @@
 def _register_and_create_listing(client, office_name, email, title, district):
     register_resp = client.post(
         "/auth/register",
-        json={"office_name": office_name, "owner_email": email, "owner_password": "supersecret123"},
+        json={"office_name": office_name, "owner_email": email, "owner_password": "Supersecret123!"},
     )
     token = register_resp.json()["access_token"]
     headers = {"Authorization": f"Bearer {token}"}

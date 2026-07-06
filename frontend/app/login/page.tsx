@@ -18,6 +18,17 @@ const VALUE_PROPS = [
   "Portföyünüze uygun alıcıyı saniyeler içinde eşleştirin",
 ];
 
+// Backend'deki validate_password_strength ile aynı kurallar (bkz.
+// app/schemas/auth.py) — burada tekrarlanıyor çünkü kullanıcı şifreyi
+// yazarken anında geri bildirim istiyoruz, backend'e her tuşta istek atmadan.
+const PASSWORD_RULES: { label: string; test: (v: string) => boolean }[] = [
+  { label: "En az 8 karakter", test: (v) => v.length >= 8 },
+  { label: "En az bir büyük harf", test: (v) => /[A-ZÇĞİÖŞÜ]/.test(v) },
+  { label: "En az bir küçük harf", test: (v) => /[a-zçğıöşü]/.test(v) },
+  { label: "En az bir rakam", test: (v) => /\d/.test(v) },
+  { label: "En az bir özel karakter (!@#$% gibi)", test: (v) => /[^\w\s]/.test(v) },
+];
+
 export default function LoginPage() {
   const router = useRouter();
   const [mode, setMode] = useState<Mode>("login");
@@ -26,6 +37,9 @@ export default function LoginPage() {
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  const passwordRuleResults = PASSWORD_RULES.map((rule) => rule.test(password));
+  const isPasswordStrong = passwordRuleResults.every(Boolean);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -145,9 +159,32 @@ export default function LoginPage() {
               onChange={(e) => setPassword(e.target.value)}
             />
 
+            {mode === "register" && password.length > 0 && (
+              <ul className="flex flex-col gap-1">
+                {PASSWORD_RULES.map((rule, i) => (
+                  <li
+                    key={rule.label}
+                    className={cn(
+                      "flex items-center gap-1.5 text-[12px]",
+                      passwordRuleResults[i] ? "text-emerald-700" : "text-text-muted"
+                    )}
+                  >
+                    <CheckCircle2 className={cn("h-3.5 w-3.5", passwordRuleResults[i] ? "text-emerald-600" : "text-outline-variant")} />
+                    {rule.label}
+                  </li>
+                ))}
+              </ul>
+            )}
+
             {error && <Alert>{error}</Alert>}
 
-            <Button type="submit" size="lg" isLoading={isSubmitting} className="mt-1 w-full">
+            <Button
+              type="submit"
+              size="lg"
+              isLoading={isSubmitting}
+              disabled={mode === "register" && !isPasswordStrong}
+              className="mt-1 w-full"
+            >
               {mode === "login" ? "Giriş yap" : "Kaydol"}
             </Button>
           </form>
