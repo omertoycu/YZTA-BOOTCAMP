@@ -97,9 +97,18 @@ export function Sidebar() {
           href="/profile"
           className="mb-4 flex items-center gap-3 rounded-xl px-3 py-2.5 transition-colors hover:bg-surface-container-low"
         >
-          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-mint-accent text-sm font-semibold text-secondary">
-            {office?.name?.charAt(0).toUpperCase() ?? <Icon name="apartment" className="text-[18px]" />}
-          </div>
+          {office?.logo_url ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img
+              src={office.logo_url}
+              alt={office.name}
+              className="h-9 w-9 shrink-0 rounded-full bg-surface-container object-contain"
+            />
+          ) : (
+            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-mint-accent text-sm font-semibold text-secondary">
+              {office?.name?.charAt(0).toUpperCase() ?? <Icon name="apartment" className="text-[18px]" />}
+            </div>
+          )}
           <div className="flex-1 overflow-hidden">
             <p className="truncate text-body-sm font-medium text-on-surface">
               {office?.name ?? "Yükleniyor..."}

@@ -4,6 +4,7 @@ export interface Office {
   subscription_plan: string;
   notification_phone: string | null;
   whatsapp_phone_number_id: string | null;
+  logo_url: string | null;
   created_at: string;
 }
 

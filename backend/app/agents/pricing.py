@@ -1,5 +1,8 @@
 import statistics
 
+from sqlalchemy import select
+from sqlalchemy.orm import Session
+
 from app.core.vectorstore import get_listings_collection
 from app.models.listing import Listing
 
@@ -32,6 +35,23 @@ def index_listing(listing: Listing) -> None:
             }
         ],
     )
+
+
+def reindex_office_listings(db: Session) -> None:
+    """Çağıran ofisin TÜM ilanlarını ChromaDB'ye yeniden yazar (upsert,
+    idempotent). Neden gerekli: Railway'de ChromaDB'nin kalıcı diski (Volume)
+    yok — her deploy'da emsal endeksi sıfırlanıyor, index_listing ise sadece
+    ilan OLUŞTURULURKEN çağrılıyordu. Sonuç: deploy'dan önce eklenmiş her ilan
+    emsal havuzundan kayboluyor ve tüm fiyat önerileri "yeterli emsal yok"a
+    düşüyordu (gerçek prod hatası, kullanıcı ekran görüntüsüyle bildirdi).
+    Ayrıca eski endeks kayıtları listing_type metadata'sından yoksun olduğu
+    için yeni satılık/kiralık filtresi onları zaten dışlıyordu — upsert bunu
+    da onarıyor. Session RLS'li (get_tenant_db) olduğu için sadece çağıran
+    ofisin ilanları görülür; 1-5 danışmanlı ofislerde onlarca ilan olduğundan
+    istek başına maliyeti ihmal edilebilir."""
+    listings = db.execute(select(Listing)).scalars().all()
+    for listing in listings:
+        index_listing(listing)
 
 
 def remove_listing_from_index(listing_id) -> None:

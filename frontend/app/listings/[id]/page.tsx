@@ -14,6 +14,7 @@ import { Spinner } from "@/components/ui/Spinner";
 import { Icon } from "@/components/ui/Icon";
 import { Input } from "@/components/ui/Input";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
+import { ListingTypeToggle } from "@/components/ui/ListingTypeToggle";
 
 export default function ListingDetailPage() {
   const router = useRouter();
@@ -90,6 +91,20 @@ export default function ListingDetailPage() {
       setListing(updated);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Durum güncellenemedi");
+    }
+  }
+
+  async function handleTypeChange(listingType: "sale" | "rent") {
+    if (!listing || listing.listing_type === listingType) return;
+    setError(null);
+    try {
+      const updated = await apiFetch<Listing>(`/listings/${listing.id}/type`, {
+        method: "PATCH",
+        body: JSON.stringify({ listing_type: listingType }),
+      });
+      setListing(updated);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "İlan tipi güncellenemedi");
     }
   }
 
@@ -226,9 +241,7 @@ export default function ListingDetailPage() {
               <Badge variant={listing.status === "active" ? "brand" : listing.status === "sold" ? "success" : "warning"}>
                 {LISTING_STATUS_LABELS[listing.status] ?? listing.status}
               </Badge>
-              <Badge variant={listing.listing_type === "rent" ? "neutral" : "brand"}>
-                {listing.listing_type === "rent" ? "Kiralık" : "Satılık"}
-              </Badge>
+              <ListingTypeToggle value={listing.listing_type} onChange={handleTypeChange} />
               <Badge variant="neutral">
                 <CalendarDays className="h-3 w-3" />
                 {new Date(listing.created_at).toLocaleDateString("tr-TR")}

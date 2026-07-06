@@ -1,3 +1,4 @@
+from base64 import b64encode
 from urllib.parse import urlparse
 
 import httpx
@@ -13,7 +14,12 @@ from app.agents.listing_import import (
     parse_sahibinden_portfolio,
 )
 from app.agents.location_report import LocationReportError, get_travel_summary, render_report_pdf
-from app.agents.pricing import index_listing, remove_listing_from_index, suggest_price_range
+from app.agents.pricing import (
+    index_listing,
+    reindex_office_listings,
+    remove_listing_from_index,
+    suggest_price_range,
+)
 from app.agents.stale_listing import find_stale_listings
 from app.agents.voice_listing import MAX_AUDIO_BYTES, VoiceListingError, transcribe_and_extract
 from app.api.deps import get_current_user
@@ -32,6 +38,7 @@ from app.schemas.listing import (
     ListingPortfolioExtractResponse,
     ListingResponse,
     ListingStatusUpdate,
+    ListingTypeUpdate,
     LocationReportRequest,
     VoiceListingDraftResponse,
 )
@@ -160,6 +167,25 @@ def update_listing_status(
     return listing
 
 
+@router.patch("/{listing_id}/type", response_model=ListingResponse)
+def update_listing_type(
+    listing_id: str,
+    payload: ListingTypeUpdate,
+    db: Session = Depends(get_tenant_db),
+):
+    """Migration 0020 mevcut tüm portföyleri varsayılan "sale" işaretledi —
+    gerçekte kiralık olanları danışmanın panelden düzeltebilmesi gerekiyor
+    (aksi halde emsal havuzu yanlış tipte kalır). Değişiklik sonrası ilan
+    ChromaDB'de de güncellenir ki fiyat önerisi doğru havuza baksın."""
+    listing = db.get(Listing, listing_id)
+    if not listing:
+        raise HTTPException(status_code=404, detail="Portföy bulunamadı")
+    listing.listing_type = payload.listing_type
+    db.commit()
+    index_listing(listing)
+    return listing
+
+
 @router.post("/{listing_id}/photos", response_model=ListingResponse)
 def upload_listing_photo(
     listing_id: str,
@@ -248,7 +274,11 @@ def create_location_report(
         raise HTTPException(status_code=404, detail="Portföy bulunamadı")
     office = db.get(Office, current_user["office_id"])
 
-    origin = f"{listing.district}, İstanbul"
+    # İl adı eklemiyoruz — eskiden "İstanbul" sabitti ve Bursa'daki bir ofis
+    # için tüm süreler yanlış şehirden hesaplanıyordu (gerçek bug). Google
+    # Directions serbest metni kendi geocode ettiği için "Osmangazi, Türkiye"
+    # yeterli.
+    origin = f"{listing.district}, Türkiye"
     try:
         travel_summary = get_travel_summary(origin, payload.target_address)
     except LocationReportError as exc:
@@ -256,12 +286,27 @@ def create_location_report(
             raise HTTPException(status_code=503, detail="Ulaşım raporu şu an aktif değil") from exc
         raise HTTPException(status_code=502, detail=str(exc)) from exc
 
+    # Ofis logosu varsa PDF'e gömmek için S3'ten çekilir — best-effort, logo
+    # alınamazsa rapor logosuz üretilmeye devam eder.
+    logo_data_uri = None
+    if office and office.logo_key:
+        try:
+            logo_bytes, logo_content_type = fetch_photo(office.logo_key)
+            logo_data_uri = f"data:{logo_content_type};base64,{b64encode(logo_bytes).decode()}"
+        except HTTPException:
+            pass
+
     pdf_bytes = render_report_pdf(
         office_name=office.name if office else "PortföyAI",
         listing_title=listing.title,
         listing_district=listing.district,
         target_label=payload.target_label or payload.target_address,
         travel_summary=travel_summary,
+        listing_price=float(listing.price),
+        listing_room_count=listing.room_count,
+        listing_square_meters=listing.square_meters,
+        listing_type=listing.listing_type,
+        logo_data_uri=logo_data_uri,
     )
 
     return Response(
@@ -321,6 +366,9 @@ def get_pricing_suggestion(listing_id: str, db: Session = Depends(get_tenant_db)
     listing = db.get(Listing, listing_id)
     if not listing:
         raise HTTPException(status_code=404, detail="Portföy bulunamadı")
+    # ChromaDB her deploy'da sıfırlandığı için (kalıcı Volume yok) sorgudan
+    # önce ofisin ilanları endekse geri yazılır — bkz. reindex_office_listings.
+    reindex_office_listings(db)
     return suggest_price_range(listing)
 
 

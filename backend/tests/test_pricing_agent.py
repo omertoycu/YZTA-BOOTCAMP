@@ -61,6 +61,32 @@ def test_pricing_suggestion_unknown_listing_returns_404(client):
     assert resp.status_code == 404
 
 
+def test_pricing_suggestion_survives_vector_index_wipe(client):
+    """Gerçek prod hatası (kullanıcı ekran görüntüsüyle bildirdi): ChromaDB'nin
+    kalıcı diski olmadığı için her deploy'da emsal endeksi sıfırlanıyor ve
+    TÜM ilanlar "yeterli emsal yok"a düşüyordu — çünkü index_listing sadece
+    ilan oluşturulurken çağrılıyordu. Artık pricing-suggestion sorgudan önce
+    ofisin ilanlarını endekse geri yazıyor (reindex_office_listings)."""
+    from app.core.vectorstore import get_listings_collection
+
+    headers = _register(client, "Ofis Pricing Wipe", "owner@pricing-wipe.com")
+    ids = []
+    for price in (14000, 15000, 16000):
+        listing = _create_listing(client, headers, title=f"Wipe emsal {price}", price=price)
+        ids.append(listing["id"])
+    target = _create_listing(client, headers, title="Wipe değerlenecek", price=15500)
+    ids.append(target["id"])
+
+    # Deploy sonrası durumu simüle et: endeksteki tüm kayıtları sil.
+    get_listings_collection().delete(ids=ids)
+
+    resp = client.get(f"/listings/{target['id']}/pricing-suggestion", headers=headers)
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["has_enough_data"] is True
+    assert body["comparable_count"] == 3
+
+
 def test_pricing_suggestion_does_not_mix_sale_and_rent_comparables(client):
     """Gerçek prod hatası (kullanıcı ekran görüntüsüyle bildirdi): kiralık bir
     ilan (binlerce TL) ile satılık ilanlar (milyonlarca TL) aynı k-NN emsal

@@ -43,6 +43,10 @@ class ListingStatusUpdate(BaseModel):
     status: str
 
 
+class ListingTypeUpdate(BaseModel):
+    listing_type: Literal["sale", "rent"]
+
+
 class ListingPhotoFromUrlRequest(BaseModel):
     url: str
 

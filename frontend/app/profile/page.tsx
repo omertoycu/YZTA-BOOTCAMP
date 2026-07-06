@@ -3,8 +3,8 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { Mail, Building2, ShieldCheck, CalendarDays, Settings as SettingsIcon } from "lucide-react";
-import { apiFetch, getToken } from "@/lib/api";
+import { Mail, Building2, ShieldCheck, CalendarDays, ImagePlus, Settings as SettingsIcon } from "lucide-react";
+import { apiFetch, apiUpload, getToken } from "@/lib/api";
 import type { CurrentUser, Office, UserRole } from "@/lib/types";
 import { Badge } from "@/components/ui/Badge";
 import { Alert } from "@/components/ui/Alert";
@@ -22,6 +22,27 @@ export default function ProfilePage() {
   const [office, setOffice] = useState<Office | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [isUploadingLogo, setIsUploadingLogo] = useState(false);
+
+  async function handleLogoSelect(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    e.target.value = "";
+    if (!file) return;
+    if (!file.type.startsWith("image/")) {
+      setError("Logo bir görsel dosyası olmalı (png/jpg/webp)");
+      return;
+    }
+    setError(null);
+    setIsUploadingLogo(true);
+    try {
+      const updated = await apiUpload<Office>("/offices/me/logo", file);
+      setOffice(updated);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Logo yüklenemedi");
+    } finally {
+      setIsUploadingLogo(false);
+    }
+  }
 
   useEffect(() => {
     if (!getToken()) {
@@ -70,14 +91,31 @@ export default function ProfilePage() {
         <>
           <div className="flex flex-col gap-4 rounded-lg bg-surface-container-lowest p-6 shadow-[0px_10px_30px_rgba(0,0,0,0.04)]">
             <div className="flex items-center gap-4">
-              <div className="flex h-14 w-14 items-center justify-center rounded-full bg-mint-accent text-title-md font-semibold text-secondary">
-                {office.name.charAt(0).toUpperCase()}
-              </div>
-              <div>
+              {office.logo_url ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img
+                  src={office.logo_url}
+                  alt={office.name}
+                  className="h-14 w-14 rounded-full bg-surface-container object-contain"
+                />
+              ) : (
+                <div className="flex h-14 w-14 items-center justify-center rounded-full bg-mint-accent text-title-md font-semibold text-secondary">
+                  {office.name.charAt(0).toUpperCase()}
+                </div>
+              )}
+              <div className="flex-1">
                 <h2 className="text-title-md text-primary">{office.name}</h2>
                 <Badge variant="brand">{ROLE_LABELS[user.role] ?? user.role}</Badge>
               </div>
+              <label className="flex cursor-pointer items-center gap-2 rounded-full border border-outline-variant px-4 py-2 text-body-sm text-on-surface transition-colors hover:bg-surface-bright">
+                {isUploadingLogo ? <Spinner className="h-4 w-4" /> : <ImagePlus className="h-4 w-4" />}
+                {office.logo_url ? "Logoyu Değiştir" : "Logo Yükle"}
+                <input type="file" accept="image/*" className="hidden" onChange={handleLogoSelect} disabled={isUploadingLogo} />
+              </label>
             </div>
+            <p className="text-[12px] text-text-muted">
+              Logonuz panelde ve markalı ulaşım raporu PDF&apos;lerinde ofisinize özel görünür.
+            </p>
 
             <div className="flex flex-col gap-3 border-t border-outline-variant pt-4">
               <div className="flex items-center gap-3 text-body-sm text-on-surface">

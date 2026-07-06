@@ -67,6 +67,46 @@ def upload_photo(file_bytes: bytes, content_type: str, listing_id: str) -> str:
     return key
 
 
+def upload_office_logo(file_bytes: bytes, content_type: str, office_id: str) -> str:
+    """Ofis logosunu yükler, saklanacak nesne anahtarını döner — upload_photo
+    ile aynı kurallar (boyut sınırı, tip whitelist'i, private bucket), sadece
+    anahtar öneki farklı: offices/{office_id}/logo-{uuid}.{ext}."""
+    if not settings.s3_endpoint_url or not settings.s3_bucket_name:
+        raise HTTPException(status_code=503, detail="Logo yükleme şu an aktif değil")
+
+    if len(file_bytes) > MAX_PHOTO_BYTES:
+        raise HTTPException(status_code=413, detail="Logo çok büyük (maksimum 8MB)")
+
+    extension = CONTENT_TYPE_EXTENSIONS.get(content_type)
+    if not extension:
+        raise HTTPException(status_code=422, detail="Desteklenmeyen dosya türü (jpg/png/webp/gif olmalı)")
+
+    key = f"offices/{office_id}/logo-{uuid.uuid4()}.{extension}"
+
+    try:
+        client = _get_s3_client()
+        client.put_object(
+            Bucket=settings.s3_bucket_name,
+            Key=key,
+            Body=file_bytes,
+            ContentType=content_type,
+        )
+    except (BotoCoreError, ClientError) as exc:
+        raise HTTPException(status_code=502, detail="Logo yüklenemedi, tekrar deneyin") from exc
+
+    return key
+
+
+def logo_proxy_url(logo_key: str | None) -> str | None:
+    """offices.logo_key'i GET /offices/logo/{key} proxy route'una işaret eden
+    URL'e çevirir (photo_proxy_url ile aynı desen — bucket private olduğu
+    için doğrudan S3 URL'i tarayıcıda 403 verir)."""
+    if not logo_key:
+        return None
+    base = settings.public_base_url.rstrip("/")
+    return f"{base}/offices/logo/{logo_key}"
+
+
 def fetch_photo(key: str) -> tuple[bytes, str]:
     """Bir fotoğrafı bucket'tan backend credential'ıyla çekip bayt+content-type döner.
 

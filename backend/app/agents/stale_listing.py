@@ -3,7 +3,7 @@ from datetime import datetime, timezone
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app.agents.pricing import suggest_price_range
+from app.agents.pricing import reindex_office_listings, suggest_price_range
 from app.models.listing import Listing
 
 # Bu eşiklerin altına düşen ilanlar sessizce atlanır — amaç danışmanı gürültüyle
@@ -23,6 +23,10 @@ def find_stale_listings(db: Session, now: datetime | None = None) -> list[dict]:
     filtresi ayrıca uygulanmaz (bkz. list_listings route'undaki aynı desen).
     """
     now = now or datetime.now(timezone.utc)
+
+    # ChromaDB her deploy'da sıfırlandığı için emsal sorgularından önce ofisin
+    # ilanları endekse geri yazılır (bkz. pricing.reindex_office_listings).
+    reindex_office_listings(db)
 
     listings = db.execute(select(Listing).where(Listing.status == "active")).scalars().all()
 

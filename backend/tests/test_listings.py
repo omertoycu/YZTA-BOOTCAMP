@@ -68,6 +68,44 @@ def test_create_listing_accepts_rent_type(client):
     assert resp.json()["listing_type"] == "rent"
 
 
+def test_update_listing_type_switches_and_persists(client):
+    """Migration 0020 mevcut portföyleri varsayılan "sale" işaretledi — gerçekte
+    kiralık olanları danışman panelden düzeltebilmeli (gerçek ihtiyaç: kullanıcı
+    "KİRALIK" başlıklı ama "Satılık" rozetli eski kayıtlar bildirdi)."""
+    headers = _register(client, "Ofis Listing Type Patch", "owner-typepatch@listing-test.com")
+    create_resp = client.post(
+        "/listings",
+        json={"title": "Yanlış tip kalmış kiralık", "district": "Kadikoy", "price": 15000, "room_count": "2+1"},
+        headers=headers,
+    )
+    listing_id = create_resp.json()["id"]
+    assert create_resp.json()["listing_type"] == "sale"
+
+    patch_resp = client.patch(
+        f"/listings/{listing_id}/type",
+        json={"listing_type": "rent"},
+        headers=headers,
+    )
+    assert patch_resp.status_code == 200
+    assert patch_resp.json()["listing_type"] == "rent"
+
+    get_resp = client.get(f"/listings/{listing_id}", headers=headers)
+    assert get_resp.json()["listing_type"] == "rent"
+
+
+def test_update_listing_type_rejects_invalid_value(client):
+    headers = _register(client, "Ofis Listing Type Patch 2", "owner-typepatch2@listing-test.com")
+    create_resp = client.post(
+        "/listings",
+        json={"title": "Tip testi", "district": "Kadikoy", "price": 15000, "room_count": "2+1"},
+        headers=headers,
+    )
+    listing_id = create_resp.json()["id"]
+
+    resp = client.patch(f"/listings/{listing_id}/type", json={"listing_type": "lease"}, headers=headers)
+    assert resp.status_code == 422
+
+
 def test_create_listing_rejects_invalid_listing_type(client):
     headers = _register(client, "Ofis Listing Test Type 3", "owner-type3@listing-test.com")
     resp = client.post(

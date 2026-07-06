@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { apiFetch, getToken } from "@/lib/api";
-import type { Lead, Listing, StaleListingAlert } from "@/lib/types";
+import type { Lead, Listing, Office, StaleListingAlert } from "@/lib/types";
 import { formatCurrency } from "@/lib/format";
 import { Icon } from "@/components/ui/Icon";
 import { ListingCard } from "@/components/ListingCard";
@@ -36,6 +36,7 @@ export default function DashboardPage() {
   const [listings, setListings] = useState<Listing[]>([]);
   const [leads, setLeads] = useState<Lead[]>([]);
   const [staleAlerts, setStaleAlerts] = useState<StaleListingAlert[]>([]);
+  const [office, setOffice] = useState<Office | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isNotificationsOpen, setIsNotificationsOpen] = useState(false);
 
@@ -49,14 +50,16 @@ export default function DashboardPage() {
     (async () => {
       setIsLoading(true);
       try {
-        const [listingsData, leadsData, staleAlertsData] = await Promise.all([
+        const [listingsData, leadsData, staleAlertsData, officeData] = await Promise.all([
           apiFetch<Listing[]>("/listings"),
           apiFetch<Lead[]>("/leads"),
           apiFetch<StaleListingAlert[]>("/listings/stale-alerts"),
+          apiFetch<Office>("/offices/me").catch(() => null),
         ]);
         setListings(listingsData);
         setLeads(leadsData);
         setStaleAlerts(staleAlertsData);
+        setOffice(officeData);
       } finally {
         setIsLoading(false);
       }
@@ -131,9 +134,14 @@ export default function DashboardPage() {
           <Link
             href="/profile"
             aria-label="Profil"
-            className="flex h-10 w-10 items-center justify-center rounded-full border-2 border-white bg-mint-accent text-secondary shadow-sm transition-transform hover:scale-105"
+            className="flex h-10 w-10 items-center justify-center overflow-hidden rounded-full border-2 border-white bg-mint-accent text-secondary shadow-sm transition-transform hover:scale-105"
           >
-            <Icon name="person" filled />
+            {office?.logo_url ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img src={office.logo_url} alt={office.name} className="h-full w-full object-contain" />
+            ) : (
+              <Icon name="person" filled />
+            )}
           </Link>
         </div>
       </header>

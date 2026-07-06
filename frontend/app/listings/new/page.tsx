@@ -30,6 +30,9 @@ export default function NewListingPage() {
   const [roomCount, setRoomCount] = useState("2+1");
   const [squareMeters, setSquareMeters] = useState("");
   const [listingType, setListingType] = useState<ListingType>("sale");
+  // Yapıştırılan kaynaktan çıkarılan kapak görseli URL'i — ilan oluşturulunca
+  // sunucu tarafında indirilip depoya eklenir (bkz. photos/from-url).
+  const [extractedCoverUrl, setExtractedCoverUrl] = useState<string | null>(null);
   const [photos, setPhotos] = useState<File[]>([]);
   const [photoPreviewUrls, setPhotoPreviewUrls] = useState<string[]>([]);
 
@@ -70,6 +73,7 @@ export default function NewListingPage() {
       if (fields.room_count) setRoomCount(fields.room_count);
       if (fields.square_meters) setSquareMeters(String(fields.square_meters));
       if (fields.listing_type) setListingType(fields.listing_type);
+      setExtractedCoverUrl(fields.cover_photo_url ?? null);
       goNext();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Sayfadan bilgi çıkarılamadı, elle devam edebilirsiniz");
@@ -122,6 +126,19 @@ export default function NewListingPage() {
           await apiUpload(`/listings/${listing.id}/photos`, file);
         } catch {
           failedPhotos.push(file.name);
+        }
+      }
+
+      // Yapıştırılan kaynaktan kapak görseli çıkarıldıysa ve danışman elle
+      // fotoğraf eklemediyse, kapağı sunucu tarafında indirip ekle (best-effort).
+      if (extractedCoverUrl && photos.length === 0) {
+        try {
+          await apiFetch(`/listings/${listing.id}/photos/from-url`, {
+            method: "POST",
+            body: JSON.stringify({ url: extractedCoverUrl }),
+          });
+        } catch {
+          failedPhotos.push("ilan kapak görseli");
         }
       }
 

@@ -80,3 +80,56 @@ def test_duplicate_whatsapp_phone_number_id_returns_409(client):
         "/offices/me", json={"whatsapp_phone_number_id": "3000000000000003"}, headers=headers_b
     )
     assert resp.status_code == 409
+
+
+def test_upload_logo_returns_503_when_s3_not_configured(client):
+    headers = _register(client, "Ofis Logo Test 1", "owner@office-logo-test-1.com")
+    resp = client.post(
+        "/offices/me/logo",
+        files={"file": ("logo.png", b"fake-logo-bytes", "image/png")},
+        headers=headers,
+    )
+    assert resp.status_code == 503
+
+
+def test_upload_logo_sets_logo_url(client, monkeypatch):
+    """Logo yüklenince OfficeResponse.logo_url proxy route'una işaret eden bir
+    URL dönmeli (listings.photos ile aynı desen — bucket private)."""
+    from app.api.routes import offices as offices_route
+
+    fake_key = "offices/fake-office-id/logo-abc.png"
+    monkeypatch.setattr(
+        offices_route, "upload_office_logo", lambda file_bytes, content_type, office_id: fake_key
+    )
+
+    headers = _register(client, "Ofis Logo Test 2", "owner@office-logo-test-2.com")
+    resp = client.post(
+        "/offices/me/logo",
+        files={"file": ("logo.png", b"fake-logo-bytes", "image/png")},
+        headers=headers,
+    )
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["logo_url"] == f"http://localhost:8010/offices/logo/{fake_key}"
+
+    # GET /offices/me de aynı logo_url'i dönmeli.
+    me = client.get("/offices/me", headers=headers)
+    assert me.json()["logo_url"] == f"http://localhost:8010/offices/logo/{fake_key}"
+
+
+def test_get_office_logo_streams_bytes(client, monkeypatch):
+    from app.api.routes import offices as offices_route
+
+    monkeypatch.setattr(offices_route, "fetch_photo", lambda key: (b"fake-logo-bytes", "image/png"))
+
+    resp = client.get("/offices/logo/offices/some-office/logo-abc.png")
+    assert resp.status_code == 200
+    assert resp.content == b"fake-logo-bytes"
+    assert resp.headers["content-type"] == "image/png"
+
+
+def test_get_office_logo_rejects_non_office_keys(client):
+    """Logo proxy'si sadece offices/ önekli anahtarları sunmalı — ilan
+    fotoğrafları gibi başka nesnelerin auth'suz sızması engellenmeli."""
+    resp = client.get("/offices/logo/listings/some-listing/photo.jpg")
+    assert resp.status_code == 404

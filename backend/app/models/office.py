@@ -21,4 +21,7 @@ class Office(Base):
     # gider (bkz. app/agents/intake.py: _notify_new_lead). whatsapp_phone_number_id
     # gönderim tarafı (Meta Graph API kimliği), bu ALIM tarafı (gerçek telefon numarası).
     notification_phone: Mapped[str | None] = mapped_column(String(30), nullable=True)
+    # Ofis logosu — listings.photos ile aynı desende bare S3 nesne anahtarı
+    # (bucket private, sunum GET /offices/logo/{key} proxy'siyle).
+    logo_key: Mapped[str | None] = mapped_column(String(255), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
