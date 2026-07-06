@@ -3,8 +3,9 @@ from app.agents import listing_import
 FAKE_SAHIBINDEN_HTML = """
 <html>
 <head>
+<meta property="og:image" content="https://i0.shbdn.com/cover.jpg" />
 <script type="application/ld+json">
-{"@type": "Product", "name": "Deniz manzaralı 3+1 daire", "offers": {"price": "2500000"}}
+{"@type": "Product", "name": "Deniz manzaralı Satılık 3+1 daire", "offers": {"price": "2500000"}}
 </script>
 </head>
 <body>
@@ -71,6 +72,16 @@ FAKE_SAHIBINDEN_PORTFOLIO_HTML = """
         <p class="rooms with-icon">3+1</p></li>
   </ul></div>
 </div>
+<div class="classified " data-box-url="https://sahibinden.com/ilan/kiralik-ofis-333/detay">
+  <div class="image"><a class="classified-image"><img src="https://i0.shbdn.com/c.jpg" alt=""/></a></div>
+  <span class="breadcrumb-badge">KİRALIK</span>
+  <div class="gallery-info"><ul>
+    <li><p class="price"> 21.000 TL</p><p class="date">01 Temmuz 2026</p></li>
+    <li><p class="title"><a>Ön Cephe Kiralık Ofis</a></p></li>
+    <li><p class="location with-icon">Bursa / Osmangazi</p>
+        <p class="rooms with-icon">1+1</p></li>
+  </ul></div>
+</div>
 </body></html>
 """
 
@@ -86,16 +97,31 @@ def _register(client, office_name, email):
 
 def test_parse_sahibinden_extracts_fields_from_json_ld_and_html():
     fields = listing_import.parse_sahibinden(FAKE_SAHIBINDEN_HTML)
-    assert fields["title"] == "Deniz manzaralı 3+1 daire"
+    assert fields["title"] == "Deniz manzaralı Satılık 3+1 daire"
     assert fields["price"] == 2500000.0
     assert fields["district"] == "Fenerbahce"
     assert fields["room_count"] == "3+1"
     assert fields["square_meters"] == 140
+    assert fields["listing_type"] == "sale"
+    assert fields["cover_photo_url"] == "https://i0.shbdn.com/cover.jpg"
 
 
 def test_parse_turkish_price_handles_thousands_separator():
     assert listing_import._parse_turkish_price("2.500.000 TL") == 2500000.0
     assert listing_import._parse_turkish_price("") is None
+
+
+def test_detect_listing_type_handles_turkish_capital_i_correctly():
+    """Gerçek prod hatası: Python'un str.lower()'ı Türkçe büyük "İ"yi tek bir
+    küçük harfe değil "i" + görünmez bir COMBINING DOT ABOVE karakterine
+    ayırıyor — bu da "KİRALIK" rozetli/başlıklı TÜM ilanları sessizce None'a
+    (tespit edilemedi) düşürüyordu."""
+    assert listing_import._detect_listing_type("KİRALIK") == "rent"
+    assert listing_import._detect_listing_type("SATILIK") == "sale"
+    assert listing_import._detect_listing_type("Bahçeli KİRALIK ofis") == "rent"
+    assert listing_import._detect_listing_type("kiralık daire") == "rent"
+    assert listing_import._detect_listing_type(None, "belirsiz bir metin") is None
+    assert listing_import._detect_listing_type("SATILIK", "KİRALIK") is None  # ikisi de geçiyorsa belirsiz
 
 
 def test_extract_from_url_requires_auth(client):
@@ -124,7 +150,7 @@ def test_extract_from_url_returns_parsed_fields(client, monkeypatch):
     )
     assert resp.status_code == 200
     body = resp.json()
-    assert body["title"] == "Deniz manzaralı 3+1 daire"
+    assert body["title"] == "Deniz manzaralı Satılık 3+1 daire"
     assert body["price"] == 2500000.0
     assert body["room_count"] == "3+1"
 
@@ -161,7 +187,7 @@ def test_extract_from_html_returns_parsed_fields_without_fetching(client):
     )
     assert resp.status_code == 200
     body = resp.json()
-    assert body["title"] == "Deniz manzaralı 3+1 daire"
+    assert body["title"] == "Deniz manzaralı Satılık 3+1 daire"
     assert body["district"] == "Fenerbahce"
     assert body["room_count"] == "3+1"
     assert body["square_meters"] == 140
@@ -174,6 +200,9 @@ def test_parse_emlakjet_extracts_fields_from_json_ld():
     assert fields["district"] == "Beşiktaş"
     assert fields["room_count"] == "2+1"
     assert fields["square_meters"] == 95
+    # Başlıkta "satılık"/"kiralık" geçmiyor ama breadcrumb'ın son halkası
+    # ("Satılık Daire 12345") bunu içeriyor — oradan da tespit edilmeli.
+    assert fields["listing_type"] == "sale"
 
 
 def test_parse_emlakjet_falls_back_to_breadcrumb_for_district():
@@ -228,22 +257,34 @@ def test_extract_from_html_handles_garbage_gracefully(client):
 def test_parse_sahibinden_portfolio_extracts_all_cards_and_dedupes_promo():
     """Sahibinden danışmanın kendi portföyünün listelendiği sayfada aynı
     ilanı bazen (öne çıkan/vitrin) kartıyla ikinci kez gösteriyor — bu iki
-    kart aynı data-box-url'e sahip olduğu için tekilleştirilmeli."""
+    kart aynı data-box-url'e sahip olduğu için tekilleştirilmeli. Ayrıca her
+    kartın badge'inden (SATILIK/KİRALIK) listing_type ve kapak fotoğrafı da
+    çıkarılmalı (bkz. gerçek fiyat-karışması hatası: kiralık+satılık aynı
+    emsal havuzuna girince anlamsız aralık üretiyordu)."""
     results = listing_import.parse_sahibinden_portfolio(FAKE_SAHIBINDEN_PORTFOLIO_HTML)
-    assert len(results) == 2
+    assert len(results) == 3
 
-    first, second = results
+    first, second, third = results
     assert first["title"] == "Altıparmak'ta Satılık 3+1 Daire"
     assert first["district"] == "Osmangazi"
     assert first["price"] == 2500000.0
     assert first["room_count"] == "3+1"
     assert first["square_meters"] == 115
+    assert first["listing_type"] == "sale"
+    assert first["cover_photo_url"] == "https://i0.shbdn.com/a.jpg"
 
     assert second["title"] == "Acil Satılık Arsa"
     assert second["district"] == "Nilüfer"
     assert second["price"] == 900000.0
     assert second["room_count"] is None
     assert second["square_meters"] is None
+    assert second["listing_type"] == "sale"
+    assert second["cover_photo_url"] == "https://i0.shbdn.com/b.jpg"
+
+    assert third["title"] == "Ön Cephe Kiralık Ofis"
+    assert third["price"] == 21000.0
+    assert third["listing_type"] == "rent"
+    assert third["cover_photo_url"] == "https://i0.shbdn.com/c.jpg"
 
 
 def test_extract_portfolio_from_html_requires_auth(client):
@@ -260,6 +301,7 @@ def test_extract_portfolio_from_html_returns_parsed_list(client):
     )
     assert resp.status_code == 200
     body = resp.json()
-    assert len(body["listings"]) == 2
+    assert len(body["listings"]) == 3
     assert body["listings"][0]["title"] == "Altıparmak'ta Satılık 3+1 Daire"
     assert body["listings"][1]["district"] == "Nilüfer"
+    assert body["listings"][2]["listing_type"] == "rent"

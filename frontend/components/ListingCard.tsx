@@ -6,6 +6,7 @@ import { Trash2 } from "lucide-react";
 import type { Listing } from "@/lib/types";
 import { formatCurrency } from "@/lib/format";
 import { Icon } from "@/components/ui/Icon";
+import { cn } from "@/lib/utils";
 
 export function ListingCard({ listing, onDelete }: { listing: Listing; onDelete?: () => void }) {
   const [coverFailed, setCoverFailed] = useState(false);
@@ -44,6 +45,16 @@ export function ListingCard({ listing, onDelete }: { listing: Listing; onDelete?
         <span className="rounded bg-surface-container px-2 py-1 font-label text-label-caps text-on-surface">
           {listing.room_count}
         </span>
+        <span
+          className={cn(
+            "rounded px-2 py-1 font-label text-label-caps",
+            listing.listing_type === "rent"
+              ? "bg-secondary-container text-on-secondary-container"
+              : "bg-surface-container text-on-surface"
+          )}
+        >
+          {listing.listing_type === "rent" ? "Kiralık" : "Satılık"}
+        </span>
         {listing.status === "active" && (
           <span className="rounded bg-mint-accent px-2 py-1 font-label text-label-caps text-on-secondary-container">
             Aktif
@@ -67,6 +78,7 @@ export function ListingCard({ listing, onDelete }: { listing: Listing; onDelete?
         )}
         <p className="absolute left-3 top-3 rounded-full bg-primary/80 px-3 py-1 text-[13px] font-semibold text-on-primary">
           {formatCurrency(listing.price)}
+          {listing.listing_type === "rent" ? " / ay" : ""}
         </p>
         <Link
           href={`/listings/${listing.id}`}

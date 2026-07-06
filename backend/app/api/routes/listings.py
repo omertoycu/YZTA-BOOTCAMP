@@ -1,3 +1,6 @@
+from urllib.parse import urlparse
+
+import httpx
 from fastapi import APIRouter, Depends, File, HTTPException, Response, UploadFile
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
@@ -14,6 +17,7 @@ from app.agents.pricing import index_listing, remove_listing_from_index, suggest
 from app.agents.stale_listing import find_stale_listings
 from app.agents.voice_listing import MAX_AUDIO_BYTES, VoiceListingError, transcribe_and_extract
 from app.api.deps import get_current_user
+from app.core.http import get_http_client
 from app.core.storage import MAX_PHOTO_BYTES, fetch_photo, upload_photo
 from app.middleware.tenant import get_tenant_db
 from app.models.listing import Listing
@@ -24,6 +28,7 @@ from app.schemas.listing import (
     ListingExtractFromHtmlRequest,
     ListingExtractRequest,
     ListingExtractResponse,
+    ListingPhotoFromUrlRequest,
     ListingPortfolioExtractResponse,
     ListingResponse,
     ListingStatusUpdate,
@@ -38,6 +43,13 @@ router = APIRouter(prefix="/listings", tags=["listings"])
 # active: eşleştirmeye girer; optioned (kapora/opsiyon alındı) ve sold girmez —
 # Matching Agent sadece status == "active" portföyleri tarar (bkz. matching.py).
 LISTING_STATUSES = ("active", "optioned", "sold")
+
+# Toplu aktarımda kart görselini indirmek için izin verilen host'lar — sadece
+# Sahibinden'in kendi görsel CDN'i (bkz. listing_import.py'de çıkarılan
+# cover_photo_url). Bu bir SSRF önlemi: rastgele bir URL'i sunucudan
+# indirtmeye izin vermek, danışman panelinden dahili servislere istek
+# attırmak için istismar edilebilirdi.
+ALLOWED_PHOTO_URL_HOSTS = ("shbdn.com",)
 
 
 @router.post("", response_model=ListingResponse, status_code=201)
@@ -162,6 +174,45 @@ def upload_listing_photo(
     if len(file_bytes) > MAX_PHOTO_BYTES:
         raise HTTPException(status_code=413, detail="Fotoğraf çok büyük (maksimum 8MB)")
     key = upload_photo(file_bytes, file.content_type or "", listing_id)
+    listing.photos = [*listing.photos, key]
+    db.commit()
+    return listing
+
+
+@router.post("/{listing_id}/photos/from-url", response_model=ListingResponse)
+def upload_listing_photo_from_url(
+    listing_id: str,
+    payload: ListingPhotoFromUrlRequest,
+    db: Session = Depends(get_tenant_db),
+):
+    """Sahibinden'den toplu aktarımda kart görselini (cover_photo_url) danışman
+    adına indirip kendi depolamamıza yükler — danışman en azından hangi evin
+    hangisi olduğunu hatırlayabilsin. Tarayıcıdan doğrudan çapraz-origin fetch
+    genelde CORS'a takıldığı için indirme sunucu tarafında yapılıyor. Sadece
+    Sahibinden'in kendi görsel CDN'ine (ALLOWED_PHOTO_URL_HOSTS) izin verilir —
+    aksi halde bu route SSRF için istismar edilebilirdi. Best-effort: bu
+    endpoint başarısız olursa ilan zaten oluşturulmuş olur, danışman fotoğrafı
+    panelden elle ekleyebilir."""
+    listing = db.get(Listing, listing_id)
+    if not listing:
+        raise HTTPException(status_code=404, detail="Portföy bulunamadı")
+
+    host = urlparse(payload.url).hostname or ""
+    if not any(host == allowed or host.endswith(f".{allowed}") for allowed in ALLOWED_PHOTO_URL_HOSTS):
+        raise HTTPException(status_code=400, detail="Desteklenmeyen görsel kaynağı")
+
+    try:
+        with get_http_client() as client:
+            response = client.get(payload.url)
+            response.raise_for_status()
+    except httpx.HTTPError as exc:
+        raise HTTPException(status_code=502, detail="Fotoğraf indirilemedi") from exc
+
+    file_bytes = response.content
+    if len(file_bytes) > MAX_PHOTO_BYTES:
+        raise HTTPException(status_code=413, detail="Fotoğraf çok büyük (maksimum 8MB)")
+    content_type = response.headers.get("content-type", "").split(";")[0].strip()
+    key = upload_photo(file_bytes, content_type, listing_id)
     listing.photos = [*listing.photos, key]
     db.commit()
     return listing

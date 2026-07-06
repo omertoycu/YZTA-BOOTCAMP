@@ -34,7 +34,8 @@ başka hiçbir metin içermeyen bir yanıt üret:
   "district": "<bahsedilen mahalle/ilçe, yoksa null>",
   "price": <sayı olarak TL fiyatı, yoksa null>,
   "room_count": "<örn. '3+1', yoksa null>",
-  "square_meters": <sayı olarak metrekare, yoksa null>
+  "square_meters": <sayı olarak metrekare, yoksa null>,
+  "listing_type": "<'sale' (satılık) veya 'rent' (kiralık), belirtilmemişse null>"
 }
 
 Emin olmadığın alanları null bırak, tahmin yapma. Yanıtın geçerli JSON olmalı, \
@@ -80,6 +81,7 @@ def transcribe_and_extract(audio_bytes: bytes, content_type: str) -> dict:
         raise VoiceListingError("Modelden yanıt alınamadı, tekrar deneyin.")
 
     data = _parse_json_response(text)
+    listing_type = data.get("listing_type")
     return {
         "transcript": data.get("transcript") or "",
         "title": data.get("title"),
@@ -87,4 +89,5 @@ def transcribe_and_extract(audio_bytes: bytes, content_type: str) -> dict:
         "price": data.get("price"),
         "room_count": data.get("room_count"),
         "square_meters": data.get("square_meters"),
+        "listing_type": listing_type if listing_type in ("sale", "rent") else None,
     }

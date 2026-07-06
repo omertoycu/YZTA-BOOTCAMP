@@ -40,6 +40,50 @@ def test_create_and_list_listing(client):
     assert "3+1 Daire" in titles
 
 
+def test_create_listing_listing_type_defaults_to_sale(client):
+    headers = _register(client, "Ofis Listing Test Type 1", "owner-type1@listing-test.com")
+    resp = client.post(
+        "/listings",
+        json={"title": "Belirtilmemiş tip", "district": "Kadikoy", "price": 15000, "room_count": "2+1"},
+        headers=headers,
+    )
+    assert resp.status_code == 201
+    assert resp.json()["listing_type"] == "sale"
+
+
+def test_create_listing_accepts_rent_type(client):
+    headers = _register(client, "Ofis Listing Test Type 2", "owner-type2@listing-test.com")
+    resp = client.post(
+        "/listings",
+        json={
+            "title": "Kiralık daire",
+            "district": "Kadikoy",
+            "price": 15000,
+            "room_count": "2+1",
+            "listing_type": "rent",
+        },
+        headers=headers,
+    )
+    assert resp.status_code == 201
+    assert resp.json()["listing_type"] == "rent"
+
+
+def test_create_listing_rejects_invalid_listing_type(client):
+    headers = _register(client, "Ofis Listing Test Type 3", "owner-type3@listing-test.com")
+    resp = client.post(
+        "/listings",
+        json={
+            "title": "Geçersiz tip",
+            "district": "Kadikoy",
+            "price": 15000,
+            "room_count": "2+1",
+            "listing_type": "lease",
+        },
+        headers=headers,
+    )
+    assert resp.status_code == 422
+
+
 def test_get_listing_by_id(client):
     headers = _register(client, "Ofis Listing Test 3", "owner3@listing-test.com")
     create_resp = client.post(
@@ -134,3 +178,120 @@ def test_upload_photo_unknown_listing_returns_404(client):
         headers=headers,
     )
     assert resp.status_code == 404
+
+
+class _FakeImageResponse:
+    def __init__(self, content: bytes, content_type: str = "image/jpeg"):
+        self.content = content
+        self.headers = {"content-type": content_type}
+
+    def raise_for_status(self):
+        pass
+
+
+class _FakeImageHttpClient:
+    def __init__(self, response):
+        self._response = response
+
+    def get(self, url):
+        return self._response
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *args):
+        return False
+
+
+def test_photo_from_url_rejects_unsupported_host(client):
+    """SSRF önlemi: sadece Sahibinden'in görsel CDN'ine (shbdn.com) izin
+    verilir — rastgele bir host'a sunucudan istek attırılamamalı."""
+    headers = _register(client, "Ofis Listing Test 8", "owner8@listing-test.com")
+    create_resp = client.post(
+        "/listings",
+        json={"title": "Kapak fotoğraflı ilan", "district": "Kadikoy", "price": 15000, "room_count": "2+1"},
+        headers=headers,
+    )
+    listing_id = create_resp.json()["id"]
+
+    resp = client.post(
+        f"/listings/{listing_id}/photos/from-url",
+        json={"url": "https://evil-internal-service.example.com/steal"},
+        headers=headers,
+    )
+    assert resp.status_code == 400
+
+
+def test_photo_from_url_unknown_listing_returns_404(client):
+    headers = _register(client, "Ofis Listing Test 9", "owner9@listing-test.com")
+    fake_id = "00000000-0000-0000-0000-000000000000"
+    resp = client.post(
+        f"/listings/{fake_id}/photos/from-url",
+        json={"url": "https://i0.shbdn.com/a.jpg"},
+        headers=headers,
+    )
+    assert resp.status_code == 404
+
+
+def test_photo_from_url_downloads_and_appends_proxy_url(client, monkeypatch):
+    """Bulk aktarımdan gelen kapak fotoğrafı URL'i sunucu tarafında indirilip
+    (CORS'a takılmadan) kendi depomuza yüklenmeli — avif dahil (Sahibinden CDN'i
+    bazı fotoğrafları avif olarak sunuyor, curl ile doğrulandı)."""
+    from app.api.routes import listings as listings_route
+
+    fake_key = "listings/fake-listing-id/fake.avif"
+    monkeypatch.setattr(listings_route, "upload_photo", lambda file_bytes, content_type, listing_id: fake_key)
+    monkeypatch.setattr(
+        listings_route,
+        "get_http_client",
+        lambda: _FakeImageHttpClient(_FakeImageResponse(b"fake-avif-bytes", "image/avif")),
+    )
+
+    headers = _register(client, "Ofis Listing Test 10", "owner10@listing-test.com")
+    create_resp = client.post(
+        "/listings",
+        json={"title": "Kapak fotoğraflı ilan 2", "district": "Kadikoy", "price": 15000, "room_count": "2+1"},
+        headers=headers,
+    )
+    listing_id = create_resp.json()["id"]
+
+    resp = client.post(
+        f"/listings/{listing_id}/photos/from-url",
+        json={"url": "https://i0.shbdn.com/photos/a.avif"},
+        headers=headers,
+    )
+    assert resp.status_code == 200
+    assert resp.json()["photos"] == [f"http://localhost:8010/listings/photos/{fake_key}"]
+
+
+def test_photo_from_url_returns_502_on_fetch_failure(client, monkeypatch):
+    import httpx
+
+    from app.api.routes import listings as listings_route
+
+    class _FailingClient:
+        def get(self, url):
+            raise httpx.ConnectError("boom")
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *args):
+            return False
+
+    monkeypatch.setattr(listings_route, "get_http_client", lambda: _FailingClient())
+
+    headers = _register(client, "Ofis Listing Test 11", "owner11@listing-test.com")
+    create_resp = client.post(
+        "/listings",
+        json={"title": "Kapak indirilemeyen ilan", "district": "Kadikoy", "price": 15000, "room_count": "2+1"},
+        headers=headers,
+    )
+    listing_id = create_resp.json()["id"]
+
+    resp = client.post(
+        f"/listings/{listing_id}/photos/from-url",
+        json={"url": "https://i0.shbdn.com/photos/a.jpg"},
+        headers=headers,
+    )
+    assert resp.status_code == 502

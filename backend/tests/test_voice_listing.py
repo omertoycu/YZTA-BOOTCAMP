@@ -26,12 +26,13 @@ def test_voice_draft_returns_structured_fields(client, monkeypatch):
 
     def _fake_transcribe(audio_bytes, content_type):
         return {
-            "transcript": "3 artı 1, Kadıköy'de, 8 milyon TL",
+            "transcript": "3 artı 1, Kadıköy'de, 8 milyon TL, satılık",
             "title": "Kadıköy'de ferah 3+1",
             "district": "Kadıköy",
             "price": 8_000_000.0,
             "room_count": "3+1",
             "square_meters": None,
+            "listing_type": "sale",
         }
 
     monkeypatch.setattr(listings_route, "transcribe_and_extract", _fake_transcribe)
@@ -47,6 +48,7 @@ def test_voice_draft_returns_structured_fields(client, monkeypatch):
     assert body["district"] == "Kadıköy"
     assert body["price"] == 8_000_000.0
     assert body["room_count"] == "3+1"
+    assert body["listing_type"] == "sale"
 
 
 def test_voice_draft_returns_503_when_not_configured(client, monkeypatch):

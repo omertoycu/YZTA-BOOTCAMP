@@ -28,6 +28,7 @@ def index_listing(listing: Listing) -> None:
                 "district": listing.district,
                 "room_count": listing.room_count,
                 "title": listing.title,
+                "listing_type": listing.listing_type,
             }
         ],
     )
@@ -52,12 +53,22 @@ def suggest_price_range(listing: Listing, k: int = 5) -> dict:
     portföyüne daraltılır — Postgres RLS ile tutarlı, tenant izolasyonunu
     vektör deposu üzerinden de korur. Pazar-geneli (cross-tenant) emsal
     verisi gelecek bir faz için değerlendirilebilir (bkz. TEKNIK_YOL_HARITASI.md).
+
+    Ayrıca `listing_type` (satılık/kiralık) ile de daraltılır — aksi halde
+    kiralık bir "2+1" (₺10.000'ler) ile satılık bir "2+1" (₺3.000.000'lar)
+    aynı k-NN havuzuna girip anlamsız (hatta negatif) bir aralık üretiyordu
+    (gerçek prod hatası, kullanıcı ekran görüntüsüyle bildirdi).
     """
     collection = get_listings_collection()
     results = collection.query(
         query_texts=[_listing_document(listing)],
         n_results=k + 1,  # +1: listing'in kendisi sonuçta çıkabilir
-        where={"office_id": str(listing.office_id)},
+        where={
+            "$and": [
+                {"office_id": str(listing.office_id)},
+                {"listing_type": listing.listing_type},
+            ]
+        },
     )
 
     ids = results["ids"][0] if results["ids"] else []

@@ -226,6 +226,9 @@ export default function ListingDetailPage() {
               <Badge variant={listing.status === "active" ? "brand" : listing.status === "sold" ? "success" : "warning"}>
                 {LISTING_STATUS_LABELS[listing.status] ?? listing.status}
               </Badge>
+              <Badge variant={listing.listing_type === "rent" ? "neutral" : "brand"}>
+                {listing.listing_type === "rent" ? "Kiralık" : "Satılık"}
+              </Badge>
               <Badge variant="neutral">
                 <CalendarDays className="h-3 w-3" />
                 {new Date(listing.created_at).toLocaleDateString("tr-TR")}
@@ -259,7 +262,10 @@ export default function ListingDetailPage() {
             </p>
           </div>
 
-          <p className="text-headline-md font-semibold text-primary">{formatCurrency(listing.price)}</p>
+          <p className="text-headline-md font-semibold text-primary">
+            {formatCurrency(listing.price)}
+            {listing.listing_type === "rent" && <span className="text-body-lg text-text-muted"> / ay</span>}
+          </p>
 
           <div className="flex flex-wrap gap-2">
             <Badge variant="neutral">

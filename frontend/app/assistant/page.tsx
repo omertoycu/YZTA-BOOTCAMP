@@ -4,12 +4,13 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { apiFetch, apiUpload, getToken } from "@/lib/api";
 import { useAudioRecorder } from "@/lib/useAudioRecorder";
-import type { Listing, VoiceListingDraft } from "@/lib/types";
+import type { Listing, ListingType, VoiceListingDraft } from "@/lib/types";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { Alert } from "@/components/ui/Alert";
 import { Spinner } from "@/components/ui/Spinner";
 import { Icon } from "@/components/ui/Icon";
+import { ListingTypeToggle } from "@/components/ui/ListingTypeToggle";
 
 type Phase = "processing" | "review" | null;
 
@@ -28,6 +29,7 @@ export default function AssistantPage() {
   const [price, setPrice] = useState("");
   const [roomCount, setRoomCount] = useState("");
   const [squareMeters, setSquareMeters] = useState("");
+  const [listingType, setListingType] = useState<ListingType>("sale");
   const [photos, setPhotos] = useState<File[]>([]);
   const [photoPreviewUrls, setPhotoPreviewUrls] = useState<string[]>([]);
 
@@ -77,6 +79,7 @@ export default function AssistantPage() {
       setPrice(result.price != null ? String(result.price) : "");
       setRoomCount(result.room_count ?? "");
       setSquareMeters(result.square_meters != null ? String(result.square_meters) : "");
+      setListingType(result.listing_type ?? "sale");
       setPhase("review");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Ses işlenemedi");
@@ -107,6 +110,7 @@ export default function AssistantPage() {
           district,
           price: Number(price),
           room_count: roomCount || "Belirtilmedi",
+          listing_type: listingType,
           square_meters: squareMeters ? Number(squareMeters) : null,
         }),
       });
@@ -227,10 +231,14 @@ export default function AssistantPage() {
 
             <Input id="voiceTitle" label="Başlık" value={title} onChange={(e) => setTitle(e.target.value)} />
             <Input id="voiceDistrict" label="Bölge" value={district} onChange={(e) => setDistrict(e.target.value)} />
+            <div className="flex flex-col gap-1.5">
+              <p className="font-label text-label-caps text-on-surface-variant">Satılık mı, kiralık mı?</p>
+              <ListingTypeToggle value={listingType} onChange={setListingType} />
+            </div>
             <div className="grid grid-cols-2 gap-3">
               <Input
                 id="voicePrice"
-                label="Fiyat (TL)"
+                label={listingType === "rent" ? "Aylık kira (TL)" : "Fiyat (TL)"}
                 type="number"
                 value={price}
                 onChange={(e) => setPrice(e.target.value)}

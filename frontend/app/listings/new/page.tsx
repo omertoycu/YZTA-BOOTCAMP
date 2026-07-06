@@ -5,11 +5,12 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { ArrowLeft } from "lucide-react";
 import { apiFetch, apiUpload, getToken } from "@/lib/api";
-import type { Listing, ListingExtract } from "@/lib/types";
+import type { Listing, ListingExtract, ListingType } from "@/lib/types";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { Alert } from "@/components/ui/Alert";
 import { Icon } from "@/components/ui/Icon";
+import { ListingTypeToggle } from "@/components/ui/ListingTypeToggle";
 import { cn } from "@/lib/utils";
 
 const TOTAL_STEPS = 6;
@@ -28,6 +29,7 @@ export default function NewListingPage() {
   const [price, setPrice] = useState("");
   const [roomCount, setRoomCount] = useState("2+1");
   const [squareMeters, setSquareMeters] = useState("");
+  const [listingType, setListingType] = useState<ListingType>("sale");
   const [photos, setPhotos] = useState<File[]>([]);
   const [photoPreviewUrls, setPhotoPreviewUrls] = useState<string[]>([]);
 
@@ -67,6 +69,7 @@ export default function NewListingPage() {
       if (fields.price) setPrice(String(fields.price));
       if (fields.room_count) setRoomCount(fields.room_count);
       if (fields.square_meters) setSquareMeters(String(fields.square_meters));
+      if (fields.listing_type) setListingType(fields.listing_type);
       goNext();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Sayfadan bilgi çıkarılamadı, elle devam edebilirsiniz");
@@ -109,6 +112,7 @@ export default function NewListingPage() {
           price: Number(price),
           room_count: roomCount,
           square_meters: squareMeters ? Number(squareMeters) : null,
+          listing_type: listingType,
         }),
       });
 
@@ -204,9 +208,11 @@ export default function NewListingPage() {
 
         {step === 4 && (
           <div className="flex flex-col gap-4">
-            <h2 className="text-title-md text-primary">Fiyat ne kadar?</h2>
+            <h2 className="text-title-md text-primary">Satılık mı, kiralık mı?</h2>
+            <ListingTypeToggle value={listingType} onChange={setListingType} />
             <Input
               id="price"
+              label={listingType === "rent" ? "Aylık kira (TL)" : "Satış fiyatı (TL)"}
               type="number"
               placeholder="2500000"
               value={price}

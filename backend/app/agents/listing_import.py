@@ -80,6 +80,31 @@ def _meta_content(soup: BeautifulSoup, property_name: str) -> str | None:
     return None
 
 
+def _fold_turkish_i(text: str) -> str:
+    """Python'un str.lower()'ı Türkçe büyük "İ"yi TEK bir küçük harfe değil,
+    "i" + görünmez bir COMBINING DOT ABOVE karakterine ayırır (Unicode'un
+    varsayılan, yerel-ayardan bağımsız case-folding kuralı) — bu da
+    "KİRALIK".lower()'ı "kiralik" değil "ki̇ralik" yapıp aramamızı sessizce
+    kırıyordu (gerçek bug, "kiralık" ilanların hepsi None'a düşüyordu).
+    Çözüm: İ/I/ı'nın hepsini büyük/küçük harf farkı önemsemeden düz "i"ye
+    indirip sonra normal .lower() uyguluyoruz."""
+    return text.replace("İ", "i").replace("I", "i").replace("ı", "i").lower()
+
+
+def _detect_listing_type(*texts: str | None) -> str | None:
+    """Başlık/etiket metninde "kiralık" ya da "satılık" ifadesi arar — Sahibinden
+    ilan başlıklarında ve kart etiketlerinde bu neredeyse her zaman geçer.
+    İkisi de geçiyorsa veya hiçbiri geçmiyorsa None döner (danışman elle seçer)."""
+    combined = _fold_turkish_i(" ".join(t for t in texts if t))
+    has_rent = "kiralik" in combined
+    has_sale = "satilik" in combined
+    if has_rent and not has_sale:
+        return "rent"
+    if has_sale and not has_rent:
+        return "sale"
+    return None
+
+
 def parse_sahibinden(html: str) -> dict:
     """Sahibinden ilan sayfasından alanları çıkarır. Seçiciler genel bilgiye
     dayalı en iyi tahmin — gerçek linklerle test edilip ince ayar gerekebilir.
@@ -111,6 +136,8 @@ def parse_sahibinden(html: str) -> dict:
             district = parts[-1].strip()
 
     room_count, square_meters = _shared_room_and_sqm(soup)
+    listing_type = _detect_listing_type(title)
+    cover_photo_url = _meta_content(soup, "og:image")
 
     return {
         "title": title,
@@ -118,6 +145,8 @@ def parse_sahibinden(html: str) -> dict:
         "price": price,
         "room_count": room_count,
         "square_meters": square_meters,
+        "listing_type": listing_type,
+        "cover_photo_url": cover_photo_url,
     }
 
 
@@ -167,25 +196,30 @@ def parse_emlakjet(html: str) -> dict:
         price_text = price_el.get_text(strip=True) if price_el else None
     price = _parse_turkish_price(price_text) if price_text else None
 
+    breadcrumb = next((b for b in json_ld_blocks if b.get("@type") == "BreadcrumbList"), None)
+    breadcrumb_items = []
+    if breadcrumb:
+        breadcrumb_items = [
+            i.get("name") or (i.get("item") or {}).get("name")
+            for i in breadcrumb.get("itemListElement", [])
+            if isinstance(i, dict)
+        ]
+        breadcrumb_items = [i for i in breadcrumb_items if i]
+
     # İlçe: JSON-LD adresinden (addressLocality ilçeye denk gelir); yoksa
     # breadcrumb'ın sondan bir önceki halkası genelde ilçe sayfasıdır.
     district = None
     address = listing_ld.get("address")
     if isinstance(address, dict):
         district = address.get("addressLocality") or address.get("addressRegion")
-    if not district:
-        breadcrumb = next((b for b in json_ld_blocks if b.get("@type") == "BreadcrumbList"), None)
-        if breadcrumb:
-            items = [
-                i.get("name") or (i.get("item") or {}).get("name")
-                for i in breadcrumb.get("itemListElement", [])
-                if isinstance(i, dict)
-            ]
-            items = [i for i in items if i]
-            if len(items) >= 2:
-                district = items[-2]
+    if not district and len(breadcrumb_items) >= 2:
+        district = breadcrumb_items[-2]
 
     room_count, square_meters = _shared_room_and_sqm(soup)
+    # Breadcrumb'ın son halkası genelde ilanın kendi adı ("Satılık Daire
+    # 12345") — başlıkta geçmese de burada "satılık"/"kiralık" geçebilir.
+    listing_type = _detect_listing_type(title, breadcrumb_items[-1] if breadcrumb_items else None)
+    cover_photo_url = _meta_content(soup, "og:image")
 
     return {
         "title": title,
@@ -193,6 +227,8 @@ def parse_emlakjet(html: str) -> dict:
         "price": price,
         "room_count": room_count,
         "square_meters": square_meters,
+        "listing_type": listing_type,
+        "cover_photo_url": cover_photo_url,
     }
 
 
@@ -243,6 +279,16 @@ def parse_sahibinden_portfolio(html: str) -> list[dict]:
             if match:
                 square_meters = int(match.group(1))
 
+        # Badge ("SATILIK"/"KİRALIK") kartta ayrı bir alan olarak geçiyor ve
+        # başlıktan daha güvenilir bir sinyal — o yoksa başlığa düşülür.
+        badge_el = card.select_one(".breadcrumb-badge")
+        listing_type = _detect_listing_type(
+            badge_el.get_text(strip=True) if badge_el else None, title
+        )
+
+        img_el = card.select_one(".classified-image img")
+        cover_photo_url = img_el.get("src") if img_el else None
+
         if not title and price is None and not district:
             continue  # boş/tanınmayan kart, atla
 
@@ -253,6 +299,8 @@ def parse_sahibinden_portfolio(html: str) -> list[dict]:
                 "price": price,
                 "room_count": room_count,
                 "square_meters": square_meters,
+                "listing_type": listing_type,
+                "cover_photo_url": cover_photo_url,
             }
         )
     return results

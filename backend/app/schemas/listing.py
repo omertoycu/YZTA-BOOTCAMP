@@ -1,5 +1,6 @@
 import uuid
 from datetime import datetime
+from typing import Literal
 
 from pydantic import BaseModel, field_serializer
 
@@ -12,6 +13,9 @@ class ListingCreate(BaseModel):
     price: float
     room_count: str
     square_meters: int | None = None
+    # Fiyat önerisi (Pricing Agent) emsalleri satılık/kiralık ayırmadan
+    # karşılaştırınca anlamsız aralıklar üretiyordu — bkz. pricing.py.
+    listing_type: Literal["sale", "rent"] = "sale"
 
 
 class ListingResponse(BaseModel):
@@ -21,6 +25,7 @@ class ListingResponse(BaseModel):
     price: float
     room_count: str
     square_meters: int | None
+    listing_type: str
     status: str
     photos: list[str] = []
     created_at: datetime
@@ -38,6 +43,10 @@ class ListingStatusUpdate(BaseModel):
     status: str
 
 
+class ListingPhotoFromUrlRequest(BaseModel):
+    url: str
+
+
 class ListingExtractRequest(BaseModel):
     url: str
 
@@ -52,6 +61,10 @@ class ListingExtractResponse(BaseModel):
     price: float | None
     room_count: str | None
     square_meters: int | None
+    # Sadece best-effort bir öneri — danışman inceleme ekranında değiştirebilir,
+    # tespit edilemezse None (formda varsayılan "sale" seçili gelir).
+    listing_type: Literal["sale", "rent"] | None = None
+    cover_photo_url: str | None = None
 
 
 class ListingPortfolioExtractResponse(BaseModel):
@@ -70,3 +83,4 @@ class VoiceListingDraftResponse(BaseModel):
     price: float | None
     room_count: str | None
     square_meters: int | None
+    listing_type: Literal["sale", "rent"] | None = None

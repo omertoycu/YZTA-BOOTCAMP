@@ -7,6 +7,8 @@ export interface Office {
   created_at: string;
 }
 
+export type ListingType = "sale" | "rent";
+
 export interface Listing {
   id: string;
   title: string;
@@ -14,6 +16,7 @@ export interface Listing {
   price: number;
   room_count: string;
   square_meters: number | null;
+  listing_type: ListingType;
   status: string;
   photos: string[];
   created_at: string;
@@ -25,6 +28,8 @@ export interface ListingExtract {
   price: number | null;
   room_count: string | null;
   square_meters: number | null;
+  listing_type: ListingType | null;
+  cover_photo_url: string | null;
 }
 
 export interface ListingPortfolioExtract {
@@ -38,6 +43,7 @@ export interface VoiceListingDraft {
   price: number | null;
   room_count: string | null;
   square_meters: number | null;
+  listing_type: ListingType | null;
 }
 
 export type LeadStatus = "new" | "contacted" | "viewing" | "negotiation" | "won" | "lost";

@@ -11,6 +11,10 @@ CONTENT_TYPE_EXTENSIONS = {
     "image/png": "png",
     "image/webp": "webp",
     "image/gif": "gif",
+    # Sahibinden'in görsel CDN'i (i0.shbdn.com) bazı fotoğrafları avif olarak
+    # sunuyor (curl ile doğrulandı) — bulk aktarımda kapak fotoğrafı çekimi
+    # bu format için de çalışmalı.
+    "image/avif": "avif",
 }
 
 MAX_PHOTO_BYTES = 8 * 1024 * 1024  # 8MB

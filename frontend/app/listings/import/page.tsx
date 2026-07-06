@@ -5,11 +5,12 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { ArrowLeft } from "lucide-react";
 import { apiFetch, getToken } from "@/lib/api";
-import type { Listing, ListingPortfolioExtract } from "@/lib/types";
+import type { Listing, ListingPortfolioExtract, ListingType } from "@/lib/types";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { Alert } from "@/components/ui/Alert";
 import { Icon } from "@/components/ui/Icon";
+import { ListingTypeToggle } from "@/components/ui/ListingTypeToggle";
 
 interface DraftListing {
   selected: boolean;
@@ -18,6 +19,8 @@ interface DraftListing {
   price: string;
   roomCount: string;
   squareMeters: string;
+  listingType: ListingType;
+  coverPhotoUrl: string | null;
 }
 
 export default function ImportPortfolioPage() {
@@ -27,7 +30,11 @@ export default function ImportPortfolioPage() {
   const [error, setError] = useState<string | null>(null);
   const [drafts, setDrafts] = useState<DraftListing[] | null>(null);
   const [isImporting, setIsImporting] = useState(false);
-  const [importSummary, setImportSummary] = useState<{ succeeded: number; failed: string[] } | null>(null);
+  const [importSummary, setImportSummary] = useState<{
+    succeeded: number;
+    failed: string[];
+    photoFailed: string[];
+  } | null>(null);
 
   useEffect(() => {
     if (!getToken()) router.replace("/login");
@@ -55,6 +62,8 @@ export default function ImportPortfolioPage() {
           price: item.price != null ? String(item.price) : "",
           roomCount: item.room_count ?? "",
           squareMeters: item.square_meters != null ? String(item.square_meters) : "",
+          listingType: item.listing_type ?? "sale",
+          coverPhotoUrl: item.cover_photo_url,
         }))
       );
     } catch (err) {
@@ -81,6 +90,7 @@ export default function ImportPortfolioPage() {
     setIsImporting(true);
     setError(null);
     const failed: string[] = [];
+    const photoFailed: string[] = [];
     let succeeded = 0;
 
     for (const draft of drafts) {
@@ -90,7 +100,7 @@ export default function ImportPortfolioPage() {
         continue;
       }
       try {
-        await apiFetch<Listing>("/listings", {
+        const listing = await apiFetch<Listing>("/listings", {
           method: "POST",
           body: JSON.stringify({
             title: draft.title,
@@ -98,17 +108,32 @@ export default function ImportPortfolioPage() {
             price: Number(draft.price),
             room_count: draft.roomCount.trim() || "Belirtilmedi",
             square_meters: draft.squareMeters ? Number(draft.squareMeters) : null,
+            listing_type: draft.listingType,
           }),
         });
         succeeded += 1;
+
+        // Kapak fotoğrafını best-effort olarak indirmeye çalış — en azından
+        // emlakçı hangi evin hangisi olduğunu hatırlayabilsin. Başarısız
+        // olursa ilan zaten oluşturuldu, sadece fotoğraf eksik kalır.
+        if (draft.coverPhotoUrl) {
+          try {
+            await apiFetch(`/listings/${listing.id}/photos/from-url`, {
+              method: "POST",
+              body: JSON.stringify({ url: draft.coverPhotoUrl }),
+            });
+          } catch {
+            photoFailed.push(draft.title || "(başlıksız ilan)");
+          }
+        }
       } catch {
         failed.push(draft.title || "(başlıksız ilan)");
       }
     }
 
-    setImportSummary({ succeeded, failed });
+    setImportSummary({ succeeded, failed, photoFailed });
     setIsImporting(false);
-    if (failed.length === 0) {
+    if (failed.length === 0 && photoFailed.length === 0) {
       router.push("/listings");
     }
   }
@@ -168,6 +193,10 @@ export default function ImportPortfolioPage() {
               {importSummary.succeeded} ilan eklendi.
               {importSummary.failed.length > 0 &&
                 ` Eklenemeyenler: ${importSummary.failed.join(", ")} — bilgileri kontrol edip tekrar deneyin.`}
+              {importSummary.photoFailed.length > 0 &&
+                ` Kapak fotoğrafı çekilemeyenler: ${importSummary.photoFailed.join(
+                  ", "
+                )} — ilan eklendi, fotoğrafı portföy detayından elle ekleyebilirsiniz.`}
             </Alert>
           )}
 
@@ -187,6 +216,14 @@ export default function ImportPortfolioPage() {
                     className="mt-1 h-4 w-4 accent-secondary"
                     aria-label={`${draft.title || "İlan"} seçili`}
                   />
+                  {draft.coverPhotoUrl && (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img
+                      src={draft.coverPhotoUrl}
+                      alt=""
+                      className="h-14 w-14 shrink-0 rounded object-cover"
+                    />
+                  )}
                   <div className="flex-1">
                     <Input
                       id={`title-${index}`}
@@ -195,6 +232,12 @@ export default function ImportPortfolioPage() {
                       onChange={(e) => updateDraft(index, { title: e.target.value })}
                     />
                   </div>
+                </div>
+                <div className="pl-7">
+                  <ListingTypeToggle
+                    value={draft.listingType}
+                    onChange={(listingType) => updateDraft(index, { listingType })}
+                  />
                 </div>
                 <div className="grid grid-cols-2 gap-3 pl-7 sm:grid-cols-4">
                   <Input
@@ -205,7 +248,7 @@ export default function ImportPortfolioPage() {
                   />
                   <Input
                     id={`price-${index}`}
-                    label="Fiyat (TL)"
+                    label={draft.listingType === "rent" ? "Aylık kira (TL)" : "Fiyat (TL)"}
                     type="number"
                     value={draft.price}
                     onChange={(e) => updateDraft(index, { price: e.target.value })}
