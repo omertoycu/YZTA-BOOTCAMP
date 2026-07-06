@@ -10,10 +10,8 @@ import {
   Download,
   Gauge,
   MapPin,
-  MessagesSquare,
   Mic,
   MessageCircle,
-  NotebookPen,
   Phone,
   Plus,
   Repeat,
@@ -76,6 +74,18 @@ function statusVariant(status: LeadStatus): NonNullable<BadgeProps["variant"]> {
   return "warning";
 }
 
+// Kart içi sekmeler — eski tasarımda 13 buton tek satırda sıkışıyordu (gerçek
+// kullanıcı şikayeti); işlevler mantıksal gruplara ayrıldı, aynı anda tek
+// sekmenin içeriği görünür.
+type LeadTab = "eslestirme" | "mesajlar" | "notlar" | "randevu";
+
+const LEAD_TABS: { key: LeadTab; label: string }[] = [
+  { key: "eslestirme", label: "Eşleştirme & Yanıt" },
+  { key: "mesajlar", label: "Mesajlar & Takip" },
+  { key: "notlar", label: "Notlar & Sesli Not" },
+  { key: "randevu", label: "Randevu & Anlaşma" },
+];
+
 export default function LeadsPage() {
   const router = useRouter();
   const [leads, setLeads] = useState<Lead[]>([]);
@@ -85,14 +95,15 @@ export default function LeadsPage() {
   const [matchesByLead, setMatchesByLead] = useState<Record<string, MatchResult[]>>({});
   const [followUpResultByLead, setFollowUpResultByLead] = useState<Record<string, string>>({});
   const [notesByLead, setNotesByLead] = useState<Record<string, LeadNote[]>>({});
-  const [openNotesLead, setOpenNotesLead] = useState<string | null>(null);
   const [noteDraft, setNoteDraft] = useState("");
   const [pendingAction, setPendingAction] = useState<string | null>(null);
   const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null);
 
-  // WhatsApp konuşma geçmişi ("Mesajlar" paneli)
+  // Kart içi aktif sekme (aday başına) — null: kart kapalı/özet görünümde.
+  const [activeTabByLead, setActiveTabByLead] = useState<Record<string, LeadTab | null>>({});
+
+  // WhatsApp konuşma geçmişi ("Mesajlar" sekmesi)
   const [messagesByLead, setMessagesByLead] = useState<Record<string, WhatsAppMessage[]>>({});
-  const [openMessagesLead, setOpenMessagesLead] = useState<string | null>(null);
 
   // Gemini alan çıkarımını manuel tetikleme ("Yeniden Analiz Et") — sadece
   // taslak döner, danışman gözden geçirip PATCH /leads/{id} ile uygular.
@@ -230,13 +241,21 @@ export default function LeadsPage() {
     }
   }
 
-  async function handleToggleNotes(leadId: string) {
-    if (openNotesLead === leadId) {
-      setOpenNotesLead(null);
-      return;
+  function handleSelectTab(leadId: string, tab: LeadTab) {
+    const isClosing = activeTabByLead[leadId] === tab;
+    setActiveTabByLead((prev) => ({ ...prev, [leadId]: isClosing ? null : tab }));
+    if (isClosing) return;
+    // Sekme ilk açıldığında ilgili veri tembelce yüklenir.
+    if (tab === "notlar" && !notesByLead[leadId]) {
+      setNoteDraft("");
+      loadNotes(leadId);
     }
-    setOpenNotesLead(leadId);
-    setNoteDraft("");
+    if (tab === "mesajlar" && !messagesByLead[leadId]) {
+      loadMessages(leadId);
+    }
+  }
+
+  async function loadNotes(leadId: string) {
     try {
       const notes = await apiFetch<LeadNote[]>(`/leads/${leadId}/notes`);
       setNotesByLead((prev) => ({ ...prev, [leadId]: notes }));
@@ -276,12 +295,7 @@ export default function LeadsPage() {
     }
   }
 
-  async function handleToggleMessages(leadId: string) {
-    if (openMessagesLead === leadId) {
-      setOpenMessagesLead(null);
-      return;
-    }
-    setOpenMessagesLead(leadId);
+  async function loadMessages(leadId: string) {
     try {
       const messages = await apiFetch<WhatsAppMessage[]>(`/leads/${leadId}/messages`);
       setMessagesByLead((prev) => ({ ...prev, [leadId]: messages }));
@@ -652,75 +666,40 @@ export default function LeadsPage() {
         {leads.map((lead) => {
           const score = scoresByLead[lead.id];
           const matches = matchesByLead[lead.id];
+          const activeTab = activeTabByLead[lead.id] ?? null;
           return (
             <Card key={lead.id}>
-              <CardContent className="flex flex-col gap-4">
-                <div className="flex flex-wrap items-start justify-between gap-4">
-                  <div className="flex flex-col gap-2">
-                    <div className="flex items-center gap-2 font-semibold text-primary">
-                      <Phone className="h-4 w-4 text-outline" />
-                      {lead.contact_phone}
+              <CardContent className="flex flex-col gap-4 p-6">
+                {/* Kimlik satırı: avatar + telefon + durum; sağda durum seçici + sil */}
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <div className="flex items-center gap-3">
+                    <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-mint-accent text-secondary">
+                      <Phone className="h-5 w-5" />
                     </div>
-                    <div className="flex flex-wrap items-center gap-1.5">
-                      <Badge variant={statusVariant(lead.status)}>
-                        {LEAD_STATUS_LABELS[lead.status] ?? lead.status}
-                      </Badge>
-                      <Badge variant="neutral">
-                        <MapPin className="h-3 w-3" />
-                        {lead.district ?? "Bölge belirtilmedi"}
-                      </Badge>
-                      <Badge variant="neutral">{lead.room_count ?? "Oda belirtilmedi"}</Badge>
-                      <Badge variant="brand">
-                        <Wallet className="h-3 w-3" />
-                        {lead.budget_max ? `${formatCurrency(lead.budget_max)}'ye kadar` : "Bütçe belirtilmedi"}
-                      </Badge>
-                      {lead.radius_km && (
-                        <Badge variant="neutral">
-                          <Compass className="h-3 w-3" />
-                          {lead.radius_km} km yarıçap
-                        </Badge>
-                      )}
-                      {lead.fields_extracted_by_ai && (
-                        <Badge variant="brand">
-                          <Sparkles className="h-3 w-3" />
-                          AI ile dolduruldu
-                        </Badge>
-                      )}
-                      {score && (
-                        <Badge variant={scoreVariant(score.score)}>
-                          <Gauge className="h-3 w-3" />
-                          Skor: {score.score}/100
-                        </Badge>
-                      )}
-                      {lead.reminder_at && (
-                        <Badge variant="warning">
-                          <Clock className="h-3 w-3" />
-                          Hatırlatma {new Date(lead.reminder_at).toLocaleDateString("tr-TR")}
-                          {lead.reminder_note ? `: ${lead.reminder_note}` : ""}
-                        </Badge>
-                      )}
-                      {lead.appointment_at && (
-                        <Badge variant="brand">
-                          <CalendarPlus className="h-3 w-3" />
-                          Randevu {new Date(lead.appointment_at).toLocaleString("tr-TR")}
-                          {lead.appointment_location ? ` · ${lead.appointment_location}` : ""}
-                        </Badge>
-                      )}
-                      {lead.commission_amount != null && (
-                        <Badge variant="success">
-                          <DollarSign className="h-3 w-3" />
-                          Komisyon {formatCurrency(lead.commission_amount)}
-                        </Badge>
-                      )}
+                    <div>
+                      <p className="text-title-md text-[17px] leading-tight text-primary">
+                        {lead.contact_phone}
+                      </p>
+                      <p className="text-[12px] text-text-muted">
+                        Eklendi: {new Date(lead.created_at).toLocaleDateString("tr-TR")}
+                      </p>
                     </div>
+                    <Badge variant={statusVariant(lead.status)}>
+                      {LEAD_STATUS_LABELS[lead.status] ?? lead.status}
+                    </Badge>
+                    {score && (
+                      <Badge variant={scoreVariant(score.score)}>
+                        <Gauge className="h-3 w-3" />
+                        {score.score}/100
+                      </Badge>
+                    )}
                   </div>
-
-                  <div className="flex flex-wrap gap-2">
+                  <div className="flex items-center gap-2">
                     <select
                       value={lead.status}
                       onChange={(e) => handleStatusChange(lead.id, e.target.value as LeadStatus)}
                       aria-label="Aday durumu"
-                      className="rounded border border-outline-variant bg-surface-container-lowest px-2 py-1 text-body-sm text-on-surface focus:border-secondary focus:outline-none"
+                      className="h-9 rounded-full border border-outline-variant bg-surface-container-lowest px-3 text-body-sm text-on-surface focus:border-secondary focus:outline-none"
                     >
                       {Object.entries(LEAD_STATUS_LABELS).map(([value, label]) => (
                         <option key={value} value={value}>
@@ -728,6 +707,88 @@ export default function LeadsPage() {
                         </option>
                       ))}
                     </select>
+                    <button
+                      type="button"
+                      aria-label="Adayı sil"
+                      onClick={() => setPendingDeleteId(lead.id)}
+                      className="flex h-9 w-9 items-center justify-center rounded-full text-on-surface-variant transition-colors hover:bg-error/10 hover:text-error"
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </button>
+                  </div>
+                </div>
+
+                {/* Kriter ve durum çipleri */}
+                <div className="flex flex-wrap items-center gap-1.5">
+                  <Badge variant="neutral">
+                    <MapPin className="h-3 w-3" />
+                    {lead.district ?? "Bölge belirtilmedi"}
+                  </Badge>
+                  <Badge variant="neutral">{lead.room_count ?? "Oda belirtilmedi"}</Badge>
+                  <Badge variant="brand">
+                    <Wallet className="h-3 w-3" />
+                    {lead.budget_max ? `${formatCurrency(lead.budget_max)}'ye kadar` : "Bütçe belirtilmedi"}
+                  </Badge>
+                  {lead.radius_km && (
+                    <Badge variant="neutral">
+                      <Compass className="h-3 w-3" />
+                      {lead.radius_km} km yarıçap
+                    </Badge>
+                  )}
+                  {lead.fields_extracted_by_ai && (
+                    <Badge variant="brand">
+                      <Sparkles className="h-3 w-3" />
+                      AI ile dolduruldu
+                    </Badge>
+                  )}
+                  {lead.auto_follow_up_enabled && (
+                    <Badge variant="brand">
+                      <Repeat className="h-3 w-3" />
+                      Otomatik takip açık
+                    </Badge>
+                  )}
+                  {lead.reminder_at && (
+                    <Badge variant="warning">
+                      <Clock className="h-3 w-3" />
+                      Hatırlatma {new Date(lead.reminder_at).toLocaleDateString("tr-TR")}
+                      {lead.reminder_note ? `: ${lead.reminder_note}` : ""}
+                    </Badge>
+                  )}
+                  {lead.appointment_at && (
+                    <Badge variant="brand">
+                      <CalendarPlus className="h-3 w-3" />
+                      Randevu {new Date(lead.appointment_at).toLocaleString("tr-TR")}
+                      {lead.appointment_location ? ` · ${lead.appointment_location}` : ""}
+                    </Badge>
+                  )}
+                  {lead.commission_amount != null && (
+                    <Badge variant="success">
+                      <DollarSign className="h-3 w-3" />
+                      Komisyon {formatCurrency(lead.commission_amount)}
+                    </Badge>
+                  )}
+                </div>
+
+                {/* Sekme çubuğu — işlevler mantıksal gruplara ayrıldı */}
+                <div className="flex w-fit max-w-full flex-wrap gap-1 rounded-full bg-surface-container p-1">
+                  {LEAD_TABS.map((tab) => (
+                    <button
+                      key={tab.key}
+                      type="button"
+                      onClick={() => handleSelectTab(lead.id, tab.key)}
+                      className={`rounded-full px-4 py-1.5 text-body-sm font-medium transition-colors ${
+                        activeTab === tab.key
+                          ? "bg-primary text-on-primary shadow-sm"
+                          : "text-text-muted hover:text-primary"
+                      }`}
+                    >
+                      {tab.label}
+                    </button>
+                  ))}
+                </div>
+
+                {activeTab === "eslestirme" && (
+                  <div className="flex flex-wrap gap-2">
                     <Button
                       variant="outline"
                       size="sm"
@@ -749,6 +810,38 @@ export default function LeadsPage() {
                     <Button
                       variant="outline"
                       size="sm"
+                      isLoading={pendingAction === `send-matches-${lead.id}`}
+                      onClick={() => handleSendMatches(lead.id)}
+                    >
+                      <Send className="h-3.5 w-3.5" />
+                      Eşleşenleri WhatsApp'tan Gönder
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      isLoading={pendingAction === `suggest-reply-${lead.id}`}
+                      onClick={() => handleSuggestReply(lead.id)}
+                    >
+                      <Wand2 className="h-3.5 w-3.5" />
+                      AI ile Yanıt Öner
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      isLoading={pendingAction === `reanalyze-${lead.id}`}
+                      onClick={() => handleReanalyze(lead.id)}
+                    >
+                      <Sparkles className="h-3.5 w-3.5" />
+                      Mesajlardan Yeniden Analiz
+                    </Button>
+                  </div>
+                )}
+
+                {activeTab === "mesajlar" && (
+                  <div className="flex flex-wrap gap-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
                       isLoading={pendingAction === `follow-up-${lead.id}`}
                       onClick={() => handleFollowUp(lead.id)}
                     >
@@ -762,47 +855,26 @@ export default function LeadsPage() {
                       onClick={() => handleToggleAutoFollowUp(lead)}
                     >
                       <Repeat className="h-3.5 w-3.5" />
-                      {lead.auto_follow_up_enabled ? "Otomatik Takip: Açık" : "Otomatik Takip"}
+                      {lead.auto_follow_up_enabled ? "Otomatik Takip: Açık" : "Otomatik Takibi Aç"}
                     </Button>
+                  </div>
+                )}
+
+                {activeTab === "notlar" && (
+                  <div className="flex flex-wrap gap-2">
                     <Button
-                      variant="outline"
+                      variant={openVoiceNoteLead === lead.id ? "primary" : "outline"}
                       size="sm"
-                      isLoading={pendingAction === `send-matches-${lead.id}`}
-                      onClick={() => handleSendMatches(lead.id)}
+                      onClick={() => handleToggleVoiceNote(lead.id)}
                     >
-                      <Send className="h-3.5 w-3.5" />
-                      Eşleşenleri Gönder
-                    </Button>
-                    <Button variant="outline" size="sm" onClick={() => handleToggleNotes(lead.id)}>
-                      <NotebookPen className="h-3.5 w-3.5" />
-                      Notlar
-                    </Button>
-                    <Button variant="outline" size="sm" onClick={() => handleToggleMessages(lead.id)}>
-                      <MessagesSquare className="h-3.5 w-3.5" />
-                      Mesajlar
-                    </Button>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      isLoading={pendingAction === `reanalyze-${lead.id}`}
-                      onClick={() => handleReanalyze(lead.id)}
-                    >
-                      <Wand2 className="h-3.5 w-3.5" />
-                      Yeniden Analiz Et
-                    </Button>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      isLoading={pendingAction === `suggest-reply-${lead.id}`}
-                      onClick={() => handleSuggestReply(lead.id)}
-                    >
-                      <Sparkles className="h-3.5 w-3.5" />
-                      Yanıt Öner
-                    </Button>
-                    <Button variant="outline" size="sm" onClick={() => handleToggleVoiceNote(lead.id)}>
                       <Mic className="h-3.5 w-3.5" />
                       Sesli Not
                     </Button>
+                  </div>
+                )}
+
+                {activeTab === "randevu" && (
+                  <div className="flex flex-wrap gap-2">
                     <Button
                       variant={lead.appointment_at ? "primary" : "outline"}
                       size="sm"
@@ -824,7 +896,7 @@ export default function LeadsPage() {
                           onClick={() => handleCancelAppointment(lead)}
                         >
                           <X className="h-3.5 w-3.5" />
-                          İptal Et
+                          Randevuyu İptal Et
                         </Button>
                       </>
                     )}
@@ -836,19 +908,10 @@ export default function LeadsPage() {
                       <DollarSign className="h-3.5 w-3.5" />
                       {lead.commission_amount != null ? "Anlaşmayı Düzenle" : "Anlaşma Kaydet"}
                     </Button>
-                    <Button
-                      variant="destructive"
-                      size="sm"
-                      isLoading={pendingAction === `delete-${lead.id}`}
-                      onClick={() => setPendingDeleteId(lead.id)}
-                    >
-                      <Trash2 className="h-3.5 w-3.5" />
-                      Sil
-                    </Button>
                   </div>
-                </div>
+                )}
 
-                {openDealLead === lead.id && (
+                {activeTab === "randevu" && openDealLead === lead.id && (
                   <div className="flex flex-col gap-3 rounded bg-surface-bright p-3">
                     <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
                       <Input
@@ -888,7 +951,7 @@ export default function LeadsPage() {
                   </div>
                 )}
 
-                {openAppointmentLead === lead.id && (
+                {activeTab === "randevu" && openAppointmentLead === lead.id && (
                   <div className="flex flex-col gap-3 rounded bg-surface-bright p-3">
                     <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                       <Input
@@ -936,7 +999,7 @@ export default function LeadsPage() {
                   </div>
                 )}
 
-                {openVoiceNoteLead === lead.id && (
+                {activeTab === "notlar" && openVoiceNoteLead === lead.id && (
                   <div className="flex flex-col gap-3 rounded bg-surface-bright p-3">
                     {voiceNoteRecorder.stage === "idle" && voiceNotePhase === null && (
                       <div className="flex flex-col items-center gap-3 py-4">
@@ -1079,7 +1142,7 @@ export default function LeadsPage() {
                   </div>
                 )}
 
-                {openNotesLead === lead.id && (
+                {activeTab === "notlar" && (
                   <div className="flex flex-col gap-3 rounded bg-surface-bright p-3">
                     <div className="flex gap-2">
                       <Input
@@ -1115,7 +1178,7 @@ export default function LeadsPage() {
                   </div>
                 )}
 
-                {openMessagesLead === lead.id && (
+                {activeTab === "mesajlar" && (
                   <div className="flex flex-col gap-2 rounded bg-surface-bright p-3">
                     {(messagesByLead[lead.id] ?? []).length === 0 ? (
                       <p className="text-body-sm text-text-muted">Henüz WhatsApp mesajı yok.</p>
@@ -1142,7 +1205,7 @@ export default function LeadsPage() {
                   </div>
                 )}
 
-                {openReanalyzeLead === lead.id && reanalyzeDraft && (
+                {activeTab === "eslestirme" && openReanalyzeLead === lead.id && reanalyzeDraft && (
                   <div className="flex flex-col gap-3 rounded bg-surface-bright p-3">
                     <p className="text-body-sm text-text-muted">
                       Gemini, adayın WhatsApp mesajlarından bu alanları önerdi — göndermeden önce düzenleyebilirsiniz.
@@ -1207,7 +1270,7 @@ export default function LeadsPage() {
                   </div>
                 )}
 
-                {openReplyLead === lead.id && (
+                {activeTab === "eslestirme" && openReplyLead === lead.id && (
                   <div className="flex flex-col gap-3 rounded bg-surface-bright p-3">
                     <p className="text-body-sm text-text-muted">
                       Gemini, mevcut portföylerinize dayanarak bir yanıt taslağı üretti — göndermeden önce düzenleyebilirsiniz.
@@ -1247,19 +1310,28 @@ export default function LeadsPage() {
                   </div>
                 )}
 
-                {matches && (
-                  <div className="rounded bg-surface-bright p-3">
+                {activeTab === "eslestirme" && matches && (
+                  <div className="rounded-lg bg-surface-bright p-4">
                     {matches.length === 0 ? (
-                      <p className="text-body-sm text-text-muted">Uygun portföy bulunamadı.</p>
+                      <p className="text-body-sm text-text-muted">
+                        Uygun portföy bulunamadı — kriterleri genişletmeyi (yarıçap, bütçe) deneyin.
+                      </p>
                     ) : (
-                      <ul className="flex flex-col gap-1.5">
+                      <ul className="flex flex-col gap-2">
                         {matches.map((match) => (
                           <li
                             key={match.listing_id}
-                            className="flex items-center justify-between text-body-sm text-on-surface"
+                            className="flex flex-col gap-0.5 rounded bg-surface-container-lowest p-3"
                           >
-                            <span>{match.title}</span>
-                            <span className="font-medium text-primary">{formatCurrency(match.price)}</span>
+                            <div className="flex items-center justify-between gap-3 text-body-sm text-on-surface">
+                              <span className="font-medium">{match.title}</span>
+                              <span className="shrink-0 font-semibold text-primary">
+                                {formatCurrency(match.price)}
+                              </span>
+                            </div>
+                            {match.match_reason && (
+                              <p className="text-[12px] text-text-muted">{match.match_reason}</p>
+                            )}
                           </li>
                         ))}
                       </ul>

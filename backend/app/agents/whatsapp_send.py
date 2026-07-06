@@ -14,12 +14,25 @@ def _describe_meta_error(exc: httpx.HTTPStatusError) -> str:
     """Meta'nın gerçek hata mesajını (ör. "24 saat penceresi doldu", "alıcı
     numara onaylı değil") kullanıcıya yansıtır — sadece durum koduyla
     ("Meta hata döndürdü (durum kodu 400)") danışman ne yapması gerektiğini
-    hiç anlayamıyordu. Meta'nın yanıtı JSON değilse/beklenen şekilde değilse
-    eski genel mesaja düşülür."""
+    hiç anlayamıyordu. Token hataları (code 190 / OAuthException) için ayrıca
+    ne YAPILACAĞI da söylenir: Meta'nın geçici token'ları ~24 saatte doluyor,
+    danışmanın gördüğü çıplak "Authentication Error" hiçbir yol göstermiyordu
+    (gerçek prod şikayeti). Meta'nın yanıtı JSON değilse/beklenen şekilde
+    değilse eski genel mesaja düşülür."""
     try:
-        detail = exc.response.json().get("error", {}).get("message")
+        error = exc.response.json().get("error", {})
+        detail = error.get("message")
+        code = error.get("code")
     except (ValueError, AttributeError):
         detail = None
+        code = None
+    if code == 190 or (detail and "authentication" in detail.lower()):
+        return (
+            "WhatsApp erişim token'ı geçersiz veya süresi dolmuş. Meta'nın geçici "
+            "token'ları ~24 saatte dolar — Meta for Developers'tan yeni bir token alıp "
+            "Railway'deki WHATSAPP_TOKEN değişkenini güncelleyin (kalıcı çözüm: System "
+            "User üzerinden süresiz token)."
+        )
     if detail:
         return f"Meta hata döndürdü: {detail}"
     return f"Meta hata döndürdü (durum kodu {exc.response.status_code})."

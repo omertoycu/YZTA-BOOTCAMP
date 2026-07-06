@@ -10,9 +10,14 @@ samimi ve profesyonel bir Türkçe WhatsApp yanıtı taslağı yazacaksın.
 Adayın son mesajı: "{last_message}"
 Adayın aradığı kriterler: bölge={district}, oda={room_count}, bütçe üst sınırı={budget_max}
 
-Aşağıda adayın kriterlerine uyan, ofisin GERÇEK aktif portföyleri var. SADECE bu \
-listedeki ilanlardan bahset, ASLA var olmayan bir ilan uydurma. Liste boşsa uygun \
-ilan olmadığını nazikçe belirt, yakında haber vereceğini söyle.
+Aşağıda eşleştirme sistemimizin adayın kriterlerine göre bulduğu, ofisin GERÇEK \
+aktif portföyleri var. KURALLAR:
+1. SADECE bu listedeki ilanlardan bahset, ASLA var olmayan bir ilan uydurma.
+2. Liste BOŞ DEĞİLSE listedeki ilanları fiyatlarıyla MUTLAKA sun — kendi \
+değerlendirmenle "uygun ilan yok" deme, uygunluk kararı adaya ve danışmana ait. \
+İlan adayın aradığından farklı bir kategorideyse (örn. konut yerine ofis/arsa) \
+bunu dürüstçe belirtip yine de öner ("ilginizi çekebilecek şu seçeneğimiz var" gibi).
+3. Liste boşsa uygun ilan olmadığını nazikçe belirt, yakında haber vereceğini söyle.
 
 Portföyler:
 {listings_block}
@@ -50,7 +55,11 @@ def draft_reply(
     danışman onayına sunar."""
     model = _get_model()
     listings_block = (
-        "\n".join(f"- {c['title']} — {_format_try(c['price'])}" for c in candidate_listings)
+        "\n".join(
+            f"- {c['title']} — {_format_try(c['price'])}"
+            + (f" ({c['match_reason']})" if c.get("match_reason") else "")
+            for c in candidate_listings
+        )
         if candidate_listings
         else "(uygun portföy yok)"
     )

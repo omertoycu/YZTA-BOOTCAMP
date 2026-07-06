@@ -173,3 +173,18 @@ def test_send_whatsapp_text_falls_back_to_status_code_when_body_not_json(monkeyp
 
     with pytest.raises(WhatsAppSendError, match="durum kodu 500"):
         send_whatsapp_text("123", "905551234567", "merhaba")
+
+
+def test_send_whatsapp_text_explains_expired_token(monkeypatch):
+    """Gerçek prod şikayeti: Meta'nın geçici token'ı dolunca danışman sadece
+    çıplak "Authentication Error" görüyordu — artık ne YAPILACAĞI da
+    söylenmeli (WHATSAPP_TOKEN'ı yenile, System User kalıcı token önerisi)."""
+    monkeypatch.setattr(settings, "whatsapp_token", "expired-token")
+    response = _FakeMetaResponse(
+        401,
+        {"error": {"message": "Error validating access token: Session has expired", "code": 190}},
+    )
+    monkeypatch.setattr(whatsapp_send, "get_http_client", lambda: _FakeHttpClient(response))
+
+    with pytest.raises(WhatsAppSendError, match="WHATSAPP_TOKEN"):
+        send_whatsapp_text("123", "905551234567", "merhaba")
