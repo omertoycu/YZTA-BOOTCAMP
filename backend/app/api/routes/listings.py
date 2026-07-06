@@ -9,7 +9,7 @@ from app.agents.listing_import import (
     parse_listing_html,
 )
 from app.agents.location_report import LocationReportError, get_travel_summary, render_report_pdf
-from app.agents.pricing import index_listing, suggest_price_range
+from app.agents.pricing import index_listing, remove_listing_from_index, suggest_price_range
 from app.agents.stale_listing import find_stale_listings
 from app.agents.voice_listing import MAX_AUDIO_BYTES, VoiceListingError, transcribe_and_extract
 from app.api.deps import get_current_user
@@ -226,6 +226,25 @@ def get_listing(listing_id: str, db: Session = Depends(get_tenant_db)):
     if not listing:
         raise HTTPException(status_code=404, detail="Portföy bulunamadı")
     return listing
+
+
+@router.delete("/{listing_id}", status_code=204)
+def delete_listing(listing_id: str, db: Session = Depends(get_tenant_db)):
+    """Portföyü kalıcı olarak siler. Bağlı görüntülenme kayıtları
+    (listing_views) migration 0019'daki ON DELETE CASCADE ile otomatik
+    silinir. Postgres kaynak-of-truth: önce oradan silinip commit edilir,
+    ChromaDB'deki emsal embedding'i sonra best-effort temizlenir — Chroma
+    hatası DB silmeyi asla engellemez (S3'teki fotoğraflar bilinçli olarak
+    silinmez, bkz. plan notu). Geri alınamaz, frontend onay ister."""
+    listing = db.get(Listing, listing_id)
+    if not listing:
+        raise HTTPException(status_code=404, detail="Portföy bulunamadı")
+    db.delete(listing)
+    db.commit()
+    try:
+        remove_listing_from_index(listing_id)
+    except Exception:
+        pass
 
 
 @router.get("/{listing_id}/pricing-suggestion", response_model=PricingSuggestionResponse)

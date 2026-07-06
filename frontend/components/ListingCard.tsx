@@ -2,11 +2,12 @@
 
 import { useState } from "react";
 import Link from "next/link";
+import { Trash2 } from "lucide-react";
 import type { Listing } from "@/lib/types";
 import { formatCurrency } from "@/lib/format";
 import { Icon } from "@/components/ui/Icon";
 
-export function ListingCard({ listing }: { listing: Listing }) {
+export function ListingCard({ listing, onDelete }: { listing: Listing; onDelete?: () => void }) {
   const [coverFailed, setCoverFailed] = useState(false);
   const cover = !coverFailed ? listing.photos[0] : undefined;
 
@@ -22,6 +23,16 @@ export function ListingCard({ listing }: { listing: Listing }) {
             <p className="text-[12px] text-text-muted">{listing.district}</p>
           </div>
         </div>
+        {onDelete && (
+          <button
+            type="button"
+            onClick={onDelete}
+            aria-label="Portföyü sil"
+            className="flex h-8 w-8 items-center justify-center rounded-full text-on-surface-variant transition-colors hover:bg-error/10 hover:text-error"
+          >
+            <Trash2 className="h-4 w-4" />
+          </button>
+        )}
       </div>
 
       <div className="mb-4 flex flex-wrap gap-2 px-2">

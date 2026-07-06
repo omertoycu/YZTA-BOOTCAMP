@@ -63,6 +63,19 @@ export default function ListingsPage() {
     }
   }
 
+  async function handleDeleteListing(listingId: string) {
+    if (!window.confirm("Bu portföyü kalıcı olarak silmek istediğinize emin misiniz? Bu işlem geri alınamaz.")) {
+      return;
+    }
+    setError(null);
+    try {
+      await apiFetch(`/listings/${listingId}`, { method: "DELETE" });
+      setListings((prev) => prev.filter((l) => l.id !== listingId));
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Portföy silinemedi");
+    }
+  }
+
   return (
     <div className="flex flex-col gap-8">
       <div className="flex items-center justify-between">
@@ -104,7 +117,7 @@ export default function ListingsPage() {
           const staleAlert = staleAlertsByListing[listing.id];
           return (
             <div key={listing.id} className="flex flex-col gap-2">
-              <ListingCard listing={listing} />
+              <ListingCard listing={listing} onDelete={() => handleDeleteListing(listing.id)} />
               {staleAlert && (
                 <div className="flex items-start gap-2 rounded bg-yellow-100 px-3 py-2.5 text-body-sm text-yellow-800">
                   <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />

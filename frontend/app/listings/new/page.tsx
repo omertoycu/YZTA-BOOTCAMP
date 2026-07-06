@@ -2,6 +2,8 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
+import { ArrowLeft } from "lucide-react";
 import { apiFetch, apiUpload, getToken } from "@/lib/api";
 import type { Listing, ListingExtract } from "@/lib/types";
 import { Button } from "@/components/ui/Button";
@@ -137,6 +139,11 @@ export default function NewListingPage() {
 
   return (
     <div className="mx-auto flex max-w-xl flex-col gap-8 py-8">
+      <Link href="/listings" className="inline-flex w-fit items-center gap-1 text-body-sm text-text-muted hover:text-primary">
+        <ArrowLeft className="h-4 w-4" />
+        Portföylere dön
+      </Link>
+
       <div>
         <h1 className="text-headline-lg text-primary">Yeni İlan Ekle</h1>
         <p className="mt-1 text-body-sm text-text-muted">Birkaç adımda portföyünüze ekleyin.</p>

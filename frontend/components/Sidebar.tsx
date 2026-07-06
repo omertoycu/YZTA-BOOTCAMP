@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
+import { Menu, X } from "lucide-react";
 import { clearToken, getToken } from "@/lib/api";
 import { Icon } from "@/components/ui/Icon";
 import { cn } from "@/lib/utils";
@@ -19,11 +20,17 @@ const NAV_LINKS = [
 
 export function Sidebar() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [isMobileOpen, setIsMobileOpen] = useState(false);
   const pathname = usePathname();
   const router = useRouter();
 
   useEffect(() => {
     setIsAuthenticated(Boolean(getToken()));
+  }, [pathname]);
+
+  // Sayfa değiştiğinde mobil açılır menüyü otomatik kapat.
+  useEffect(() => {
+    setIsMobileOpen(false);
   }, [pathname]);
 
   if (!isAuthenticated) return null;
@@ -37,13 +44,8 @@ export function Sidebar() {
     router.push("/assistant");
   }
 
-  return (
-    <nav className="fixed left-0 top-0 z-40 hidden h-full w-72 flex-col bg-surface-container-lowest p-6 shadow-[0px_10px_30px_rgba(0,0,0,0.04)] md:flex">
-      <div className="mb-12">
-        <h1 className="text-headline-lg font-black tracking-tight text-primary">PortföyAI</h1>
-        <p className="mt-1 text-body-sm text-on-surface-variant">Closing Assistant</p>
-      </div>
-
+  function renderNavLinks() {
+    return (
       <ul className="flex flex-1 flex-col gap-2">
         {NAV_LINKS.map((link) => {
           const isActive = pathname?.startsWith(link.href);
@@ -65,7 +67,11 @@ export function Sidebar() {
           );
         })}
       </ul>
+    );
+  }
 
+  function renderFooter() {
+    return (
       <div className="mt-auto border-t border-surface-variant pt-6">
         <button
           onClick={handleVoiceToListing}
@@ -92,6 +98,56 @@ export function Sidebar() {
           </li>
         </ul>
       </div>
-    </nav>
+    );
+  }
+
+  return (
+    <>
+      {/* Masaüstü sabit sidebar */}
+      <nav className="fixed left-0 top-0 z-40 hidden h-full w-72 flex-col bg-surface-container-lowest p-6 shadow-[0px_10px_30px_rgba(0,0,0,0.04)] md:flex">
+        <div className="mb-12">
+          <h1 className="text-headline-lg font-black tracking-tight text-primary">PortföyAI</h1>
+          <p className="mt-1 text-body-sm text-on-surface-variant">Closing Assistant</p>
+        </div>
+        {renderNavLinks()}
+        {renderFooter()}
+      </nav>
+
+      {/* Mobil üst bar — sidebar md altında tamamen gizli olduğu için tek
+          navigasyon yolu bu; hamburger'a basınca açılır menü render edilir. */}
+      <div className="fixed left-0 right-0 top-0 z-40 flex items-center justify-between bg-surface-container-lowest px-4 py-3 shadow-[0px_4px_20px_rgba(0,0,0,0.06)] md:hidden">
+        <h1 className="text-title-md font-black tracking-tight text-primary">PortföyAI</h1>
+        <button
+          type="button"
+          onClick={() => setIsMobileOpen(true)}
+          aria-label="Menüyü aç"
+          className="flex h-10 w-10 items-center justify-center rounded-full text-on-surface-variant hover:bg-surface-container-low"
+        >
+          <Menu className="h-6 w-6" />
+        </button>
+      </div>
+
+      {/* Mobil açılır menü (drawer) */}
+      {isMobileOpen && (
+        <div className="fixed inset-0 z-50 flex md:hidden">
+          <div className="absolute inset-0 bg-black/40" onClick={() => setIsMobileOpen(false)} />
+          <nav className="relative flex h-full w-72 flex-col bg-surface-container-lowest p-6 shadow-xl">
+            <div className="mb-8 flex items-center justify-between">
+              <h1 className="text-headline-lg font-black tracking-tight text-primary">PortföyAI</h1>
+              <button
+                type="button"
+                onClick={() => setIsMobileOpen(false)}
+                aria-label="Menüyü kapat"
+                className="flex h-8 w-8 items-center justify-center rounded-full text-on-surface-variant hover:bg-surface-container-low"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+            {renderNavLinks()}
+            {renderFooter()}
+          </nav>
+        </div>
+      )}
+    </>
   );
 }

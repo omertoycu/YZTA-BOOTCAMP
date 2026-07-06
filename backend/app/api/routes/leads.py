@@ -89,6 +89,19 @@ def get_lead(lead_id: str, db: Session = Depends(get_tenant_db)):
     return lead
 
 
+@router.delete("/{lead_id}", status_code=204)
+def delete_lead(lead_id: str, db: Session = Depends(get_tenant_db)):
+    """Adayı kalıcı olarak siler. Bağlı notlar/skorlar/WhatsApp geçmişi
+    (lead_notes, lead_scores, whatsapp_inbound_events, whatsapp_messages)
+    migration 0019'daki ON DELETE CASCADE ile otomatik silinir — burada
+    ayrıca elle temizlemeye gerek yok. Geri alınamaz, frontend onay ister."""
+    lead = db.get(Lead, lead_id)
+    if not lead:
+        raise HTTPException(status_code=404, detail="Lead bulunamadı")
+    db.delete(lead)
+    db.commit()
+
+
 @router.patch("/{lead_id}", response_model=LeadResponse)
 def update_lead(lead_id: str, payload: LeadUpdate, db: Session = Depends(get_tenant_db)):
     """Danışmanın AI'ın yanlış/eksik çıkardığı bölge/bütçe/oda/yarıçap

@@ -33,6 +33,17 @@ def index_listing(listing: Listing) -> None:
     )
 
 
+def remove_listing_from_index(listing_id) -> None:
+    """İlan silindiğinde ChromaDB'deki emsal embedding'ini de temizler —
+    aksi halde silinen bir ilan başka ilanların fiyat önerisinde hayalet
+    emsal olarak kalmaya devam eder. Çağıran taraf (DELETE /listings/{id})
+    bunu best-effort çağırır: burası patlarsa bile DB silme zaten tamamlanmış
+    olur, stale bir embedding kalması sadece küçük bir veri kalitesi
+    sorunudur, silme işlemini engellemez."""
+    collection = get_listings_collection()
+    collection.delete(ids=[str(listing_id)])
+
+
 def suggest_price_range(listing: Listing, k: int = 5) -> dict:
     """Kesin bir AI fiyat tahmini DEĞİL — "benzer ilan aralığı" (bkz. Girişim
     Analizi Raporu Bölüm 2: savunulabilir, daha az riskli bir iddia).

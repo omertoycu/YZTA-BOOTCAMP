@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
-import { ArrowLeft, Ruler, DoorOpen, MapPin, Sparkles, CalendarDays, Eye, Link2, Check } from "lucide-react";
+import { ArrowLeft, Ruler, DoorOpen, MapPin, Sparkles, CalendarDays, Eye, Link2, Check, Trash2 } from "lucide-react";
 import { apiFetch, apiFetchBlob, getToken } from "@/lib/api";
 import type { Listing, ListingViewStats, PricingSuggestion } from "@/lib/types";
 import { formatCurrency } from "@/lib/format";
@@ -100,6 +100,20 @@ export default function ListingDetailPage() {
       setPricingError(err instanceof Error ? err.message : "Fiyat önerisi alınamadı");
     } finally {
       setPricingLoading(false);
+    }
+  }
+
+  async function handleDeleteListing() {
+    if (!listing) return;
+    if (!window.confirm("Bu portföyü kalıcı olarak silmek istediğinize emin misiniz? Bu işlem geri alınamaz.")) {
+      return;
+    }
+    setError(null);
+    try {
+      await apiFetch(`/listings/${listing.id}`, { method: "DELETE" });
+      router.push("/listings");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Portföy silinemedi");
     }
   }
 
@@ -224,6 +238,10 @@ export default function ListingDetailPage() {
                   </option>
                 ))}
               </select>
+              <Button variant="destructive" size="sm" onClick={handleDeleteListing}>
+                <Trash2 className="h-3.5 w-3.5" />
+                Sil
+              </Button>
             </div>
             {listing.status !== "active" && (
               <p className="mb-2 text-body-sm text-text-muted">

@@ -20,6 +20,7 @@ import {
   Send,
   Sparkles,
   Square,
+  Trash2,
   Upload,
   Users,
   Wallet,
@@ -254,6 +255,22 @@ export default function LeadsPage() {
       setNoteDraft("");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Not eklenemedi");
+    } finally {
+      setPendingAction(null);
+    }
+  }
+
+  async function handleDeleteLead(leadId: string) {
+    if (!window.confirm("Bu adayı kalıcı olarak silmek istediğinize emin misiniz? Bu işlem geri alınamaz.")) {
+      return;
+    }
+    setPendingAction(`delete-${leadId}`);
+    setError(null);
+    try {
+      await apiFetch(`/leads/${leadId}`, { method: "DELETE" });
+      setLeads((prev) => prev.filter((l) => l.id !== leadId));
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Aday silinemedi");
     } finally {
       setPendingAction(null);
     }
@@ -818,6 +835,15 @@ export default function LeadsPage() {
                     >
                       <DollarSign className="h-3.5 w-3.5" />
                       {lead.commission_amount != null ? "Anlaşmayı Düzenle" : "Anlaşma Kaydet"}
+                    </Button>
+                    <Button
+                      variant="destructive"
+                      size="sm"
+                      isLoading={pendingAction === `delete-${lead.id}`}
+                      onClick={() => handleDeleteLead(lead.id)}
+                    >
+                      <Trash2 className="h-3.5 w-3.5" />
+                      Sil
                     </Button>
                   </div>
                 </div>
