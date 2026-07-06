@@ -57,4 +57,14 @@ class Lead(Base):
     deal_amount: Mapped[float | None] = mapped_column(Numeric(12, 2), nullable=True)
     commission_amount: Mapped[float | None] = mapped_column(Numeric(12, 2), nullable=True)
     deal_closed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    # WhatsApp Intake Agent'ın Gemini alan çıkarımı (app/agents/whatsapp_extract.py)
+    # için maliyet kontrolü: 24 saatlik kayan pencerede lead başına en fazla
+    # MAX_EXTRACTIONS_PER_24H çağrı — kötü niyetli/aşırı mesajlaşan bir lead
+    # faturayı şişiremesin diye.
+    llm_extraction_count: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    last_llm_extraction_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    # En az bir alan (district/budget/room_count) AI çıkarımıyla dolduysa True.
+    # PATCH /leads/{id} ile danışman elle düzenlerse False'a döner — kaba ama
+    # basit tek bayrak (alan bazlı değil), sadece UI rozeti için.
+    fields_extracted_by_ai: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())

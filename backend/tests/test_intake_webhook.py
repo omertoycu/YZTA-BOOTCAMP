@@ -27,7 +27,10 @@ def _set_phone_number_id(db_session, office_name, phone_number_id, notification_
     db_session.commit()
 
 
-def _build_payload(phone_number_id, message_id, contact_phone):
+def _build_payload(phone_number_id, message_id, contact_phone, message_type="text", body="Merhaba, ilgileniyorum"):
+    message = {"id": message_id, "from": contact_phone, "type": message_type}
+    if message_type == "text":
+        message["text"] = {"body": body}
     return {
         "entry": [
             {
@@ -35,14 +38,7 @@ def _build_payload(phone_number_id, message_id, contact_phone):
                     {
                         "value": {
                             "metadata": {"phone_number_id": phone_number_id},
-                            "messages": [
-                                {
-                                    "id": message_id,
-                                    "from": contact_phone,
-                                    "type": "text",
-                                    "text": {"body": "Merhaba, ilgileniyorum"},
-                                }
-                            ],
+                            "messages": [message],
                         }
                     }
                 ]
@@ -215,3 +211,178 @@ def test_signature_check_skipped_when_no_app_secret_configured(client, db_sessio
 
     leads = client.get("/leads", headers=headers).json()
     assert len(leads) == 1
+
+
+def test_inbound_text_message_persisted_as_whatsapp_message(client, db_session, monkeypatch):
+    monkeypatch.setattr(settings, "whatsapp_app_secret", WHATSAPP_APP_SECRET)
+    headers = _register_office(client, "Ofis Intake Msg Test 1", "owner1@intake-msg-test.com")
+    _set_phone_number_id(db_session, "Ofis Intake Msg Test 1", "1000000020")
+
+    resp = _post_webhook(
+        client, _build_payload("1000000020", "wamid.MSG1", "905551110020", body="Merhaba, ilgileniyorum")
+    )
+    assert resp.status_code == 200
+
+    lead_id = client.get("/leads", headers=headers).json()[0]["id"]
+    messages = client.get(f"/leads/{lead_id}/messages", headers=headers).json()
+    assert len(messages) == 1
+    assert messages[0]["direction"] == "in"
+    assert messages[0]["message_type"] == "text"
+    assert messages[0]["body"] == "Merhaba, ilgileniyorum"
+
+
+def test_inbound_non_text_message_stored_with_placeholder_and_skips_extraction(client, db_session, monkeypatch):
+    monkeypatch.setattr(settings, "whatsapp_app_secret", WHATSAPP_APP_SECRET)
+    headers = _register_office(client, "Ofis Intake Msg Test 2", "owner2@intake-msg-test.com")
+    _set_phone_number_id(db_session, "Ofis Intake Msg Test 2", "1000000021")
+
+    def _fail_if_called(text):
+        raise AssertionError("extract_lead_fields metin dışı mesaj için çağrılmamalı")
+
+    monkeypatch.setattr(intake, "extract_lead_fields", _fail_if_called)
+
+    resp = _post_webhook(
+        client, _build_payload("1000000021", "wamid.MSG2", "905551110021", message_type="image")
+    )
+    assert resp.status_code == 200
+
+    lead_id = client.get("/leads", headers=headers).json()[0]["id"]
+    messages = client.get(f"/leads/{lead_id}/messages", headers=headers).json()
+    assert len(messages) == 1
+    assert messages[0]["message_type"] == "image"
+    assert messages[0]["body"] == "[Fotoğraf]"
+
+
+def test_trivial_greeting_message_skips_extraction(client, db_session, monkeypatch):
+    monkeypatch.setattr(settings, "whatsapp_app_secret", WHATSAPP_APP_SECRET)
+    _register_office(client, "Ofis Intake Msg Test 3", "owner3@intake-msg-test.com")
+    _set_phone_number_id(db_session, "Ofis Intake Msg Test 3", "1000000022")
+
+    def _fail_if_called(text):
+        raise AssertionError("extract_lead_fields trivial bir selamlama için çağrılmamalı")
+
+    monkeypatch.setattr(intake, "extract_lead_fields", _fail_if_called)
+
+    resp = _post_webhook(
+        client, _build_payload("1000000022", "wamid.MSG3", "905551110022", body="Merhaba")
+    )
+    assert resp.status_code == 200
+
+
+def test_extraction_fills_only_null_fields(client, db_session, monkeypatch):
+    monkeypatch.setattr(settings, "whatsapp_app_secret", WHATSAPP_APP_SECRET)
+    headers = _register_office(client, "Ofis Intake Msg Test 4", "owner4@intake-msg-test.com")
+    _set_phone_number_id(db_session, "Ofis Intake Msg Test 4", "1000000023")
+
+    # Lead, WhatsApp'tan gelmeden önce manuel oluşturulmuş ve district zaten set
+    # edilmiş gibi davranıyoruz: webhook aynı contact_phone ile geldiğinde bu
+    # alanın EZİLMEDİĞİNİ doğrulamak için.
+    contact_phone = "905551110023"
+    client.post(
+        "/leads",
+        json={"contact_phone": contact_phone, "district": "Beşiktaş"},
+        headers=headers,
+    )
+
+    def _fake_extract(text):
+        return {
+            "district": "Kadıköy",  # zaten dolu, EZİLMEMELİ
+            "budget_min": None,
+            "budget_max": 5_000_000,  # boş, DOLMALI
+            "room_count": "3+1",  # boş, DOLMALI
+            "radius_km": None,
+        }
+
+    monkeypatch.setattr(intake, "extract_lead_fields", _fake_extract)
+
+    resp = _post_webhook(
+        client,
+        _build_payload(
+            "1000000023", "wamid.MSG4", contact_phone, body="Kadıköy'de 3+1 arıyorum, bütçem 5 milyon TL"
+        ),
+    )
+    assert resp.status_code == 200
+
+    leads = client.get("/leads", headers=headers).json()
+    lead = next(lead for lead in leads if lead["contact_phone"] == contact_phone)
+    assert lead["district"] == "Beşiktaş"  # değişmedi
+    assert lead["budget_max"] == 5_000_000  # dolduruldu
+    assert lead["room_count"] == "3+1"  # dolduruldu
+    assert lead["fields_extracted_by_ai"] is True
+
+
+def test_extraction_respects_rate_cap_across_messages(client, db_session, monkeypatch):
+    from datetime import datetime, timezone
+
+    from app.models.lead import Lead
+
+    monkeypatch.setattr(settings, "whatsapp_app_secret", WHATSAPP_APP_SECRET)
+    headers = _register_office(client, "Ofis Intake Msg Test 5", "owner5@intake-msg-test.com")
+    _set_phone_number_id(db_session, "Ofis Intake Msg Test 5", "1000000024")
+
+    contact_phone = "905551110024"
+    client.post("/leads", json={"contact_phone": contact_phone}, headers=headers)
+
+    lead = db_session.execute(select(Lead).where(Lead.contact_phone == contact_phone)).scalar_one()
+    lead.llm_extraction_count = 5
+    lead.last_llm_extraction_at = datetime.now(timezone.utc)
+    db_session.commit()
+
+    def _fail_if_called(text):
+        raise AssertionError("extract_lead_fields hız sınırı aşıldıktan sonra çağrılmamalı")
+
+    monkeypatch.setattr(intake, "extract_lead_fields", _fail_if_called)
+
+    resp = _post_webhook(
+        client,
+        _build_payload(
+            "1000000024", "wamid.MSG5", contact_phone, body="Kadıköy'de 3+1 arıyorum, bütçem 5 milyon TL"
+        ),
+    )
+    assert resp.status_code == 200
+
+
+def test_extraction_error_is_swallowed_webhook_still_200(client, db_session, monkeypatch):
+    monkeypatch.setattr(settings, "whatsapp_app_secret", WHATSAPP_APP_SECRET)
+    headers = _register_office(client, "Ofis Intake Msg Test 6", "owner6@intake-msg-test.com")
+    _set_phone_number_id(db_session, "Ofis Intake Msg Test 6", "1000000025")
+
+    def _raise(text):
+        raise intake.WhatsAppExtractError("boom")
+
+    monkeypatch.setattr(intake, "extract_lead_fields", _raise)
+
+    resp = _post_webhook(
+        client,
+        _build_payload(
+            "1000000025", "wamid.MSG6", "905551110025", body="Kadıköy'de 3+1 arıyorum, bütçem 5 milyon TL"
+        ),
+    )
+    assert resp.status_code == 200
+    leads = client.get("/leads", headers=headers).json()
+    assert len(leads) == 1
+
+
+def test_extraction_not_configured_does_not_increment_counter(client, db_session, monkeypatch):
+    from app.models.lead import Lead
+
+    monkeypatch.setattr(settings, "whatsapp_app_secret", WHATSAPP_APP_SECRET)
+    headers = _register_office(client, "Ofis Intake Msg Test 7", "owner7@intake-msg-test.com")
+    _set_phone_number_id(db_session, "Ofis Intake Msg Test 7", "1000000026")
+
+    def _raise(text):
+        raise intake.WhatsAppExtractError("__not_configured__")
+
+    monkeypatch.setattr(intake, "extract_lead_fields", _raise)
+
+    contact_phone = "905551110026"
+    resp = _post_webhook(
+        client,
+        _build_payload(
+            "1000000026", "wamid.MSG7", contact_phone, body="Kadıköy'de 3+1 arıyorum, bütçem 5 milyon TL"
+        ),
+    )
+    assert resp.status_code == 200
+
+    lead = db_session.execute(select(Lead).where(Lead.contact_phone == contact_phone)).scalar_one()
+    assert lead.llm_extraction_count == 0

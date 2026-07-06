@@ -8,6 +8,7 @@ from app.core.config import settings
 from app.core.db import set_tenant
 from app.models.lead import Lead
 from app.models.office import Office
+from app.models.whatsapp_message import WhatsAppMessage
 
 # Otomatik takip zinciri: (bir önceki temastan ne kadar sonra, mesaj şablonu).
 # Aşama mesajları giderek daha az ısrarcı — üçüncüden sonra zincir kendini kapatır,
@@ -112,6 +113,11 @@ def run_due_follow_ups(db: Session, now: datetime | None = None) -> dict:
                 disable_auto_follow_up(lead)
             else:
                 lead.next_follow_up_at = now + FOLLOW_UP_CHAIN[lead.follow_up_stage][0]
+            db.add(
+                WhatsAppMessage(
+                    office_id=office.id, lead_id=lead.id, direction="out", message_type="text", body=message
+                )
+            )
             summary["sent"] += 1
 
         db.commit()

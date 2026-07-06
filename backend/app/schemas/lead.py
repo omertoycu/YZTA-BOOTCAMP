@@ -42,9 +42,42 @@ class LeadResponse(BaseModel):
     deal_amount: float | None
     commission_amount: float | None
     deal_closed_at: datetime | None
+    fields_extracted_by_ai: bool
     created_at: datetime
 
     model_config = {"from_attributes": True}
+
+
+class LeadUpdate(BaseModel):
+    district: str | None = None
+    budget_min: float | None = None
+    budget_max: float | None = None
+    room_count: str | None = None
+    radius_km: float | None = None
+
+
+class WhatsAppMessageResponse(BaseModel):
+    id: uuid.UUID
+    lead_id: uuid.UUID
+    direction: str
+    message_type: str
+    body: str | None
+    created_at: datetime
+
+    model_config = {"from_attributes": True}
+
+
+class LeadFieldExtractionDraft(BaseModel):
+    district: str | None = None
+    budget_min: float | None = None
+    budget_max: float | None = None
+    room_count: str | None = None
+    radius_km: float | None = None
+
+
+class SuggestReplyResponse(BaseModel):
+    draft: str
+    match_count: int
 
 
 class MatchResult(BaseModel):

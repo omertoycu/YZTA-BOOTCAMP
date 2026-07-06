@@ -8,6 +8,7 @@ from app.core.config import settings
 from app.core.db import set_tenant
 from app.models.lead import Lead
 from app.models.office import Office
+from app.models.whatsapp_message import WhatsAppMessage
 
 # Randevudan bu kadar önce, tek seferlik bir hatırlatma gönderilir. Takip
 # zincirinden (follow_up.py) tamamen ayrı — no-show'u azaltmayı hedefler.
@@ -65,6 +66,11 @@ def run_due_appointment_reminders(db: Session, now: datetime | None = None) -> d
                 continue
 
             lead.appointment_reminder_sent = True
+            db.add(
+                WhatsAppMessage(
+                    office_id=office.id, lead_id=lead.id, direction="out", message_type="text", body=message
+                )
+            )
             summary["sent"] += 1
 
         db.commit()

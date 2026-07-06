@@ -63,6 +63,8 @@ async def receive_webhook(
             for message in value.get("messages", []):
                 contact_phone = message.get("from")
                 external_message_id = message.get("id")
+                message_type = message.get("type", "text")
+                text_body = message.get("text", {}).get("body") if message_type == "text" else None
                 if not phone_number_id or not contact_phone or not external_message_id:
                     continue
                 try:
@@ -74,6 +76,8 @@ async def receive_webhook(
                     office_id=office_id,
                     external_message_id=external_message_id,
                     contact_phone=contact_phone,
+                    message_type=message_type,
+                    message_body=text_body,
                 )
 
     return {"status": "received"}

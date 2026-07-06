@@ -8,8 +8,16 @@ from app.agents.calendar_invite import build_appointment_ics
 from app.agents.follow_up import disable_auto_follow_up, enable_auto_follow_up
 from app.agents.graph import build_matching_graph
 from app.agents.lead_voice_note import VoiceNoteError, transcribe_and_extract_note
+from app.agents.reply_draft import ReplyDraftError, draft_reply
 from app.agents.scoring import calculate_lead_score
 from app.agents.voice_listing import MAX_AUDIO_BYTES
+from app.agents.whatsapp_extract import (
+    MAX_EXTRACTIONS_PER_24H,
+    WhatsAppExtractError,
+    compute_new_extraction_counters,
+    extract_lead_fields,
+    should_run_extraction,
+)
 from app.agents.whatsapp_send import WhatsAppSendError, send_whatsapp_text
 from app.api.deps import get_current_user
 from app.middleware.tenant import get_tenant_db
@@ -18,6 +26,7 @@ from app.models.lead_note import LeadNote
 from app.models.lead_score import LeadScore
 from app.models.office import Office
 from app.models.user import User
+from app.models.whatsapp_message import WhatsAppMessage
 from app.schemas.lead import (
     AppointmentCreate,
     AppointmentResponse,
@@ -26,14 +35,18 @@ from app.schemas.lead import (
     FollowUpRequest,
     FollowUpResponse,
     LeadCreate,
+    LeadFieldExtractionDraft,
     LeadNoteCreate,
     LeadNoteResponse,
     LeadReminderUpdate,
     LeadResponse,
     LeadStatusUpdate,
+    LeadUpdate,
     LeadVoiceNoteDraftResponse,
     MatchResult,
     SendMatchesResponse,
+    SuggestReplyResponse,
+    WhatsAppMessageResponse,
 )
 from app.schemas.lead_score import LeadScoreResponse
 
@@ -76,6 +89,52 @@ def get_lead(lead_id: str, db: Session = Depends(get_tenant_db)):
     return lead
 
 
+@router.patch("/{lead_id}", response_model=LeadResponse)
+def update_lead(lead_id: str, payload: LeadUpdate, db: Session = Depends(get_tenant_db)):
+    """Danışmanın AI'ın yanlış/eksik çıkardığı bölge/bütçe/oda/yarıçap
+    alanlarını elle düzeltmesi (bkz. PATCH /offices/me ile aynı exclude_unset
+    deseni) — hem manuel düzeltme hem de POST /{id}/reanalyze-messages'ın
+    döndürdüğü taslağı onaylamanın TEK yazma yolu."""
+    lead = db.get(Lead, lead_id)
+    if not lead:
+        raise HTTPException(status_code=404, detail="Lead bulunamadı")
+    updates = payload.model_dump(exclude_unset=True)
+    for field, value in updates.items():
+        setattr(lead, field, value)
+    if updates:
+        lead.fields_extracted_by_ai = False
+    db.commit()
+    return lead
+
+
+@router.get("/{lead_id}/messages", response_model=list[WhatsAppMessageResponse])
+def list_lead_messages(lead_id: str, db: Session = Depends(get_tenant_db)):
+    lead = db.get(Lead, lead_id)
+    if not lead:
+        raise HTTPException(status_code=404, detail="Lead bulunamadı")
+    return (
+        db.execute(
+            select(WhatsAppMessage)
+            .where(WhatsAppMessage.lead_id == lead.id)
+            .order_by(WhatsAppMessage.created_at.asc())
+        )
+        .scalars()
+        .all()
+    )
+
+
+def _lead_to_match_state(lead: Lead) -> dict:
+    return {
+        "office_id": str(lead.office_id),
+        "lead_id": str(lead.id),
+        "budget_min": float(lead.budget_min) if lead.budget_min else None,
+        "budget_max": float(lead.budget_max) if lead.budget_max else None,
+        "room_count": lead.room_count,
+        "district": lead.district,
+        "radius_km": float(lead.radius_km) if lead.radius_km else None,
+    }
+
+
 @router.post("/{lead_id}/match", response_model=list[MatchResult])
 def match_lead(lead_id: str, db: Session = Depends(get_tenant_db)):
     lead = db.get(Lead, lead_id)
@@ -83,17 +142,7 @@ def match_lead(lead_id: str, db: Session = Depends(get_tenant_db)):
         raise HTTPException(status_code=404, detail="Lead bulunamadı")
 
     graph = build_matching_graph(db)
-    result = graph.invoke(
-        {
-            "office_id": str(lead.office_id),
-            "lead_id": str(lead.id),
-            "budget_min": float(lead.budget_min) if lead.budget_min else None,
-            "budget_max": float(lead.budget_max) if lead.budget_max else None,
-            "room_count": lead.room_count,
-            "district": lead.district,
-            "radius_km": float(lead.radius_km) if lead.radius_km else None,
-        }
-    )
+    result = graph.invoke(_lead_to_match_state(lead))
     return result["candidate_listings"]
 
 
@@ -152,6 +201,11 @@ def send_follow_up(
         raise HTTPException(status_code=502, detail=str(exc)) from exc
 
     lead.last_contacted_at = datetime.now(timezone.utc)
+    db.add(
+        WhatsAppMessage(
+            office_id=lead.office_id, lead_id=lead.id, direction="out", message_type="text", body=message
+        )
+    )
     db.commit()
     return FollowUpResponse(sent=True, message=message)
 
@@ -329,17 +383,7 @@ def send_matches_via_whatsapp(
         raise HTTPException(status_code=503, detail="Bu ofis için WhatsApp gönderimi henüz bağlı değil")
 
     graph = build_matching_graph(db)
-    result = graph.invoke(
-        {
-            "office_id": str(lead.office_id),
-            "lead_id": str(lead.id),
-            "budget_min": float(lead.budget_min) if lead.budget_min else None,
-            "budget_max": float(lead.budget_max) if lead.budget_max else None,
-            "room_count": lead.room_count,
-            "district": lead.district,
-            "radius_km": float(lead.radius_km) if lead.radius_km else None,
-        }
-    )
+    result = graph.invoke(_lead_to_match_state(lead))
     matches = result["candidate_listings"][:3]
     if not matches:
         raise HTTPException(status_code=404, detail="Bu adayın kriterlerine uyan portföy bulunamadı")
@@ -358,8 +402,114 @@ def send_matches_via_whatsapp(
         raise HTTPException(status_code=502, detail=str(exc)) from exc
 
     lead.last_contacted_at = datetime.now(timezone.utc)
+    db.add(
+        WhatsAppMessage(
+            office_id=lead.office_id, lead_id=lead.id, direction="out", message_type="text", body=message
+        )
+    )
     db.commit()
     return SendMatchesResponse(sent=True, match_count=len(matches), message=message)
+
+
+@router.post("/{lead_id}/reanalyze-messages", response_model=LeadFieldExtractionDraft)
+def reanalyze_lead_messages(lead_id: str, db: Session = Depends(get_tenant_db)):
+    """Danışmanın "Yeniden Analiz Et" tetiklemesi: lead'in gelen WhatsApp METİN
+    mesajlarını birleştirip Gemini'ye tekrar gönderir. Otomatik webhook
+    akışından (fill-only, doğrudan yazar) kasıtlı olarak farklı: SADECE TASLAK
+    döner, hiçbir şey otomatik yazılmaz — danışman taslağı (gerekirse
+    düzenleyip) PATCH /{lead_id} ile onaylar. "Zaten tüm alanlar dolu"
+    atlamasını bypass eder ama 24 saatlik hız sınırını ASLA bypass etmez."""
+    lead = db.get(Lead, lead_id)
+    if not lead:
+        raise HTTPException(status_code=404, detail="Lead bulunamadı")
+
+    inbound_texts = (
+        db.execute(
+            select(WhatsAppMessage.body)
+            .where(
+                WhatsAppMessage.lead_id == lead.id,
+                WhatsAppMessage.direction == "in",
+                WhatsAppMessage.message_type == "text",
+            )
+            .order_by(WhatsAppMessage.created_at.asc())
+        )
+        .scalars()
+        .all()
+    )
+    combined_text = "\n".join(t for t in inbound_texts if t)
+    if not combined_text.strip():
+        raise HTTPException(status_code=422, detail="Bu aday için analiz edilecek WhatsApp metin mesajı yok")
+
+    if not should_run_extraction(
+        message_type="text",
+        message_body=combined_text,
+        district=lead.district,
+        budget_max=lead.budget_max,
+        room_count=lead.room_count,
+        extraction_count=lead.llm_extraction_count,
+        last_extraction_at=lead.last_llm_extraction_at,
+        force=True,
+    ):
+        raise HTTPException(
+            status_code=429,
+            detail=f"Bu aday için son 24 saatte izin verilen analiz sayısına ({MAX_EXTRACTIONS_PER_24H}) ulaşıldı",
+        )
+
+    now = datetime.now(timezone.utc)
+    try:
+        extracted = extract_lead_fields(combined_text)
+    except WhatsAppExtractError as exc:
+        if str(exc) == "__not_configured__":
+            raise HTTPException(status_code=503, detail="AI ile alan çıkarımı şu an aktif değil") from exc
+        lead.llm_extraction_count, lead.last_llm_extraction_at = compute_new_extraction_counters(
+            lead.llm_extraction_count, lead.last_llm_extraction_at, now
+        )
+        db.commit()
+        raise HTTPException(status_code=502, detail=str(exc)) from exc
+
+    lead.llm_extraction_count, lead.last_llm_extraction_at = compute_new_extraction_counters(
+        lead.llm_extraction_count, lead.last_llm_extraction_at, now
+    )
+    db.commit()
+    return LeadFieldExtractionDraft(**extracted)
+
+
+@router.post("/{lead_id}/suggest-reply", response_model=SuggestReplyResponse)
+def suggest_reply(lead_id: str, db: Session = Depends(get_tenant_db)):
+    """Matching Agent'ın bulduğu GERÇEK portföyleri (send-matches ile aynı, en
+    iyi 3) Gemini'ye vererek kısa bir WhatsApp yanıt taslağı ürettirir —
+    RAG'ın retrieval adımı Matching Agent, generation adımı Gemini. OTOMATİK
+    GÖNDERMEZ: döndürülen taslak, danışmanın gözden geçirip mevcut
+    POST /{lead_id}/follow-up'a (message override ile) gönderdiği metindir."""
+    lead = db.get(Lead, lead_id)
+    if not lead:
+        raise HTTPException(status_code=404, detail="Lead bulunamadı")
+
+    graph = build_matching_graph(db)
+    result = graph.invoke(_lead_to_match_state(lead))
+    candidates = result["candidate_listings"][:3]
+
+    last_inbound = db.execute(
+        select(WhatsAppMessage.body)
+        .where(WhatsAppMessage.lead_id == lead.id, WhatsAppMessage.direction == "in")
+        .order_by(WhatsAppMessage.created_at.desc())
+        .limit(1)
+    ).scalar_one_or_none()
+
+    try:
+        draft = draft_reply(
+            last_message=last_inbound,
+            district=lead.district,
+            room_count=lead.room_count,
+            budget_max=float(lead.budget_max) if lead.budget_max else None,
+            candidate_listings=candidates,
+        )
+    except ReplyDraftError as exc:
+        if str(exc) == "__not_configured__":
+            raise HTTPException(status_code=503, detail="Yanıt taslağı özelliği şu an aktif değil") from exc
+        raise HTTPException(status_code=502, detail=str(exc)) from exc
+
+    return SuggestReplyResponse(draft=draft, match_count=len(candidates))
 
 
 @router.patch("/{lead_id}/auto-follow-up", response_model=LeadResponse)
@@ -422,6 +572,12 @@ def create_appointment(
             try:
                 send_whatsapp_text(office.whatsapp_phone_number_id, lead.contact_phone, message)
                 whatsapp_confirmation_sent = True
+                db.add(
+                    WhatsAppMessage(
+                        office_id=lead.office_id, lead_id=lead.id, direction="out",
+                        message_type="text", body=message,
+                    )
+                )
             except WhatsAppSendError as exc:
                 whatsapp_confirmation_error = str(exc) if str(exc) != "__not_configured__" else (
                     "WhatsApp gönderimi şu an aktif değil"

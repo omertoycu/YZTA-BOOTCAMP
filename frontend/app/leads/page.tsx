@@ -10,6 +10,7 @@ import {
   Download,
   Gauge,
   MapPin,
+  MessagesSquare,
   Mic,
   MessageCircle,
   NotebookPen,
@@ -22,6 +23,7 @@ import {
   Upload,
   Users,
   Wallet,
+  Wand2,
   X,
 } from "lucide-react";
 import { apiFetch, apiFetchBlob, apiUpload, getToken } from "@/lib/api";
@@ -30,12 +32,16 @@ import type {
   AppointmentResult,
   FollowUpResult,
   Lead,
+  LeadFieldExtractionDraft,
   LeadNote,
   LeadScore,
   LeadStatus,
+  LeadUpdatePayload,
   LeadVoiceNoteDraft,
   MatchResult,
   SendMatchesResult,
+  SuggestReplyResult,
+  WhatsAppMessage,
 } from "@/lib/types";
 import { formatCurrency } from "@/lib/format";
 import { Button } from "@/components/ui/Button";
@@ -80,6 +86,20 @@ export default function LeadsPage() {
   const [openNotesLead, setOpenNotesLead] = useState<string | null>(null);
   const [noteDraft, setNoteDraft] = useState("");
   const [pendingAction, setPendingAction] = useState<string | null>(null);
+
+  // WhatsApp konuşma geçmişi ("Mesajlar" paneli)
+  const [messagesByLead, setMessagesByLead] = useState<Record<string, WhatsAppMessage[]>>({});
+  const [openMessagesLead, setOpenMessagesLead] = useState<string | null>(null);
+
+  // Gemini alan çıkarımını manuel tetikleme ("Yeniden Analiz Et") — sadece
+  // taslak döner, danışman gözden geçirip PATCH /leads/{id} ile uygular.
+  const [openReanalyzeLead, setOpenReanalyzeLead] = useState<string | null>(null);
+  const [reanalyzeDraft, setReanalyzeDraft] = useState<LeadFieldExtractionDraft | null>(null);
+
+  // RAG'lı yanıt taslağı ("Yanıt Öner") — mevcut portföylere dayalı, düzenlenip
+  // mevcut POST /leads/{id}/follow-up ile gönderilir.
+  const [openReplyLead, setOpenReplyLead] = useState<string | null>(null);
+  const [replyDraft, setReplyDraft] = useState("");
 
   // Sesli Not → CRM güncellemesi: tek seferde tek aday için açık, panel tek bir
   // paylaşılan recorder örneğini kullanır (bkz. lib/useAudioRecorder.ts).
@@ -234,6 +254,96 @@ export default function LeadsPage() {
       setNoteDraft("");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Not eklenemedi");
+    } finally {
+      setPendingAction(null);
+    }
+  }
+
+  async function handleToggleMessages(leadId: string) {
+    if (openMessagesLead === leadId) {
+      setOpenMessagesLead(null);
+      return;
+    }
+    setOpenMessagesLead(leadId);
+    try {
+      const messages = await apiFetch<WhatsAppMessage[]>(`/leads/${leadId}/messages`);
+      setMessagesByLead((prev) => ({ ...prev, [leadId]: messages }));
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Mesajlar yüklenemedi");
+    }
+  }
+
+  async function handleReanalyze(leadId: string) {
+    setPendingAction(`reanalyze-${leadId}`);
+    setError(null);
+    try {
+      const draft = await apiFetch<LeadFieldExtractionDraft>(`/leads/${leadId}/reanalyze-messages`, {
+        method: "POST",
+      });
+      setReanalyzeDraft(draft);
+      setOpenReanalyzeLead(leadId);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Yeniden analiz edilemedi");
+    } finally {
+      setPendingAction(null);
+    }
+  }
+
+  async function handleApplyReanalyzeDraft(leadId: string) {
+    if (!reanalyzeDraft) return;
+    setPendingAction(`apply-reanalyze-${leadId}`);
+    setError(null);
+    try {
+      const payload: LeadUpdatePayload = {
+        district: reanalyzeDraft.district,
+        budget_min: reanalyzeDraft.budget_min,
+        budget_max: reanalyzeDraft.budget_max,
+        room_count: reanalyzeDraft.room_count,
+        radius_km: reanalyzeDraft.radius_km,
+      };
+      const updated = await apiFetch<Lead>(`/leads/${leadId}`, {
+        method: "PATCH",
+        body: JSON.stringify(payload),
+      });
+      setLeads((prev) => prev.map((l) => (l.id === updated.id ? updated : l)));
+      setOpenReanalyzeLead(null);
+      setReanalyzeDraft(null);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Alanlar uygulanamadı");
+    } finally {
+      setPendingAction(null);
+    }
+  }
+
+  async function handleSuggestReply(leadId: string) {
+    setPendingAction(`suggest-reply-${leadId}`);
+    setError(null);
+    try {
+      const result = await apiFetch<SuggestReplyResult>(`/leads/${leadId}/suggest-reply`, { method: "POST" });
+      setReplyDraft(result.draft);
+      setOpenReplyLead(leadId);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Yanıt taslağı üretilemedi");
+    } finally {
+      setPendingAction(null);
+    }
+  }
+
+  async function handleSendReplyDraft(leadId: string) {
+    if (!replyDraft.trim()) return;
+    setPendingAction(`send-reply-${leadId}`);
+    setError(null);
+    try {
+      const result = await apiFetch<FollowUpResult>(`/leads/${leadId}/follow-up`, {
+        method: "POST",
+        body: JSON.stringify({ message: replyDraft.trim() }),
+      });
+      setFollowUpResultByLead((prev) => ({ ...prev, [leadId]: result.message }));
+      setOpenReplyLead(null);
+      setReplyDraft("");
+      await loadLeads();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Yanıt gönderilemedi");
     } finally {
       setPendingAction(null);
     }
@@ -553,6 +663,12 @@ export default function LeadsPage() {
                           {lead.radius_km} km yarıçap
                         </Badge>
                       )}
+                      {lead.fields_extracted_by_ai && (
+                        <Badge variant="brand">
+                          <Sparkles className="h-3 w-3" />
+                          AI ile dolduruldu
+                        </Badge>
+                      )}
                       {score && (
                         <Badge variant={scoreVariant(score.score)}>
                           <Gauge className="h-3 w-3" />
@@ -643,6 +759,28 @@ export default function LeadsPage() {
                     <Button variant="outline" size="sm" onClick={() => handleToggleNotes(lead.id)}>
                       <NotebookPen className="h-3.5 w-3.5" />
                       Notlar
+                    </Button>
+                    <Button variant="outline" size="sm" onClick={() => handleToggleMessages(lead.id)}>
+                      <MessagesSquare className="h-3.5 w-3.5" />
+                      Mesajlar
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      isLoading={pendingAction === `reanalyze-${lead.id}`}
+                      onClick={() => handleReanalyze(lead.id)}
+                    >
+                      <Wand2 className="h-3.5 w-3.5" />
+                      Yeniden Analiz Et
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      isLoading={pendingAction === `suggest-reply-${lead.id}`}
+                      onClick={() => handleSuggestReply(lead.id)}
+                    >
+                      <Sparkles className="h-3.5 w-3.5" />
+                      Yanıt Öner
                     </Button>
                     <Button variant="outline" size="sm" onClick={() => handleToggleVoiceNote(lead.id)}>
                       <Mic className="h-3.5 w-3.5" />
@@ -948,6 +1086,132 @@ export default function LeadsPage() {
                         ))}
                       </ul>
                     )}
+                  </div>
+                )}
+
+                {openMessagesLead === lead.id && (
+                  <div className="flex flex-col gap-2 rounded bg-surface-bright p-3">
+                    {(messagesByLead[lead.id] ?? []).length === 0 ? (
+                      <p className="text-body-sm text-text-muted">Henüz WhatsApp mesajı yok.</p>
+                    ) : (
+                      <ul className="flex flex-col gap-2">
+                        {(messagesByLead[lead.id] ?? []).map((message) => (
+                          <li
+                            key={message.id}
+                            className={`max-w-[85%] rounded p-2.5 text-body-sm ${
+                              message.direction === "in"
+                                ? "self-start bg-surface-container-lowest text-on-surface"
+                                : "self-end bg-mint-accent text-on-secondary-container"
+                            }`}
+                          >
+                            <p>{message.body}</p>
+                            <p className="mt-1 text-[11px] opacity-70">
+                              {message.direction === "in" ? "Aday" : "Ofis"} ·{" "}
+                              {new Date(message.created_at).toLocaleString("tr-TR")}
+                            </p>
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                  </div>
+                )}
+
+                {openReanalyzeLead === lead.id && reanalyzeDraft && (
+                  <div className="flex flex-col gap-3 rounded bg-surface-bright p-3">
+                    <p className="text-body-sm text-text-muted">
+                      Gemini, adayın WhatsApp mesajlarından bu alanları önerdi — göndermeden önce düzenleyebilirsiniz.
+                    </p>
+                    <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
+                      <Input
+                        id={`reanalyze-district-${lead.id}`}
+                        label="Bölge"
+                        value={reanalyzeDraft.district ?? ""}
+                        onChange={(e) => setReanalyzeDraft({ ...reanalyzeDraft, district: e.target.value || null })}
+                      />
+                      <Input
+                        id={`reanalyze-budget-max-${lead.id}`}
+                        label="Maks. bütçe (TL)"
+                        type="number"
+                        value={reanalyzeDraft.budget_max ?? ""}
+                        onChange={(e) =>
+                          setReanalyzeDraft({
+                            ...reanalyzeDraft,
+                            budget_max: e.target.value ? Number(e.target.value) : null,
+                          })
+                        }
+                      />
+                      <Input
+                        id={`reanalyze-room-count-${lead.id}`}
+                        label="Oda sayısı"
+                        value={reanalyzeDraft.room_count ?? ""}
+                        onChange={(e) => setReanalyzeDraft({ ...reanalyzeDraft, room_count: e.target.value || null })}
+                      />
+                      <Input
+                        id={`reanalyze-radius-${lead.id}`}
+                        label="Arama yarıçapı (km)"
+                        type="number"
+                        value={reanalyzeDraft.radius_km ?? ""}
+                        onChange={(e) =>
+                          setReanalyzeDraft({
+                            ...reanalyzeDraft,
+                            radius_km: e.target.value ? Number(e.target.value) : null,
+                          })
+                        }
+                      />
+                    </div>
+                    <div className="flex justify-between">
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => {
+                          setOpenReanalyzeLead(null);
+                          setReanalyzeDraft(null);
+                        }}
+                      >
+                        Vazgeç
+                      </Button>
+                      <Button
+                        size="sm"
+                        isLoading={pendingAction === `apply-reanalyze-${lead.id}`}
+                        onClick={() => handleApplyReanalyzeDraft(lead.id)}
+                      >
+                        Uygula
+                      </Button>
+                    </div>
+                  </div>
+                )}
+
+                {openReplyLead === lead.id && (
+                  <div className="flex flex-col gap-3 rounded bg-surface-bright p-3">
+                    <p className="text-body-sm text-text-muted">
+                      Gemini, mevcut portföylerinize dayanarak bir yanıt taslağı üretti — göndermeden önce düzenleyebilirsiniz.
+                    </p>
+                    <textarea
+                      value={replyDraft}
+                      onChange={(e) => setReplyDraft(e.target.value)}
+                      rows={4}
+                      className="w-full rounded border border-outline-variant bg-surface-container-lowest p-2.5 text-body-sm text-on-surface focus:border-secondary focus:outline-none"
+                    />
+                    <div className="flex justify-between">
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => {
+                          setOpenReplyLead(null);
+                          setReplyDraft("");
+                        }}
+                      >
+                        Vazgeç
+                      </Button>
+                      <Button
+                        size="sm"
+                        isLoading={pendingAction === `send-reply-${lead.id}`}
+                        onClick={() => handleSendReplyDraft(lead.id)}
+                      >
+                        <Send className="h-3.5 w-3.5" />
+                        Gönder
+                      </Button>
+                    </div>
                   </div>
                 )}
 

@@ -60,7 +60,38 @@ export interface Lead {
   deal_amount: number | null;
   commission_amount: number | null;
   deal_closed_at: string | null;
+  fields_extracted_by_ai: boolean;
   created_at: string;
+}
+
+export interface LeadUpdatePayload {
+  district?: string | null;
+  budget_min?: number | null;
+  budget_max?: number | null;
+  room_count?: string | null;
+  radius_km?: number | null;
+}
+
+export interface WhatsAppMessage {
+  id: string;
+  lead_id: string;
+  direction: "in" | "out";
+  message_type: string;
+  body: string | null;
+  created_at: string;
+}
+
+export interface LeadFieldExtractionDraft {
+  district: string | null;
+  budget_min: number | null;
+  budget_max: number | null;
+  room_count: string | null;
+  radius_km: number | null;
+}
+
+export interface SuggestReplyResult {
+  draft: string;
+  match_count: number;
 }
 
 export interface AppointmentResult {
