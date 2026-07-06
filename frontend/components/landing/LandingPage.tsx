@@ -3,12 +3,12 @@ import { HeroFeatures } from "@/components/landing/HeroFeatures";
 import { CTASection } from "@/components/landing/CTASection";
 import { Footer } from "@/components/landing/Footer";
 
-export function LandingPage() {
+export function LandingPage({ isAuthenticated = false }: { isAuthenticated?: boolean }) {
   return (
     <div className="flex min-h-screen flex-col bg-background">
-      <Hero />
+      <Hero isAuthenticated={isAuthenticated} />
       <HeroFeatures />
-      <CTASection />
+      <CTASection isAuthenticated={isAuthenticated} />
       <Footer />
     </div>
   );

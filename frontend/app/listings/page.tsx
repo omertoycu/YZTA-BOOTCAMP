@@ -89,20 +89,12 @@ export default function ListingsPage() {
             Ofisinizin tüm gayrimenkul portföyünü tek yerden yönetin.
           </p>
         </div>
-        <div className="flex gap-2">
-          <Link href="/listings/import">
-            <Button variant="outline">
-              <Icon name="cloud_download" />
-              Sahibinden&apos;den Toplu Aktar
-            </Button>
-          </Link>
-          <Link href="/listings/new">
-            <Button>
-              <Icon name="add" />
-              Yeni İlan Ekle
-            </Button>
-          </Link>
-        </div>
+        <Link href="/listings/new">
+          <Button>
+            <Icon name="add" />
+            Yeni İlan Ekle
+          </Button>
+        </Link>
       </div>
 
       {error && <Alert>{error}</Alert>}

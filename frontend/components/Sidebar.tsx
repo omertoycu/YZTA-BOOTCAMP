@@ -11,6 +11,7 @@ import { cn } from "@/lib/utils";
 const NAV_LINKS = [
   { href: "/dashboard", label: "Dashboard", icon: "dashboard" },
   { href: "/listings", label: "İlanlar", icon: "home_work" },
+  { href: "/listings/import", label: "Portföy Aktar", icon: "cloud_download" },
   { href: "/leads", label: "Adaylar", icon: "group" },
   { href: "/assistant", label: "YZ Asistanı", icon: "psychology" },
   { href: "/reports", label: "Reports", icon: "assessment" },
@@ -45,10 +46,17 @@ export function Sidebar() {
   }
 
   function renderNavLinks() {
+    // "/listings/import" da "/listings"'in prefix'i olduğu için basit
+    // startsWith ikisini birden aktif gösterirdi — en uzun eşleşen href'i
+    // tek aktif sekme olarak seçiyoruz.
+    const activeHref = NAV_LINKS.filter((l) => pathname?.startsWith(l.href)).sort(
+      (a, b) => b.href.length - a.href.length
+    )[0]?.href;
+
     return (
       <ul className="flex flex-1 flex-col gap-2">
         {NAV_LINKS.map((link) => {
-          const isActive = pathname?.startsWith(link.href);
+          const isActive = link.href === activeHref;
           return (
             <li key={link.href}>
               <Link
@@ -105,10 +113,10 @@ export function Sidebar() {
     <>
       {/* Masaüstü sabit sidebar */}
       <nav className="fixed left-0 top-0 z-40 hidden h-full w-72 flex-col bg-surface-container-lowest p-6 shadow-[0px_10px_30px_rgba(0,0,0,0.04)] md:flex">
-        <div className="mb-12">
+        <Link href="/" className="mb-12 block w-fit">
           <h1 className="text-headline-lg font-black tracking-tight text-primary">PortföyAI</h1>
           <p className="mt-1 text-body-sm text-on-surface-variant">Closing Assistant</p>
-        </div>
+        </Link>
         {renderNavLinks()}
         {renderFooter()}
       </nav>
@@ -116,7 +124,9 @@ export function Sidebar() {
       {/* Mobil üst bar — sidebar md altında tamamen gizli olduğu için tek
           navigasyon yolu bu; hamburger'a basınca açılır menü render edilir. */}
       <div className="fixed left-0 right-0 top-0 z-40 flex items-center justify-between bg-surface-container-lowest px-4 py-3 shadow-[0px_4px_20px_rgba(0,0,0,0.06)] md:hidden">
-        <h1 className="text-title-md font-black tracking-tight text-primary">PortföyAI</h1>
+        <Link href="/" className="text-title-md font-black tracking-tight text-primary">
+          PortföyAI
+        </Link>
         <button
           type="button"
           onClick={() => setIsMobileOpen(true)}
@@ -133,7 +143,9 @@ export function Sidebar() {
           <div className="absolute inset-0 bg-black/40" onClick={() => setIsMobileOpen(false)} />
           <nav className="relative flex h-full w-72 flex-col bg-surface-container-lowest p-6 shadow-xl">
             <div className="mb-8 flex items-center justify-between">
-              <h1 className="text-headline-lg font-black tracking-tight text-primary">PortföyAI</h1>
+              <Link href="/" className="text-headline-lg font-black tracking-tight text-primary">
+                PortföyAI
+              </Link>
               <button
                 type="button"
                 onClick={() => setIsMobileOpen(false)}

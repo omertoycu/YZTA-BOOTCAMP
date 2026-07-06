@@ -1,32 +1,19 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
 import { getToken } from "@/lib/api";
-import { Spinner } from "@/components/ui/Spinner";
 import { LandingPage } from "@/components/landing/LandingPage";
 
+// Girişli kullanıcı da bu sayfayı görebilmeli — sidebar'daki "PortföyAI"
+// logosu buraya bağlanıyor (uygulamanın "reklam yüzü"), bu yüzden artık
+// otomatik /dashboard'a yönlendirme YOK. Sadece CTA'lar isAuthenticated'a
+// göre "Panele Git"e dönüşüyor (bkz. Hero/CTASection).
 export default function HomePage() {
-  const router = useRouter();
-  const [checkingAuth, setCheckingAuth] = useState(true);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
 
   useEffect(() => {
-    if (getToken()) {
-      setIsAuthenticated(true);
-      router.replace("/dashboard");
-      return;
-    }
-    setCheckingAuth(false);
-  }, [router]);
+    setIsAuthenticated(Boolean(getToken()));
+  }, []);
 
-  if (checkingAuth || isAuthenticated) {
-    return (
-      <div className="flex min-h-[60vh] items-center justify-center">
-        <Spinner />
-      </div>
-    );
-  }
-
-  return <LandingPage />;
+  return <LandingPage isAuthenticated={isAuthenticated} />;
 }

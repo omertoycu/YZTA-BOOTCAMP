@@ -3,7 +3,7 @@ import { buttonVariants } from "@/components/ui/Button";
 import { Reveal } from "@/components/landing/Reveal";
 import { cn } from "@/lib/utils";
 
-export function CTASection() {
+export function CTASection({ isAuthenticated = false }: { isAuthenticated?: boolean }) {
   return (
     <section className="bg-primary px-6 py-24 md:px-12">
       <Reveal className="mx-auto flex max-w-2xl flex-col items-center gap-6 text-center">
@@ -13,8 +13,11 @@ export function CTASection() {
         <p className="text-body-lg text-on-primary/80">
           Kurulum birkaç dakika sürer. İlk portföyünüzü ekleyip ilk müşterinizi karşılamaya hemen başlayın.
         </p>
-        <Link href="/login" className={cn(buttonVariants({ size: "lg" }), "bg-on-primary text-primary hover:opacity-90")}>
-          Ücretsiz Dene
+        <Link
+          href={isAuthenticated ? "/dashboard" : "/login"}
+          className={cn(buttonVariants({ size: "lg" }), "bg-on-primary text-primary hover:opacity-90")}
+        >
+          {isAuthenticated ? "Panele Git" : "Ücretsiz Dene"}
         </Link>
       </Reveal>
     </section>
