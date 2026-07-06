@@ -37,21 +37,53 @@ def index_listing(listing: Listing) -> None:
     )
 
 
+# Süreç ömrü boyunca zaten yeniden endekslenmiş ofisler — reindex her fiyat
+# önerisi/durgun-portföy sorgusunda embedding hesaplamasın diye. ChromaDB'nin
+# sıfırlanması yalnızca deploy'da (yani süreç yeniden başladığında) olur; set
+# de aynı anda sıfırlandığı için "süreç başına bir kez" tam olarak doğru sıklık.
+# İlan ekleme/silme/tip değişikliği zaten kendi endeks güncellemesini yapıyor.
+_REINDEXED_OFFICE_IDS: set[str] = set()
+
+
 def reindex_office_listings(db: Session) -> None:
-    """Çağıran ofisin TÜM ilanlarını ChromaDB'ye yeniden yazar (upsert,
-    idempotent). Neden gerekli: Railway'de ChromaDB'nin kalıcı diski (Volume)
-    yok — her deploy'da emsal endeksi sıfırlanıyor, index_listing ise sadece
-    ilan OLUŞTURULURKEN çağrılıyordu. Sonuç: deploy'dan önce eklenmiş her ilan
+    """Çağıran ofisin TÜM ilanlarını ChromaDB'ye TEK toplu upsert ile yeniden
+    yazar — süreç başına ofis başına en fazla bir kez (bkz. _REINDEXED_OFFICE_IDS).
+
+    Neden gerekli: Railway'de ChromaDB'nin kalıcı diski (Volume) yok — her
+    deploy'da emsal endeksi sıfırlanıyor, index_listing ise sadece ilan
+    OLUŞTURULURKEN çağrılıyordu. Sonuç: deploy'dan önce eklenmiş her ilan
     emsal havuzundan kayboluyor ve tüm fiyat önerileri "yeterli emsal yok"a
     düşüyordu (gerçek prod hatası, kullanıcı ekran görüntüsüyle bildirdi).
-    Ayrıca eski endeks kayıtları listing_type metadata'sından yoksun olduğu
-    için yeni satılık/kiralık filtresi onları zaten dışlıyordu — upsert bunu
-    da onarıyor. Session RLS'li (get_tenant_db) olduğu için sadece çağıran
-    ofisin ilanları görülür; 1-5 danışmanlı ofislerde onlarca ilan olduğundan
-    istek başına maliyeti ihmal edilebilir."""
+
+    İlk sürüm bunu HER sorguda ve ilan başına ayrı upsert'le yapıyordu — her
+    dashboard/ilanlar sayfası yüklemesinde tüm portföy için embedding hesaplandı
+    ve prod gözle görülür yavaşladı (kullanıcı bildirdi). Şimdi hem süreç başına
+    bir kez hem tek toplu çağrı. Session RLS'li (get_tenant_db) olduğu için
+    sadece çağıran ofisin ilanları görülür."""
     listings = db.execute(select(Listing)).scalars().all()
-    for listing in listings:
-        index_listing(listing)
+    if not listings:
+        return
+    office_id = str(listings[0].office_id)
+    if office_id in _REINDEXED_OFFICE_IDS:
+        return
+
+    collection = get_listings_collection()
+    collection.upsert(
+        ids=[str(listing.id) for listing in listings],
+        documents=[_listing_document(listing) for listing in listings],
+        metadatas=[
+            {
+                "office_id": str(listing.office_id),
+                "price": float(listing.price),
+                "district": listing.district,
+                "room_count": listing.room_count,
+                "title": listing.title,
+                "listing_type": listing.listing_type,
+            }
+            for listing in listings
+        ],
+    )
+    _REINDEXED_OFFICE_IDS.add(office_id)
 
 
 def remove_listing_from_index(listing_id) -> None:
