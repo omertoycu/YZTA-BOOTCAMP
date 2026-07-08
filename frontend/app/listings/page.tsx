@@ -1,11 +1,11 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { AlertTriangle, Building2, Sparkles } from "lucide-react";
 import { apiFetch, getToken } from "@/lib/api";
-import type { Listing, PricingSuggestion, StaleListingAlert } from "@/lib/types";
+import type { Listing, ListingType, PricingSuggestion, PropertyType, StaleListingAlert } from "@/lib/types";
 import { formatCurrency } from "@/lib/format";
 import { Button } from "@/components/ui/Button";
 import { Icon } from "@/components/ui/Icon";
@@ -14,6 +14,57 @@ import { EmptyState } from "@/components/ui/EmptyState";
 import { Alert } from "@/components/ui/Alert";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { ListingCard } from "@/components/ListingCard";
+
+type StatusFilter = "all" | ListingType;
+type TypeFilter = "all" | PropertyType;
+
+const STATUS_OPTIONS: { value: StatusFilter; label: string }[] = [
+  { value: "all", label: "Tümü" },
+  { value: "sale", label: "Satılık" },
+  { value: "rent", label: "Kiralık" },
+];
+
+const TYPE_OPTIONS: { value: TypeFilter; label: string }[] = [
+  { value: "all", label: "Tümü" },
+  { value: "residential", label: "Konut" },
+  { value: "commercial", label: "İş Yeri" },
+  { value: "land", label: "Arsa" },
+];
+
+// Türkçe büyük/küçük harf kurallarına göre karşılaştırma — düz toLowerCase()
+// "İstanbul" gibi noktalı büyük İ'yi yanlış küçültür ("i̇stanbul").
+function normalizeTr(value: string): string {
+  return value.toLocaleLowerCase("tr-TR");
+}
+
+function SegmentedControl<T extends string>({
+  value,
+  onChange,
+  options,
+}: {
+  value: T;
+  onChange: (value: T) => void;
+  options: { value: T; label: string }[];
+}) {
+  return (
+    <div className="flex w-fit flex-wrap gap-1 rounded-full bg-surface-container p-1">
+      {options.map((option) => (
+        <button
+          key={option.value}
+          type="button"
+          onClick={() => onChange(option.value)}
+          className={`rounded-full px-3.5 py-1.5 text-body-sm font-medium transition-colors ${
+            value === option.value
+              ? "bg-primary text-on-primary shadow-sm"
+              : "text-text-muted hover:text-primary"
+          }`}
+        >
+          {option.label}
+        </button>
+      ))}
+    </div>
+  );
+}
 
 export default function ListingsPage() {
   const router = useRouter();
@@ -26,6 +77,49 @@ export default function ListingsPage() {
   const [staleAlertsByListing, setStaleAlertsByListing] = useState<Record<string, StaleListingAlert>>({});
   const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null);
   const [deleteLoading, setDeleteLoading] = useState(false);
+
+  // Filtreleme tamamen istemci tarafında — GET /listings zaten ofisin tüm
+  // portföyünü tek seferde döndürüyor (sayfalama yok, hedef ölçek 1-5
+  // danışmanlı ofis), ekstra istek atmaya gerek yok.
+  const [search, setSearch] = useState("");
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
+  const [typeFilter, setTypeFilter] = useState<TypeFilter>("all");
+  const [minSqm, setMinSqm] = useState("");
+  const [maxSqm, setMaxSqm] = useState("");
+
+  const hasActiveFilters =
+    search.trim() !== "" || statusFilter !== "all" || typeFilter !== "all" || minSqm !== "" || maxSqm !== "";
+
+  function clearFilters() {
+    setSearch("");
+    setStatusFilter("all");
+    setTypeFilter("all");
+    setMinSqm("");
+    setMaxSqm("");
+  }
+
+  const filteredListings = useMemo(() => {
+    const query = normalizeTr(search.trim());
+    const min = minSqm !== "" ? Number(minSqm) : null;
+    const max = maxSqm !== "" ? Number(maxSqm) : null;
+
+    return listings.filter((listing) => {
+      // Şehir/ilçe/mahalle: tek bir yapılandırılmış alan yok — district
+      // (il/ilçe) ve title (mahalle çoğunlukla burada geçiyor, bkz.
+      // Matching Agent'ın aynı yaklaşımı) birlikte aranıyor.
+      if (query && !normalizeTr(`${listing.title} ${listing.district}`).includes(query)) {
+        return false;
+      }
+      if (statusFilter !== "all" && listing.listing_type !== statusFilter) return false;
+      if (typeFilter !== "all" && listing.property_type !== typeFilter) return false;
+      if (min !== null || max !== null) {
+        if (listing.square_meters == null) return false;
+        if (min !== null && listing.square_meters < min) return false;
+        if (max !== null && listing.square_meters > max) return false;
+      }
+      return true;
+    });
+  }, [listings, search, statusFilter, typeFilter, minSqm, maxSqm]);
 
   useEffect(() => {
     if (!getToken()) {
@@ -115,8 +209,82 @@ export default function ListingsPage() {
         />
       )}
 
+      {!isLoading && !error && listings.length > 0 && (
+        <div className="flex flex-col gap-4 rounded-lg bg-surface-container-lowest p-4 shadow-[0px_10px_30px_rgba(0,0,0,0.04)]">
+          <div className="flex flex-col gap-3 lg:flex-row lg:items-center">
+            <div className="relative flex-1">
+              <Icon
+                name="search"
+                className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 !text-[20px] text-outline"
+              />
+              <input
+                type="text"
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder="Şehir, ilçe veya mahalle ara..."
+                aria-label="Şehir, ilçe veya mahalle ara"
+                className="h-10 w-full rounded-full border border-outline-variant bg-surface-container-lowest pl-10 pr-3 text-body-sm text-on-surface placeholder:text-text-muted transition-shadow focus:border-secondary focus:outline-none focus:ring-2 focus:ring-secondary-container"
+              />
+            </div>
+            <div className="flex items-center gap-2 text-body-sm text-text-muted">
+              <span>m²</span>
+              <input
+                type="number"
+                min={0}
+                inputMode="numeric"
+                value={minSqm}
+                onChange={(e) => setMinSqm(e.target.value)}
+                placeholder="Min"
+                aria-label="Minimum metrekare"
+                className="h-10 w-20 rounded border border-outline-variant bg-surface-container-lowest px-2 text-body-sm text-on-surface placeholder:text-text-muted focus:border-secondary focus:outline-none focus:ring-2 focus:ring-secondary-container"
+              />
+              <span>–</span>
+              <input
+                type="number"
+                min={0}
+                inputMode="numeric"
+                value={maxSqm}
+                onChange={(e) => setMaxSqm(e.target.value)}
+                placeholder="Max"
+                aria-label="Maksimum metrekare"
+                className="h-10 w-20 rounded border border-outline-variant bg-surface-container-lowest px-2 text-body-sm text-on-surface placeholder:text-text-muted focus:border-secondary focus:outline-none focus:ring-2 focus:ring-secondary-container"
+              />
+            </div>
+          </div>
+
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div className="flex flex-wrap items-center gap-3">
+              <SegmentedControl value={statusFilter} onChange={setStatusFilter} options={STATUS_OPTIONS} />
+              <SegmentedControl value={typeFilter} onChange={setTypeFilter} options={TYPE_OPTIONS} />
+            </div>
+            <div className="flex items-center gap-3">
+              <span className="text-body-sm text-text-muted">
+                {filteredListings.length} / {listings.length} portföy
+              </span>
+              {hasActiveFilters && (
+                <button
+                  type="button"
+                  onClick={clearFilters}
+                  className="text-body-sm font-medium text-secondary hover:underline"
+                >
+                  Filtreleri temizle
+                </button>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {!isLoading && !error && listings.length > 0 && filteredListings.length === 0 && (
+        <EmptyState
+          icon={Building2}
+          title="Filtrelere uygun portföy bulunamadı"
+          description="Arama kriterlerinizi veya filtreleri değiştirmeyi deneyin."
+        />
+      )}
+
       <div className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-3">
-        {listings.map((listing) => {
+        {filteredListings.map((listing) => {
           const suggestion = pricingByListing[listing.id];
           const staleAlert = staleAlertsByListing[listing.id];
           return (
