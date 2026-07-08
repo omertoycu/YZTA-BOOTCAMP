@@ -56,6 +56,19 @@ def db_session():
     session.close()
 
 
+@pytest.fixture(autouse=True)
+def _no_real_geocoding_by_default(monkeypatch):
+    """Konum doğrulaması artık HER eşleştirme isteğinde (radius_km olmasa bile)
+    bir güvenlik ağı olarak devreye giriyor (bkz. app/agents/matching.py) —
+    bunu mock'lamayan testler artık gerçek Nominatim'e ağ isteği atar (yavaş,
+    flaky, Nominatim'in kullanım politikasını ihlal eder). Bu yüzden testler
+    varsayılan olarak geocode_district'i None döndürür; geocoding'i özellikle
+    test eden dosyalar (ör. test_geo_matching.py) kendi monkeypatch'leriyle
+    bunun üzerine yazar (aynı test'in monkeypatch fixture'ı paylaşıldığı için
+    testin kendi setattr'ı bu varsayılanı ezer)."""
+    monkeypatch.setattr("app.agents.matching.geocode_district", lambda db, district: None)
+
+
 @pytest.fixture()
 def client():
     return TestClient(app)

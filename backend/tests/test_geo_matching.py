@@ -52,16 +52,14 @@ def test_radius_match_includes_nearby_excludes_far(client, monkeypatch):
     assert titles == {"Yakın ilan"}
 
 
-def test_match_without_radius_keeps_exact_district_behavior(client, monkeypatch):
-    """radius_km verilmezse geocode_district hiç çağrılmamalı, eski (bölge
-    string tam eşleşmesi) davranış bozulmadan korunmalı."""
-    calls = []
-
-    def _tracking_geocode(db, district):
-        calls.append(district)
-        return _fake_geocode(db, district)
-
-    monkeypatch.setattr(matching, "geocode_district", _tracking_geocode)
+def test_match_without_radius_falls_back_to_default_geocoding_safety_net(client, monkeypatch):
+    """Davranış kasıtlı olarak değişti (kullanıcı talebi: "yapay zeka arkada
+    bir sorgu daha atıp konumu doğrulasın"). Artık radius_km verilmese bile,
+    string/başlık eşleşmesi bulamayan bir portföy için DEFAULT_FALLBACK_RADIUS_KM
+    yarıçapıyla bir coğrafi doğrulama güvenlik ağı devreye girer — yakın farklı
+    bir ilçe (Üsküdar, Kadıköy'e ~5km) artık dahil edilir, gerçekten uzak bir
+    bölge (Şişli, ~90km) yine elenir."""
+    monkeypatch.setattr(matching, "geocode_district", _fake_geocode)
 
     headers = _register(client, "Ofis Geo Test 2", "owner2@geo-test.com")
     client.post(
@@ -71,7 +69,12 @@ def test_match_without_radius_keeps_exact_district_behavior(client, monkeypatch)
     )
     client.post(
         "/listings",
-        json={"title": "Farklı bölge", "district": "Uskudar", "price": 15000, "room_count": "2+1"},
+        json={"title": "Yakın farklı bölge", "district": "Uskudar", "price": 15000, "room_count": "2+1"},
+        headers=headers,
+    )
+    client.post(
+        "/listings",
+        json={"title": "Çok uzak bölge", "district": "Sisli", "price": 15000, "room_count": "2+1"},
         headers=headers,
     )
     lead_resp = client.post(
@@ -84,8 +87,37 @@ def test_match_without_radius_keeps_exact_district_behavior(client, monkeypatch)
     match_resp = client.post(f"/leads/{lead_id}/match", headers=headers)
     assert match_resp.status_code == 200
     titles = {m["title"] for m in match_resp.json()}
+    assert titles == {"Tam eşleşme", "Yakın farklı bölge"}
+
+
+def test_match_without_radius_and_ungeocodable_lead_district_keeps_exact_match_only(client, monkeypatch):
+    """Lead'in KENDİ bölgesi hiç geocode edilemezse (ör. anlamsız/bilinmeyen
+    bir ifade), coğrafi güvenlik ağı hiç devreye girmemeli — eski (sadece
+    string/başlık eşleşmesi) davranış korunmalı."""
+    monkeypatch.setattr(matching, "geocode_district", lambda db, district: None)
+
+    headers = _register(client, "Ofis Geo Test 2b", "owner2b@geo-test.com")
+    client.post(
+        "/listings",
+        json={"title": "Tam eşleşme", "district": "Kadikoy", "price": 15000, "room_count": "2+1"},
+        headers=headers,
+    )
+    client.post(
+        "/listings",
+        json={"title": "Farklı bölge", "district": "Uskudar", "price": 15000, "room_count": "2+1"},
+        headers=headers,
+    )
+    lead_resp = client.post(
+        "/leads",
+        json={"contact_phone": "5551112245", "district": "Kadikoy"},
+        headers=headers,
+    )
+    lead_id = lead_resp.json()["id"]
+
+    match_resp = client.post(f"/leads/{lead_id}/match", headers=headers)
+    assert match_resp.status_code == 200
+    titles = {m["title"] for m in match_resp.json()}
     assert titles == {"Tam eşleşme"}
-    assert calls == []
 
 
 def test_match_without_radius_is_case_and_whitespace_insensitive(client, monkeypatch):
@@ -412,6 +444,49 @@ def test_listing_type_preference_excludes_wrong_transaction_type(client, monkeyp
     assert match_resp.status_code == 200
     titles = {m["title"] for m in match_resp.json()}
     assert titles == {"Kiralık daire"}
+
+
+def test_property_type_preference_matches_via_title_when_db_column_is_stale(client, monkeypatch):
+    """Gerçek prod hatası (kullanıcı ekran görüntüsüyle bildirdi): migration
+    0022'den önce oluşturulmuş (ya da danışmanın hiç düzeltmediği) bir ilan
+    DB'de "residential" (varsayılan) kalabiliyor, başlığı açıkça "İŞ YERİ" dese
+    bile. Bir önceki düzeltmedeki SERT property_type filtresi böyle bir ilanı
+    tam da bu yüzden elemeye başlamıştı — artık başlıkta hedef tipin anahtar
+    kelimesi ("iş yeri") geçtiği için DB kolonu "residential" kalsa bile
+    eşleşme kabul edilmeli."""
+    monkeypatch.setattr(matching, "geocode_district", lambda db, district: None)
+
+    headers = _register(client, "Ofis Tip Test 3", "owner3-stale@tip-test.com")
+    client.post(
+        "/listings",
+        json={
+            "title": "BEGO GAYRİMENKULDEN ULUYOLA YAKIN 600 M2 KİRALIK İŞ YERİ",
+            "district": "Osmangazi",
+            "price": 30000,
+            "room_count": "Belirtilmedi",
+            "listing_type": "rent",
+            # property_type kasıtlı olarak gönderilmedi — migration-öncesi bir
+            # ilanı taklit etmek için varsayılan "residential" kalıyor.
+        },
+        headers=headers,
+    )
+
+    lead_resp = client.post(
+        "/leads",
+        json={
+            "contact_phone": "5551114433",
+            "district": "Osmangazi",
+            "listing_type_preference": "rent",
+            "property_type_preference": "commercial",
+        },
+        headers=headers,
+    )
+    lead_id = lead_resp.json()["id"]
+
+    match_resp = client.post(f"/leads/{lead_id}/match", headers=headers)
+    assert match_resp.status_code == 200
+    titles = {m["title"] for m in match_resp.json()}
+    assert titles == {"BEGO GAYRİMENKULDEN ULUYOLA YAKIN 600 M2 KİRALIK İŞ YERİ"}
 
 
 def test_commercial_property_type_skips_room_count_filter(client, monkeypatch):
