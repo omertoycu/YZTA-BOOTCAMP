@@ -11,7 +11,6 @@ from app.models import (  # noqa: F401  (Base.metadata için import gerekli)
     User,
     Listing,
     Lead,
-    LeadScore,
     WhatsAppInboundEvent,
     GeocodedDistrict,
 )

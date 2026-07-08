@@ -19,9 +19,6 @@ def test_overview_returns_zeroes_for_empty_office(client):
     body = resp.json()
     assert body["listing_count"] == 0
     assert body["lead_count"] == 0
-    assert body["average_score"] is None
-    assert len(body["score_distribution"]) == 3
-    assert all(bucket["count"] == 0 for bucket in body["score_distribution"])
     assert body["conversion_rate"] is None
     assert body["closed_deal_count"] == 0
     assert body["total_deal_volume"] == 0
@@ -50,7 +47,7 @@ def test_overview_aggregates_listings_and_leads(client):
         headers=headers,
     )
     lead_id = lead_resp.json()["id"]
-    client.post(f"/leads/{lead_id}/score", headers=headers)
+    assert lead_id
 
     resp = client.get("/reports/overview", headers=headers)
     assert resp.status_code == 200
@@ -63,9 +60,6 @@ def test_overview_aggregates_listings_and_leads(client):
     assert body["lead_count"] == 1
     assert body["leads_by_source"] == {"manual": 1}
     assert body["leads_by_district"] == [{"district": "Kadıköy", "count": 1}]
-
-    assert body["scored_lead_count"] == 1
-    assert body["average_score"] is not None
 
 
 def test_overview_aggregates_commission_data(client):

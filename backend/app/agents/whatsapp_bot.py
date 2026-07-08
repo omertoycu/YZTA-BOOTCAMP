@@ -141,19 +141,7 @@ def _matches_message(office: Office, lead: Lead, matches: list[dict]) -> str:
     return "\n".join(lines)
 
 
-def build_auto_reply(
-    db: Session,
-    office: Office,
-    lead: Lead,
-    *,
-    command: str | None,
-    is_new_lead: bool,
-    fields_updated: bool,
-) -> str | None:
-    """Gönderilecek otomatik yanıt metnini döner; None = sessiz kal (maliyet
-    kalkanı: tanınmayan/İlgisiz mesajlara yanıt da üretilmez). Çağıran taraf
-    (intake._maybe_auto_reply) tenant context'i set etmiş olmalı — Matching
-    Agent RLS'li listings tablosunu okur."""
+def _command_reply(db: Session, office: Office, lead: Lead, command: str) -> str:
     if command == "menu":
         return build_usage_message(office, lead)
 
@@ -177,47 +165,73 @@ def build_auto_reply(
             "sizinle iletişime geçecek. İyi günler dileriz!"
         )
 
-    if command == "listings":
-        if not _has_criteria(lead):
-            return (
-                f"{_greeting(lead)} size uygun portföyleri bulabilmemiz için önce "
-                "kriterlerinizi yazın — örnek: \"Kadıköy'de satılık 3+1, bütçem 5 milyon TL\"."
-            )
-        matches = _find_matches(db, lead)
-        if not matches:
-            return (
-                f"{_greeting(lead)} şu an kriterlerinize birebir uyan bir portföyümüz yok. "
-                "Kriterlerinize uygun yeni bir portföy geldiğinde danışmanımız size haber verecek."
-            )
+    # command == "listings"
+    if not _has_criteria(lead):
+        return (
+            f"{_greeting(lead)} size uygun portföyleri bulabilmemiz için önce "
+            "kriterlerinizi yazın — örnek: \"Kadıköy'de satılık 3+1, bütçem 5 milyon TL\"."
+        )
+    matches = _find_matches(db, lead)
+    if not matches:
+        return (
+            f"{_greeting(lead)} şu an kriterlerinize birebir uyan bir portföyümüz yok. "
+            "Kriterlerinize uygun yeni bir portföy geldiğinde danışmanımız size haber verecek."
+        )
+    return _matches_message(office, lead, matches)
+
+
+def _match_send_reply(db: Session, office: Office, lead: Lead) -> str:
+    matches = _find_matches(db, lead)
+    if not matches:
+        summary = _criteria_summary(lead)
+        return (
+            f"{_greeting(lead)} kriterlerinizi aldık ({summary}). Şu an birebir uyan "
+            "portföyümüz yok; uygun bir portföy geldiğinde danışmanımız size ulaşacak. "
+            "Dilerseniz DANIŞMAN yazarak hemen görüşme talep edebilirsiniz."
+        )
+    try:
+        draft = draft_reply(
+            last_message=None,
+            district=lead.district,
+            room_count=lead.room_count,
+            budget_max=float(lead.budget_max) if lead.budget_max else None,
+            candidate_listings=matches,
+        )
+        return f"{draft}\n\nDetay ve yer gösterimi için DANIŞMAN yazmanız yeterli."
+    except ReplyDraftError:
         return _matches_message(office, lead, matches)
 
-    # Komut yok: sadece iki durumda konuşuruz — kriterlerin yeni dolduğu mesaj
-    # (eşleşme gönderimi; ilk mesajında kriter veren aday karşılama yerine
-    # doğrudan bunu almalı) ve ilk temas (karşılama + kullanım bilgisi).
-    # Gerisi sessizlik: tanınmayan serbest metne yanıt üretmek hem maliyet
-    # hem de yanlış beklenti yaratır.
-    if fields_updated and _has_criteria(lead):
-        matches = _find_matches(db, lead)
-        if not matches:
-            summary = _criteria_summary(lead)
-            return (
-                f"{_greeting(lead)} kriterlerinizi aldık ({summary}). Şu an birebir uyan "
-                "portföyümüz yok; uygun bir portföy geldiğinde danışmanımız size ulaşacak. "
-                "Dilerseniz DANIŞMAN yazarak hemen görüşme talep edebilirsiniz."
-            )
-        try:
-            draft = draft_reply(
-                last_message=None,
-                district=lead.district,
-                room_count=lead.room_count,
-                budget_max=float(lead.budget_max) if lead.budget_max else None,
-                candidate_listings=matches,
-            )
-            return f"{draft}\n\nDetay ve yer gösterimi için DANIŞMAN yazmanız yeterli."
-        except ReplyDraftError:
-            return _matches_message(office, lead, matches)
+
+def build_auto_reply(
+    db: Session,
+    office: Office,
+    lead: Lead,
+    *,
+    command: str | None,
+    is_new_lead: bool,
+    fields_updated: bool,
+) -> list[str]:
+    """Gönderilecek otomatik yanıt mesajlarını sırasıyla döner; boş liste =
+    sessiz kal (maliyet kalkanı: tanınmayan/İlgisiz mesajlara yanıt da
+    üretilmez). Çağıran taraf (intake._maybe_auto_reply) tenant context'i set
+    etmiş olmalı — Matching Agent RLS'li listings tablosunu okur.
+
+    Yeni bir adayın kullanım bilgisini HİÇBİR ZAMAN kaçırmaması için: ilk
+    temas her koşulda sabit karşılama+kısayol mesajını alır — aday ilk
+    mesajında zaten kriter verip doğrudan eşleşme aldığında bile (önceden bu
+    durumda karşılama hiç gönderilmiyordu, aday kısayolları hiç öğrenmiyordu).
+    """
+    messages: list[str] = []
 
     if is_new_lead:
-        return build_usage_message(office, lead)
+        messages.append(build_usage_message(office, lead))
 
-    return None
+    if command:
+        # MENÜ zaten karşılama mesajıyla birebir aynı içerik — yeni adaya iki
+        # kez göndermenin bir anlamı yok.
+        if not (is_new_lead and command == "menu"):
+            messages.append(_command_reply(db, office, lead, command))
+    elif fields_updated and _has_criteria(lead):
+        messages.append(_match_send_reply(db, office, lead))
+
+    return messages

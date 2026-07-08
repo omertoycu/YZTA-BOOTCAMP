@@ -187,6 +187,25 @@ def test_menu_command_skips_extraction_and_replies(client, db_session, monkeypat
     assert "Kısayollar" in sent_calls[1][2]
 
 
+def test_new_lead_sending_menu_first_gets_single_welcome(client, db_session, monkeypatch):
+    """Yeni bir aday ilk mesajı olarak doğrudan MENÜ yazarsa karşılama mesajı
+    ile komut yanıtı aynı içerikte olduğu için tek mesaj gitmeli, iki kez
+    aynı metin gönderilmemeli."""
+    monkeypatch.setattr(settings, "whatsapp_app_secret", WHATSAPP_APP_SECRET)
+    _register_office(client, "Ofis Bot Menü İlk", "owner@bot-menu-ilk.com")
+    _configure_office(db_session, "Ofis Bot Menü İlk", "2000000009", auto_reply=True)
+
+    sent_calls = []
+    monkeypatch.setattr(
+        intake, "send_whatsapp_text", lambda pid, to, text: sent_calls.append((pid, to, text))
+    )
+
+    _post_webhook(client, _build_payload("2000000009", "wamid.BOTMENUFIRST1", "905552220009", body="MENÜ"))
+
+    assert len(sent_calls) == 1
+    assert "Kısayollar" in sent_calls[0][2]
+
+
 def test_agent_command_notifies_office(client, db_session, monkeypatch):
     monkeypatch.setattr(settings, "whatsapp_app_secret", WHATSAPP_APP_SECRET)
     _register_office(client, "Ofis Bot Danışman", "owner@bot-danisman.com")
@@ -257,7 +276,13 @@ def test_criteria_message_triggers_auto_match_send(client, db_session, monkeypat
         ),
     )
 
-    # Yeni lead: hem karşılama hem (kriterler dolduğu için) eşleşme mesajı gider —
+    # Yeni lead, ilk mesajında zaten kriter veriyor: eskiden bu durumda
+    # karşılama+kısayol mesajı hiç gitmiyordu (aday MENÜ/DANIŞMAN gibi
+    # kısayolları hiç öğrenmiyordu) — artık her yeni temas, içerikten bağımsız
+    # olarak sabit karşılama mesajını da alıyor, üstüne eşleşme mesajı gelir.
+    assert len(sent_calls) == 2
+    welcome_messages = [text for _, to, text in sent_calls if "İLANLAR" in text and "DANIŞMAN" in text]
+    assert len(welcome_messages) == 1
     # Gemini yapılandırılmadığı için (test env) kişisel taslak yerine
     # deterministik listeye düşülür, gerçek portföy başlığı mesajda olmalı.
     match_messages = [text for _, to, text in sent_calls if "Kadikoy 3+1 Satılık Daire" in text]

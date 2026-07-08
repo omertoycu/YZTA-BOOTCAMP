@@ -8,7 +8,6 @@ import {
   Compass,
   DollarSign,
   Download,
-  Gauge,
   MapPin,
   Mic,
   MessageCircle,
@@ -33,7 +32,6 @@ import type {
   Lead,
   LeadFieldExtractionDraft,
   LeadNote,
-  LeadScore,
   LeadStatus,
   LeadUpdatePayload,
   LeadVoiceNoteDraft,
@@ -104,7 +102,6 @@ export default function LeadsPage() {
   const [leads, setLeads] = useState<Lead[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [scoresByLead, setScoresByLead] = useState<Record<string, LeadScore>>({});
   const [matchesByLead, setMatchesByLead] = useState<Record<string, MatchResult[]>>({});
   const [followUpResultByLead, setFollowUpResultByLead] = useState<Record<string, string>>({});
   const [notesByLead, setNotesByLead] = useState<Record<string, LeadNote[]>>({});
@@ -209,18 +206,6 @@ export default function LeadsPage() {
       await loadLeads();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Lead eklenemedi");
-    }
-  }
-
-  async function handleScore(leadId: string) {
-    setPendingAction(`score-${leadId}`);
-    try {
-      const score = await apiFetch<LeadScore>(`/leads/${leadId}/score`, { method: "POST" });
-      setScoresByLead((prev) => ({ ...prev, [leadId]: score }));
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Skor hesaplanamadı");
-    } finally {
-      setPendingAction(null);
     }
   }
 
@@ -611,7 +596,7 @@ export default function LeadsPage() {
       <div>
         <h1 className="text-headline-lg text-primary">Adaylar</h1>
         <p className="mt-1 text-body-sm text-text-muted">
-          Gelen talepleri skorlayın, en uygun portföyle eşleştirin.
+          Gelen talepleri en uygun portföyle eşleştirin, WhatsApp&apos;tan takip edin.
         </p>
       </div>
 
@@ -725,7 +710,6 @@ export default function LeadsPage() {
 
       <div className="flex flex-col gap-4">
         {leads.map((lead) => {
-          const score = scoresByLead[lead.id];
           const matches = matchesByLead[lead.id];
           const activeTab = activeTabByLead[lead.id] ?? null;
           return (
@@ -749,12 +733,6 @@ export default function LeadsPage() {
                     <Badge variant={statusVariant(lead.status)}>
                       {LEAD_STATUS_LABELS[lead.status] ?? lead.status}
                     </Badge>
-                    {score && (
-                      <Badge variant={scoreVariant(score.score)}>
-                        <Gauge className="h-3 w-3" />
-                        {score.score}/100
-                      </Badge>
-                    )}
                   </div>
                   <div className="flex items-center gap-2">
                     <select
@@ -857,23 +835,11 @@ export default function LeadsPage() {
 
                 {activeTab === "eslestirme" && (
                   <p className="text-[12px] text-text-muted">
-                    <b>Skorla</b>: yanıt hızı (%40), mesaj yoğunluğu (%30) ve bütçe netliği (%30)
-                    üzerinden 0-100 arası bir öncelik puanı üretir — gün içinde hangi adaya önce
-                    dönmeniz gerektiğini gösterir. <b>Eşleştir</b>: adayın kriterlerine uyan kendi
-                    portföylerinizi bulur.
+                    <b>Eşleştir</b>: adayın kriterlerine uyan kendi portföylerinizi bulur.
                   </p>
                 )}
                 {activeTab === "eslestirme" && (
                   <div className="flex flex-wrap gap-2">
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      isLoading={pendingAction === `score-${lead.id}`}
-                      onClick={() => handleScore(lead.id)}
-                    >
-                      <Gauge className="h-3.5 w-3.5" />
-                      Skorla
-                    </Button>
                     <Button
                       variant="outline"
                       size="sm"
@@ -910,21 +876,6 @@ export default function LeadsPage() {
                       <Sparkles className="h-3.5 w-3.5" />
                       Mesajlardan Yeniden Analiz
                     </Button>
-                  </div>
-                )}
-
-                {activeTab === "eslestirme" && score && (
-                  <div className="flex flex-wrap items-center gap-2 rounded bg-surface-bright p-3 text-[12px] text-on-surface">
-                    <span className="font-semibold text-primary">Skor detayı:</span>
-                    <Badge variant="neutral">
-                      Yanıt hızı {Math.round(Number(score.score_breakdown?.response_speed_score ?? 0))}/100
-                    </Badge>
-                    <Badge variant="neutral">
-                      Mesaj yoğunluğu {Math.round(Number(score.score_breakdown?.message_count_score ?? 0))}/100
-                    </Badge>
-                    <Badge variant="neutral">
-                      Bütçe netliği {Math.round(Number(score.score_breakdown?.budget_consistency_score ?? 0))}/100
-                    </Badge>
                   </div>
                 )}
 

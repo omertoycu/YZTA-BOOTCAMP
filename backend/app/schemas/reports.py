@@ -6,11 +6,6 @@ class DistrictCount(BaseModel):
     count: int
 
 
-class ScoreBucket(BaseModel):
-    label: str
-    count: int
-
-
 class DistrictRevenue(BaseModel):
     district: str
     revenue: float
@@ -27,9 +22,6 @@ class ReportsOverviewResponse(BaseModel):
     leads_by_status: dict[str, int]
     won_lead_count: int
     active_follow_up_count: int
-    scored_lead_count: int
-    average_score: float | None
-    score_distribution: list[ScoreBucket]
     # Komisyon takibi (bkz. PATCH /leads/{id}/deal) — status="won" şartı aranmaz,
     # danışman anlaşma detayını status geçişinden bağımsız girebilir.
     conversion_rate: float | None

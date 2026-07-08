@@ -10,7 +10,6 @@ from app.agents.graph import build_matching_graph
 from app.agents.lead_voice_note import VoiceNoteError, transcribe_and_extract_note
 from app.agents.match_ranking import rerank_candidates_with_ai
 from app.agents.reply_draft import ReplyDraftError, draft_reply
-from app.agents.scoring import calculate_lead_score
 from app.agents.voice_listing import MAX_AUDIO_BYTES
 from app.agents.whatsapp_extract import (
     MAX_EXTRACTIONS_PER_24H,
@@ -24,7 +23,6 @@ from app.api.deps import get_current_user
 from app.middleware.tenant import get_tenant_db
 from app.models.lead import Lead
 from app.models.lead_note import LeadNote
-from app.models.lead_score import LeadScore
 from app.models.office import Office
 from app.models.user import User
 from app.models.whatsapp_message import WhatsAppMessage
@@ -49,7 +47,6 @@ from app.schemas.lead import (
     SuggestReplyResponse,
     WhatsAppMessageResponse,
 )
-from app.schemas.lead_score import LeadScoreResponse
 
 router = APIRouter(prefix="/leads", tags=["leads"])
 
@@ -110,8 +107,8 @@ def get_lead(lead_id: str, db: Session = Depends(get_tenant_db)):
 
 @router.delete("/{lead_id}", status_code=204)
 def delete_lead(lead_id: str, db: Session = Depends(get_tenant_db)):
-    """Adayı kalıcı olarak siler. Bağlı notlar/skorlar/WhatsApp geçmişi
-    (lead_notes, lead_scores, whatsapp_inbound_events, whatsapp_messages)
+    """Adayı kalıcı olarak siler. Bağlı notlar/WhatsApp geçmişi
+    (lead_notes, whatsapp_inbound_events, whatsapp_messages)
     migration 0019'daki ON DELETE CASCADE ile otomatik silinir — burada
     ayrıca elle temizlemeye gerek yok. Geri alınamaz, frontend onay ister."""
     lead = db.get(Lead, lead_id)
@@ -203,28 +200,6 @@ def match_lead(lead_id: str, db: Session = Depends(get_tenant_db)):
         criteria=_match_criteria(lead),
         candidates=result["candidate_listings"],
     )
-
-
-@router.post("/{lead_id}/score", response_model=LeadScoreResponse, status_code=201)
-def score_lead(
-    lead_id: str,
-    db: Session = Depends(get_tenant_db),
-    current_user: dict = Depends(get_current_user),
-):
-    lead = db.get(Lead, lead_id)
-    if not lead:
-        raise HTTPException(status_code=404, detail="Lead bulunamadı")
-
-    score, breakdown = calculate_lead_score(lead)
-    lead_score = LeadScore(
-        office_id=current_user["office_id"],
-        lead_id=lead.id,
-        score=score,
-        score_breakdown=breakdown,
-    )
-    db.add(lead_score)
-    db.commit()
-    return lead_score
 
 
 @router.post("/{lead_id}/follow-up", response_model=FollowUpResponse)

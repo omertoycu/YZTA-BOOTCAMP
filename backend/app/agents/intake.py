@@ -257,7 +257,7 @@ def _maybe_auto_reply(
         return
 
     set_tenant(db, office_id)
-    reply = build_auto_reply(
+    replies = build_auto_reply(
         db,
         office,
         lead,
@@ -265,22 +265,30 @@ def _maybe_auto_reply(
         is_new_lead=is_new_lead,
         fields_updated=fields_updated,
     )
-    if not reply:
+    if not replies:
         db.rollback()
         return
 
-    try:
-        send_whatsapp_text(office.whatsapp_phone_number_id, lead.contact_phone, reply)
-    except WhatsAppSendError:
-        db.rollback()
-        return
-
-    db.add(
-        WhatsAppMessage(
-            office_id=office_id, lead_id=lead.id, direction="out", message_type="text", body=reply
+    # Birden fazla mesaj olabilir (örn. yeni adaya karşılama + aynı mesajdan
+    # gelen kriterlerle eşleşme gönderimi) — sırayla gönderilir, ilk hatada
+    # durulur ama o ana kadar başarıyla gidenler yine de commit edilir.
+    sent_any = False
+    for reply in replies:
+        try:
+            send_whatsapp_text(office.whatsapp_phone_number_id, lead.contact_phone, reply)
+        except WhatsAppSendError:
+            break
+        db.add(
+            WhatsAppMessage(
+                office_id=office_id, lead_id=lead.id, direction="out", message_type="text", body=reply
+            )
         )
-    )
-    db.commit()
+        sent_any = True
+
+    if sent_any:
+        db.commit()
+    else:
+        db.rollback()
 
     # Aday DANIŞMAN yazdıysa danışmana da haber uçur — "hiçbir fırsatı
     # kaçırma" vaadinin en sıcak anı, best-effort (_notify_new_lead deseni).

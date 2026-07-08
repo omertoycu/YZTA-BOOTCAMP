@@ -168,21 +168,8 @@ export interface MatchResult {
   relevance_score: number | null;
 }
 
-export interface LeadScore {
-  id: string;
-  lead_id: string;
-  score: number;
-  score_breakdown: Record<string, unknown>;
-  computed_at: string;
-}
-
 export interface DistrictCount {
   district: string;
-  count: number;
-}
-
-export interface ScoreBucket {
-  label: string;
   count: number;
 }
 
@@ -201,9 +188,6 @@ export interface ReportsOverview {
   leads_by_status: Record<string, number>;
   won_lead_count: number;
   active_follow_up_count: number;
-  scored_lead_count: number;
-  average_score: number | null;
-  score_distribution: ScoreBucket[];
   conversion_rate: number | null;
   closed_deal_count: number;
   total_deal_volume: number;

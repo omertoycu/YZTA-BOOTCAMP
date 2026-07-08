@@ -14,7 +14,7 @@ type Mode = "login" | "register";
 
 const VALUE_PROPS = [
   "İlk WhatsApp mesajından imzaya kadar hiçbir fırsatı kaçırmayın",
-  "Adaylarınızı otomatik skorlayın, en sıcak müşteriye önce dönün",
+  "Siz uyurken bile YZ, WhatsApp'tan gelen adaylara anında yanıt verir",
   "Portföyünüze uygun alıcıyı saniyeler içinde eşleştirin",
 ];
 

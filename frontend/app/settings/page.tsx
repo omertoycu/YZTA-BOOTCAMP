@@ -170,9 +170,11 @@ export default function SettingsPage() {
               </div>
               <CardDescription>
                 Açıkken WhatsApp hattınıza yazan adaylara sistem <b>sizin adınıza otomatik yanıt verir</b>:
-                yeni adaya karşılama ve kullanım kısayolları (MENÜ / İLANLAR / DURUM / DANIŞMAN) gönderilir,
-                aday kriterlerini yazdığında eşleşen portföyler anında iletilir — siz uyurken bile.
-                Maliyet kalkanı: kısayollar ve alakasız mesajlar yapay zekaya hiç gönderilmez.
+                yeni bir aday ilk kez yazdığında, ne yazdığına bakılmaksızın önce karşılama ve kullanım
+                kısayollarını (MENÜ / İLANLAR / DURUM / DANIŞMAN) içeren sabit bir mesaj gönderilir — aday
+                sistemi nasıl kullanacağını asla tahmin etmek zorunda kalmaz. Kriterlerini yazdığında
+                (bölge, oda, bütçe) eşleşen portföyler anında iletilir — siz uyurken bile. Maliyet kalkanı:
+                kısayollar ve alakasız mesajlar yapay zekaya hiç gönderilmez.
               </CardDescription>
             </CardHeader>
             <CardContent>
