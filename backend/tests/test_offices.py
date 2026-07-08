@@ -133,3 +133,20 @@ def test_get_office_logo_rejects_non_office_keys(client):
     fotoğrafları gibi başka nesnelerin auth'suz sızması engellenmeli."""
     resp = client.get("/offices/logo/listings/some-listing/photo.jpg")
     assert resp.status_code == 404
+
+
+def test_toggle_auto_reply_enabled(client):
+    """offices.auto_reply_enabled (migration 0023): varsayılan kapalı, PATCH
+    /offices/me ile açılıp kapanabilmeli — kolon seviyeli UPDATE grant'inin
+    gerçekten çalıştığını da doğrular (bkz. migration 0015 deseni)."""
+    headers = _register(client, "Ofis AutoReply Test 1", "owner@office-autoreply-test.com")
+
+    resp = client.get("/offices/me", headers=headers)
+    assert resp.json()["auto_reply_enabled"] is False
+
+    resp = client.patch("/offices/me", json={"auto_reply_enabled": True}, headers=headers)
+    assert resp.status_code == 200
+    assert resp.json()["auto_reply_enabled"] is True
+
+    resp = client.patch("/offices/me", json={"auto_reply_enabled": False}, headers=headers)
+    assert resp.json()["auto_reply_enabled"] is False

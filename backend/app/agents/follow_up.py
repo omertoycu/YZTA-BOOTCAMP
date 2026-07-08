@@ -16,18 +16,18 @@ from app.models.whatsapp_message import WhatsAppMessage
 FOLLOW_UP_CHAIN: list[tuple[timedelta, str]] = [
     (
         timedelta(days=1),
-        "Merhaba, PortföyAI danışmanınız buradan yazıyor. {district} için aradığınız "
+        "{greeting} {office_name} danışmanınız buradan yazıyor. {district} için aradığınız "
         "kriterlere uygun portföylerimizi sizin için takip ediyorum, uygun olduğunuzda "
         "görüşebilir miyiz?",
     ),
     (
         timedelta(days=3),
-        "Merhaba, tekrar ben. {district} tarafında kriterlerinize uyabilecek yeni "
+        "{greeting} tekrar ben, {office_name}. {district} tarafında kriterlerinize uyabilecek yeni "
         "seçenekler oldu — kısa bir telefon görüşmesi için müsait olduğunuz bir zaman var mı?",
     ),
     (
         timedelta(days=7),
-        "Merhaba, son bir kez yazmak istedim. Arayışınız devam ediyorsa memnuniyetle "
+        "{greeting} son bir kez yazmak istedim. Arayışınız devam ediyorsa memnuniyetle "
         "yardımcı olurum; dilerseniz bu numaradan bana her zaman ulaşabilirsiniz. İyi günler dilerim.",
     ),
 ]
@@ -100,7 +100,11 @@ def run_due_follow_ups(db: Session, now: datetime | None = None) -> dict:
                 disable_auto_follow_up(lead)
                 continue
 
-            message = FOLLOW_UP_CHAIN[stage][1].format(district=lead.district or "aradığınız bölge")
+            message = FOLLOW_UP_CHAIN[stage][1].format(
+                greeting=f"Merhaba {lead.contact_name}," if lead.contact_name else "Merhaba,",
+                office_name=office.name,
+                district=lead.district or "aradığınız bölge",
+            )
             try:
                 send_whatsapp_text(office.whatsapp_phone_number_id, lead.contact_phone, message)
             except WhatsAppSendError:

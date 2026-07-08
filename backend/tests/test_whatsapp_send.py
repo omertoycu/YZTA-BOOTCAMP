@@ -188,3 +188,37 @@ def test_send_whatsapp_text_explains_expired_token(monkeypatch):
 
     with pytest.raises(WhatsAppSendError, match="WHATSAPP_TOKEN"):
         send_whatsapp_text("123", "905551234567", "merhaba")
+
+
+def test_follow_up_default_message_is_personalized(client, db_session, monkeypatch):
+    """Varsayılan takip mesajı artık tek tip değil: adayın adı, ofis adı ve
+    bilinen kriterleri (oda/bütçe) mesajda yer almalı."""
+    headers = _register(client, "Morina Gayrimenkul Test", "owner@followup-personal-test.com")
+    _set_phone_number_id(db_session, "Morina Gayrimenkul Test", "1000000013")
+    resp = client.post(
+        "/leads",
+        json={
+            "contact_phone": "905551112244",
+            "contact_name": "Ayşe Hanım",
+            "district": "Moda",
+            "room_count": "3+1",
+            "budget_max": 5_000_000,
+        },
+        headers=headers,
+    )
+    lead_id = resp.json()["id"]
+
+    sent_calls = []
+    monkeypatch.setattr(
+        leads_route,
+        "send_whatsapp_text",
+        lambda phone_number_id, to, text: sent_calls.append((phone_number_id, to, text)),
+    )
+
+    resp = client.post(f"/leads/{lead_id}/follow-up", headers=headers)
+    assert resp.status_code == 200
+    message = resp.json()["message"]
+    assert "Ayşe Hanım" in message
+    assert "Morina Gayrimenkul Test" in message
+    assert "Moda" in message
+    assert "3+1" in message

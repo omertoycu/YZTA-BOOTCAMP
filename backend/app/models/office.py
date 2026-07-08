@@ -1,7 +1,7 @@
 import uuid
 from datetime import datetime
 
-from sqlalchemy import String, DateTime, func
+from sqlalchemy import Boolean, String, DateTime, func
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -21,6 +21,10 @@ class Office(Base):
     # gider (bkz. app/agents/intake.py: _notify_new_lead). whatsapp_phone_number_id
     # gönderim tarafı (Meta Graph API kimliği), bu ALIM tarafı (gerçek telefon numarası).
     notification_phone: Mapped[str | None] = mapped_column(String(30), nullable=True)
+    # Opt-in: açıkken WhatsApp Intake Agent gelen mesajlara ofis adına otomatik
+    # yanıt verir (karşılama/komutlar + kriter dolunca eşleşen portföyler,
+    # bkz. app/agents/whatsapp_bot.py). Varsayılan kapalı.
+    auto_reply_enabled: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     # Ofis logosu — listings.photos ile aynı desende bare S3 nesne anahtarı
     # (bucket private, sunum GET /offices/logo/{key} proxy'siyle).
     logo_key: Mapped[str | None] = mapped_column(String(255), nullable=True)

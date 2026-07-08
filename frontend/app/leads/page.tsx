@@ -153,6 +153,7 @@ export default function LeadsPage() {
   const [dealClosedAt, setDealClosedAt] = useState("");
 
   const [contactPhone, setContactPhone] = useState("");
+  const [contactName, setContactName] = useState("");
   const [district, setDistrict] = useState("");
   const [budgetMax, setBudgetMax] = useState("");
   const [roomCount, setRoomCount] = useState("2+1");
@@ -189,6 +190,7 @@ export default function LeadsPage() {
         method: "POST",
         body: JSON.stringify({
           contact_phone: contactPhone,
+          contact_name: contactName.trim() || null,
           district: district || null,
           budget_max: budgetMax ? Number(budgetMax) : null,
           room_count: roomCount || null,
@@ -198,6 +200,7 @@ export default function LeadsPage() {
         }),
       });
       setContactPhone("");
+      setContactName("");
       setDistrict("");
       setBudgetMax("");
       setRadiusKm("");
@@ -626,7 +629,13 @@ export default function LeadsPage() {
               placeholder="05XX XXX XX XX"
               value={contactPhone}
               onChange={(e) => setContactPhone(e.target.value)}
-              className="lg:col-span-2"
+            />
+            <Input
+              id="contactName"
+              label="İsim (opsiyonel)"
+              placeholder="Örn. Ayşe Yılmaz"
+              value={contactName}
+              onChange={(e) => setContactName(e.target.value)}
             />
             <Input
               id="leadDistrict"
@@ -730,9 +739,10 @@ export default function LeadsPage() {
                     </div>
                     <div>
                       <p className="text-title-md text-[17px] leading-tight text-primary">
-                        {lead.contact_phone}
+                        {lead.contact_name?.trim() || lead.contact_phone}
                       </p>
                       <p className="text-[12px] text-text-muted">
+                        {lead.contact_name?.trim() ? `${lead.contact_phone} · ` : ""}
                         Eklendi: {new Date(lead.created_at).toLocaleDateString("tr-TR")}
                       </p>
                     </div>
@@ -846,6 +856,14 @@ export default function LeadsPage() {
                 </div>
 
                 {activeTab === "eslestirme" && (
+                  <p className="text-[12px] text-text-muted">
+                    <b>Skorla</b>: yanıt hızı (%40), mesaj yoğunluğu (%30) ve bütçe netliği (%30)
+                    üzerinden 0-100 arası bir öncelik puanı üretir — gün içinde hangi adaya önce
+                    dönmeniz gerektiğini gösterir. <b>Eşleştir</b>: adayın kriterlerine uyan kendi
+                    portföylerinizi bulur.
+                  </p>
+                )}
+                {activeTab === "eslestirme" && (
                   <div className="flex flex-wrap gap-2">
                     <Button
                       variant="outline"
@@ -895,6 +913,34 @@ export default function LeadsPage() {
                   </div>
                 )}
 
+                {activeTab === "eslestirme" && score && (
+                  <div className="flex flex-wrap items-center gap-2 rounded bg-surface-bright p-3 text-[12px] text-on-surface">
+                    <span className="font-semibold text-primary">Skor detayı:</span>
+                    <Badge variant="neutral">
+                      Yanıt hızı {Math.round(Number(score.score_breakdown?.response_speed_score ?? 0))}/100
+                    </Badge>
+                    <Badge variant="neutral">
+                      Mesaj yoğunluğu {Math.round(Number(score.score_breakdown?.message_count_score ?? 0))}/100
+                    </Badge>
+                    <Badge variant="neutral">
+                      Bütçe netliği {Math.round(Number(score.score_breakdown?.budget_consistency_score ?? 0))}/100
+                    </Badge>
+                  </div>
+                )}
+
+                {activeTab === "mesajlar" && (
+                  <p className="text-[12px] text-text-muted">
+                    <b>Otomatik takip</b>: aday yanıt vermezse 1, 3 ve 7 gün sonra giderek yumuşayan
+                    3 hatırlatma mesajı WhatsApp&apos;tan otomatik gönderilir; aday yanıt verdiği anda
+                    zincir kendiliğinden durur.
+                    {lead.auto_follow_up_enabled && lead.next_follow_up_at && (
+                      <>
+                        {" "}
+                        Sıradaki mesaj: <b>{new Date(lead.next_follow_up_at).toLocaleString("tr-TR")}</b>.
+                      </>
+                    )}
+                  </p>
+                )}
                 {activeTab === "mesajlar" && (
                   <div className="flex flex-wrap gap-2">
                     <Button

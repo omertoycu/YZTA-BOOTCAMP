@@ -7,6 +7,7 @@ from pydantic import BaseModel
 
 class LeadCreate(BaseModel):
     contact_phone: str
+    contact_name: str | None = None
     source: str = "manual"
     district: str | None = None
     budget_min: float | None = None
@@ -30,6 +31,7 @@ class LeadResponse(BaseModel):
     source: str
     status: str
     contact_phone: str
+    contact_name: str | None
     district: str | None
     budget_min: float | None
     budget_max: float | None
@@ -56,6 +58,7 @@ class LeadResponse(BaseModel):
 
 
 class LeadUpdate(BaseModel):
+    contact_name: str | None = None
     district: str | None = None
     budget_min: float | None = None
     budget_max: float | None = None

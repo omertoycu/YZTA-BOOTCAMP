@@ -4,6 +4,7 @@ export interface Office {
   subscription_plan: string;
   notification_phone: string | null;
   whatsapp_phone_number_id: string | null;
+  auto_reply_enabled: boolean;
   logo_url: string | null;
   created_at: string;
 }
@@ -67,6 +68,7 @@ export interface Lead {
   source: string;
   status: LeadStatus;
   contact_phone: string;
+  contact_name: string | null;
   district: string | null;
   budget_min: number | null;
   budget_max: number | null;

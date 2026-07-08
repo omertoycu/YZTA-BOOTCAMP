@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { BellRing, MessageCircle } from "lucide-react";
+import { BellRing, Bot, MessageCircle } from "lucide-react";
 import { apiFetch, getToken } from "@/lib/api";
 import type { Office } from "@/lib/types";
 import { Button } from "@/components/ui/Button";
@@ -26,6 +26,9 @@ export default function SettingsPage() {
   const [whatsappError, setWhatsappError] = useState<string | null>(null);
   const [whatsappSaved, setWhatsappSaved] = useState(false);
 
+  const [savingAutoReply, setSavingAutoReply] = useState(false);
+  const [autoReplyError, setAutoReplyError] = useState<string | null>(null);
+
   useEffect(() => {
     if (!getToken()) {
       router.replace("/login");
@@ -45,6 +48,23 @@ export default function SettingsPage() {
       }
     })();
   }, [router]);
+
+  async function handleToggleAutoReply() {
+    if (!office) return;
+    setSavingAutoReply(true);
+    setAutoReplyError(null);
+    try {
+      const updated = await apiFetch<Office>("/offices/me", {
+        method: "PATCH",
+        body: JSON.stringify({ auto_reply_enabled: !office.auto_reply_enabled }),
+      });
+      setOffice(updated);
+    } catch (err) {
+      setAutoReplyError(err instanceof Error ? err.message : "Kaydedilemedi");
+    } finally {
+      setSavingAutoReply(false);
+    }
+  }
 
   async function handleSaveNotification(e: React.FormEvent) {
     e.preventDefault();
@@ -139,6 +159,45 @@ export default function SettingsPage() {
                   Kaydet
                 </Button>
               </form>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <div className="flex items-center gap-2">
+                <Bot className="h-4 w-4 text-secondary" />
+                <CardTitle>YZ Otomatik Yanıt</CardTitle>
+              </div>
+              <CardDescription>
+                Açıkken WhatsApp hattınıza yazan adaylara sistem <b>sizin adınıza otomatik yanıt verir</b>:
+                yeni adaya karşılama ve kullanım kısayolları (MENÜ / İLANLAR / DURUM / DANIŞMAN) gönderilir,
+                aday kriterlerini yazdığında eşleşen portföyler anında iletilir — siz uyurken bile.
+                Maliyet kalkanı: kısayollar ve alakasız mesajlar yapay zekaya hiç gönderilmez.
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="flex items-center justify-between gap-4">
+                <p className="text-body-sm text-text-muted">
+                  {office?.auto_reply_enabled
+                    ? "Otomatik yanıt açık — gelen aday mesajları anında yanıtlanıyor."
+                    : "Otomatik yanıt kapalı — gelen mesajlar sadece panelde listelenir."}
+                </p>
+                <Button
+                  type="button"
+                  variant={office?.auto_reply_enabled ? "primary" : "outline"}
+                  isLoading={savingAutoReply}
+                  onClick={handleToggleAutoReply}
+                >
+                  {office?.auto_reply_enabled ? "Açık" : "Kapalı"}
+                </Button>
+              </div>
+              {autoReplyError && <div className="mt-3"><Alert>{autoReplyError}</Alert></div>}
+              {!office?.whatsapp_phone_number_id && (
+                <p className="mt-3 text-body-sm text-text-muted">
+                  Not: Otomatik yanıtın çalışması için önce WhatsApp Bağlantısı (yukarıdaki kart)
+                  kurulmalı.
+                </p>
+              )}
             </CardContent>
           </Card>
 

@@ -53,10 +53,28 @@ from app.schemas.lead_score import LeadScoreResponse
 
 router = APIRouter(prefix="/leads", tags=["leads"])
 
-DEFAULT_FOLLOW_UP_TEMPLATE = (
-    "Merhaba, PortföyAI danışmanınız buradan yazıyor. {district} bölgesinde aradığınız "
-    "kriterlere uygun yeni portföylerimiz oldu, size uygun bir zamanda görüşebilir miyiz?"
-)
+def _build_default_follow_up(lead: Lead, office: Office) -> str:
+    """Tek tık takip mesajının varsayılan metni — eskiden herkes için aynı tek
+    cümleydi; artık adayın adı ve bilinen kriterleriyle kişiselleştiriliyor
+    (deterministik, Gemini maliyeti yok — AI'lı kişisel yanıt isteyen danışman
+    zaten "AI ile Yanıt Öner" akışını kullanıyor)."""
+    greeting = f"Merhaba {lead.contact_name}," if lead.contact_name else "Merhaba,"
+    criteria_parts = []
+    if lead.room_count:
+        criteria_parts.append(lead.room_count)
+    if lead.listing_type_preference:
+        criteria_parts.append("satılık" if lead.listing_type_preference == "sale" else "kiralık")
+    if lead.budget_max:
+        criteria_parts.append(f"{float(lead.budget_max):,.0f} TL'ye kadar".replace(",", "."))
+    criteria = f" ({', '.join(criteria_parts)})" if criteria_parts else ""
+    district = lead.district or "aradığınız bölgede"
+    if lead.district:
+        district = f"{lead.district} bölgesinde"
+    return (
+        f"{greeting} ben {office.name} danışmanınız. {district} aradığınız kriterlere{criteria} "
+        "uygun portföyleri sizin için takip ediyorum — yeni seçenekleri birlikte değerlendirmek "
+        "için size uygun bir zamanda görüşebilir miyiz?"
+    )
 
 # Satış hunisi aşamaları — won/lost terminal, gerisi ileri-geri serbest
 # (danışman yanlış tıklamayı düzeltebilmeli, katı bir state machine değil).
@@ -232,7 +250,7 @@ def send_follow_up(
     if not office or not office.whatsapp_phone_number_id:
         raise HTTPException(status_code=503, detail="Bu ofis için WhatsApp gönderimi henüz bağlı değil")
 
-    message = payload.message or DEFAULT_FOLLOW_UP_TEMPLATE.format(district=lead.district or "bölgenizde")
+    message = payload.message or _build_default_follow_up(lead, office)
 
     try:
         send_whatsapp_text(office.whatsapp_phone_number_id, lead.contact_phone, message)

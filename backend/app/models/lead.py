@@ -18,6 +18,9 @@ class Lead(Base):
     # (bkz. app/api/routes/leads.py: LEAD_STATUSES)
     status: Mapped[str] = mapped_column(String(20), default="new", nullable=False)
     contact_phone: Mapped[str] = mapped_column(String(30), nullable=False)
+    # Adayın adı — WhatsApp Intake Agent webhook'taki contacts[].profile.name'den
+    # otomatik doldurur (bkz. app/api/routes/webhooks.py), manuel girişte opsiyonel.
+    contact_name: Mapped[str | None] = mapped_column(String(120), nullable=True)
     district: Mapped[str] = mapped_column(String(120), nullable=True)
     budget_min: Mapped[float] = mapped_column(Numeric(12, 2), nullable=True)
     budget_max: Mapped[float] = mapped_column(Numeric(12, 2), nullable=True)

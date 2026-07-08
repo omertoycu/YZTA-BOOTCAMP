@@ -60,6 +60,14 @@ async def receive_webhook(
         for change in entry.get("changes", []):
             value = change.get("value", {})
             phone_number_id = value.get("metadata", {}).get("phone_number_id")
+            # Meta, mesajın yanında gönderenin WhatsApp profil adını da yollar
+            # (contacts[].profile.name) — panelde çıplak telefon numarası yerine
+            # isim gösterebilmek için wa_id → isim eşlemesi kurulur.
+            names_by_wa_id = {
+                contact.get("wa_id"): (contact.get("profile") or {}).get("name")
+                for contact in value.get("contacts", [])
+                if isinstance(contact, dict)
+            }
             for message in value.get("messages", []):
                 contact_phone = message.get("from")
                 external_message_id = message.get("id")
@@ -78,6 +86,7 @@ async def receive_webhook(
                     contact_phone=contact_phone,
                     message_type=message_type,
                     message_body=text_body,
+                    contact_name=names_by_wa_id.get(contact_phone),
                 )
 
     return {"status": "received"}

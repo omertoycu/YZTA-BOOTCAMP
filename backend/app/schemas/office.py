@@ -12,6 +12,7 @@ class OfficeResponse(BaseModel):
     subscription_plan: str
     notification_phone: str | None
     whatsapp_phone_number_id: str | None
+    auto_reply_enabled: bool
     logo_key: str | None = None
     created_at: datetime
 
@@ -28,3 +29,4 @@ class OfficeResponse(BaseModel):
 class OfficeUpdate(BaseModel):
     notification_phone: str | None = None
     whatsapp_phone_number_id: str | None = None
+    auto_reply_enabled: bool | None = None

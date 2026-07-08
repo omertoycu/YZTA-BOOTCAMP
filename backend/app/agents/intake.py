@@ -11,6 +11,7 @@ from app.agents.whatsapp_extract import (
     extract_lead_fields,
     should_run_extraction,
 )
+from app.agents.whatsapp_bot import build_auto_reply, detect_command
 from app.agents.whatsapp_send import WhatsAppSendError, send_whatsapp_text
 from app.core.db import set_tenant
 from app.models.lead import Lead
@@ -62,6 +63,7 @@ def process_inbound_message(
     contact_phone: str,
     message_type: str = "text",
     message_body: str | None = None,
+    contact_name: str | None = None,
 ) -> Lead | None:
     """Gelen bir WhatsApp mesajını lead'e işler: var olan lead'i günceller ya da
     yeni lead oluşturur. Meta aynı mesajı en-az-bir-kez teslimat garantisiyle
@@ -89,6 +91,7 @@ def process_inbound_message(
             office_id=office_id,
             source="whatsapp",
             contact_phone=contact_phone,
+            contact_name=contact_name,
             message_count=1,
             last_contacted_at=now,
         )
@@ -97,6 +100,10 @@ def process_inbound_message(
     else:
         lead.message_count += 1
         lead.last_contacted_at = now
+        # WhatsApp profil adı sonradan görünür olabilir; danışmanın elle
+        # girdiği bir isim varsa EZİLMEZ (fill-only, extraction ile aynı ilke).
+        if contact_name and not lead.contact_name:
+            lead.contact_name = contact_name
         # Aday yanıt verdi → otomatik takip zinciri durur, konuşmayı danışman
         # devralır (bkz. app/agents/follow_up.py). Zincir yeniden gerekirse
         # danışman panelden tekrar açar.
@@ -135,8 +142,22 @@ def process_inbound_message(
     if is_new_lead:
         _notify_new_lead(db, office_id, lead)
 
-    if extraction_text:
-        _maybe_extract_and_apply(db, office_id, lead, message_type, extraction_text)
+    # Tek kelimelik komutlar (MENÜ/İLANLAR/DURUM/DANIŞMAN) deterministik
+    # yanıtlanır — Gemini alan çıkarımına hiç gönderilmez (maliyet kalkanı).
+    command = detect_command(extraction_text)
+
+    fields_updated = False
+    if extraction_text and command is None:
+        fields_updated = _maybe_extract_and_apply(db, office_id, lead, message_type, extraction_text)
+
+    _maybe_auto_reply(
+        db,
+        office_id,
+        lead,
+        command=command,
+        is_new_lead=is_new_lead,
+        fields_updated=fields_updated,
+    )
 
     return lead
 
@@ -164,13 +185,16 @@ def _notify_new_lead(db: Session, office_id: str, lead: Lead) -> None:
 
 def _maybe_extract_and_apply(
     db: Session, office_id: str, lead: Lead, message_type: str, message_body: str
-) -> None:
+) -> bool:
     """Best-effort: Gemini hatası (yapılandırma eksik, ağ hatası, geçersiz
     yanıt) hiçbir exception dışarı sızdırmaz, webhook her koşulda 200 döner.
     Ayrı transaction: ana commit SET LOCAL tenant context'ini sıfırladığı için
     (bkz. CLAUDE.md madde 2/7) set_tenant BURADA TEKRAR çağrılmalı — ama lead
     NESNESİ yeniden SELECT edilmeye gerek yok (expire_on_commit=False, aynı
-    session'da hâlâ geçerli, bkz. _notify_new_lead'in aynı deseni)."""
+    session'da hâlâ geçerli, bkz. _notify_new_lead'in aynı deseni).
+
+    Dönüş değeri: bu mesajla en az bir alan dolduysa True — otomatik yanıt
+    katmanı (bkz. _maybe_auto_reply) eşleşme gönderimini buna bağlar."""
     set_tenant(db, office_id)
 
     if not should_run_extraction(
@@ -183,7 +207,7 @@ def _maybe_extract_and_apply(
         last_extraction_at=lead.last_llm_extraction_at,
     ):
         db.rollback()  # set_tenant'ın açtığı boş transaction'ı kapat
-        return
+        return False
 
     now = datetime.now(timezone.utc)
     try:
@@ -191,12 +215,12 @@ def _maybe_extract_and_apply(
     except WhatsAppExtractError as exc:
         if str(exc) == "__not_configured__":
             db.rollback()  # hiç Gemini çağrısı yapılmadı, sayaç işletilmez
-            return
+            return False
         lead.llm_extraction_count, lead.last_llm_extraction_at = compute_new_extraction_counters(
             lead.llm_extraction_count, lead.last_llm_extraction_at, now
         )
         db.commit()  # başarısız ama maliyetli deneme yine de sayılır
-        return
+        return False
 
     lead.llm_extraction_count, lead.last_llm_extraction_at = compute_new_extraction_counters(
         lead.llm_extraction_count, lead.last_llm_extraction_at, now
@@ -210,3 +234,64 @@ def _maybe_extract_and_apply(
         lead.fields_extracted_by_ai = True
 
     db.commit()
+    return filled_any
+
+
+def _maybe_auto_reply(
+    db: Session,
+    office_id: str,
+    lead: Lead,
+    *,
+    command: str | None,
+    is_new_lead: bool,
+    fields_updated: bool,
+) -> None:
+    """Opt-in otomatik yanıt (bkz. app/agents/whatsapp_bot.py): ofis
+    auto_reply_enabled değilse hiçbir şey yapılmaz. Best-effort — yanıt
+    üretimi/gönderimi başarısız olsa da webhook işlemi zaten tamamlanmıştır.
+    Ayrı transaction: bir önceki commit tenant context'ini sıfırladığı için
+    set_tenant burada yeniden çağrılır (Matching Agent RLS'li listings'i okur)."""
+    office = db.get(Office, office_id)
+    if not office or not office.auto_reply_enabled or not office.whatsapp_phone_number_id:
+        db.rollback()  # db.get'in açtığı boş transaction'ı kapat
+        return
+
+    set_tenant(db, office_id)
+    reply = build_auto_reply(
+        db,
+        office,
+        lead,
+        command=command,
+        is_new_lead=is_new_lead,
+        fields_updated=fields_updated,
+    )
+    if not reply:
+        db.rollback()
+        return
+
+    try:
+        send_whatsapp_text(office.whatsapp_phone_number_id, lead.contact_phone, reply)
+    except WhatsAppSendError:
+        db.rollback()
+        return
+
+    db.add(
+        WhatsAppMessage(
+            office_id=office_id, lead_id=lead.id, direction="out", message_type="text", body=reply
+        )
+    )
+    db.commit()
+
+    # Aday DANIŞMAN yazdıysa danışmana da haber uçur — "hiçbir fırsatı
+    # kaçırma" vaadinin en sıcak anı, best-effort (_notify_new_lead deseni).
+    if command == "agent" and office.notification_phone:
+        who = f"{lead.contact_name} ({lead.contact_phone})" if lead.contact_name else lead.contact_phone
+        try:
+            send_whatsapp_text(
+                office.whatsapp_phone_number_id,
+                office.notification_phone,
+                f"{who} sizinle görüşmek istiyor (WhatsApp'ta DANIŞMAN yazdı). "
+                "En kısa sürede dönüş yapmanız önerilir.",
+            )
+        except WhatsAppSendError:
+            pass

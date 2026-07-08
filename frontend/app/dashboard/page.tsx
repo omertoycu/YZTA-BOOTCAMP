@@ -4,17 +4,36 @@ import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { apiFetch, getToken } from "@/lib/api";
-import type { Lead, Listing, Office, StaleListingAlert } from "@/lib/types";
+import type { Lead, LeadStatus, Listing, Office, StaleListingAlert } from "@/lib/types";
 import { formatCurrency } from "@/lib/format";
 import { Icon } from "@/components/ui/Icon";
-import { ListingCard } from "@/components/ListingCard";
-import { Badge } from "@/components/ui/Badge";
+import { Badge, type BadgeProps } from "@/components/ui/Badge";
 import { Spinner } from "@/components/ui/Spinner";
 
 // Hatırlatması/randevusu önümüzdeki 48 saat içinde olan (ya da gecikmiş)
 // adayları "bildirim" olarak sayıyoruz — ayrı bir bildirim tablosu yok,
 // zaten dashboard'ın çektiği lead verisinden türetiliyor.
 const NOTIFICATION_WINDOW_MS = 48 * 60 * 60 * 1000;
+
+const LEAD_STATUS_LABELS: Record<LeadStatus, string> = {
+  new: "Yeni",
+  contacted: "İletişim Kuruldu",
+  viewing: "Yer Gösterimi",
+  negotiation: "Pazarlık",
+  won: "Kazanıldı",
+  lost: "Kaybedildi",
+};
+
+function statusVariant(status: LeadStatus): NonNullable<BadgeProps["variant"]> {
+  if (status === "won") return "success";
+  if (status === "lost") return "danger";
+  if (status === "new") return "brand";
+  return "warning";
+}
+
+function leadDisplayName(lead: Lead) {
+  return lead.contact_name?.trim() || lead.contact_phone;
+}
 
 function getUrgentLeads(leads: Lead[]) {
   const cutoff = Date.now() + NOTIFICATION_WINDOW_MS;
@@ -31,6 +50,41 @@ function getUrgentLeads(leads: Lead[]) {
     .sort((a, b) => new Date(a.dueAt).getTime() - new Date(b.dueAt).getTime());
 }
 
+function StatTile({ icon, label, value, href }: { icon: string; label: string; value: number; href: string }) {
+  return (
+    <Link
+      href={href}
+      className="flex items-center gap-3 rounded-lg bg-surface-container-lowest p-4 shadow-[0px_10px_30px_rgba(0,0,0,0.04)] transition-shadow hover:shadow-[0px_15px_40px_rgba(0,0,0,0.08)]"
+    >
+      <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-mint-accent text-secondary">
+        <Icon name={icon} />
+      </div>
+      <div className="min-w-0">
+        <p className="text-[22px] font-semibold leading-tight text-primary">{value}</p>
+        <p className="truncate text-[12px] text-text-muted">{label}</p>
+      </div>
+    </Link>
+  );
+}
+
+function QuickAction({ icon, title, subtitle, href }: { icon: string; title: string; subtitle: string; href: string }) {
+  return (
+    <Link
+      href={href}
+      className="group flex items-center gap-3 rounded p-3 transition-colors hover:bg-surface-bright"
+    >
+      <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-surface-container text-primary transition-colors group-hover:bg-mint-accent group-hover:text-secondary">
+        <Icon name={icon} />
+      </div>
+      <div className="min-w-0 flex-1">
+        <p className="text-body-sm font-semibold text-primary">{title}</p>
+        <p className="truncate text-[12px] text-text-muted">{subtitle}</p>
+      </div>
+      <Icon name="chevron_right" className="text-outline" />
+    </Link>
+  );
+}
+
 export default function DashboardPage() {
   const router = useRouter();
   const [listings, setListings] = useState<Listing[]>([]);
@@ -41,6 +95,20 @@ export default function DashboardPage() {
   const [isNotificationsOpen, setIsNotificationsOpen] = useState(false);
 
   const urgentLeads = useMemo(() => getUrgentLeads(leads), [leads]);
+  const newLeads = useMemo(() => leads.filter((l) => l.status === "new"), [leads]);
+  const recentLeads = useMemo(
+    () =>
+      [...leads].sort((a, b) => {
+        const aTime = new Date(a.last_contacted_at ?? a.created_at).getTime();
+        const bTime = new Date(b.last_contacted_at ?? b.created_at).getTime();
+        return bTime - aTime;
+      }),
+    [leads]
+  );
+  const recentListings = useMemo(
+    () => [...listings].sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()),
+    [listings]
+  );
 
   useEffect(() => {
     if (!getToken()) {
@@ -68,23 +136,21 @@ export default function DashboardPage() {
 
   return (
     <div className="mx-auto flex max-w-[1440px] flex-col gap-gutter">
-      <header className="flex items-center justify-between">
+      <header className="flex items-center justify-between gap-3">
         <div>
-          <h2 className="text-headline-lg text-primary">Genel Bakış</h2>
+          <h2 className="text-headline-lg text-primary">Bugün</h2>
           <p className="mt-1 text-body-sm text-text-muted">
-            Toplam: <span className="font-bold text-primary">{listings.length}</span> ilan aktif.
+            Gününüzün özeti: yaklaşan randevular, yanıt bekleyen adaylar ve portföy sinyalleri.
           </p>
         </div>
-        <div className="flex items-center gap-4">
-          <div className="glass-panel hidden items-center gap-2 rounded-full px-4 py-2 text-text-muted shadow-sm md:flex">
-            <Icon name="search" />
-            <input
-              className="w-48 border-none bg-transparent text-sm outline-none focus:ring-0"
-              placeholder="İlan veya müşteri ara..."
-              type="text"
-              disabled
-            />
-          </div>
+        <div className="flex items-center gap-3">
+          <Link
+            href="/listings/new"
+            className="hidden items-center gap-1.5 rounded-full bg-primary px-4 py-2.5 text-body-sm font-semibold text-on-primary shadow-sm transition-transform hover:scale-[1.03] md:flex"
+          >
+            <Icon name="add" className="!text-[18px]" />
+            Yeni İlan
+          </Link>
           <div className="relative">
             <button
               type="button"
@@ -117,7 +183,7 @@ export default function DashboardPage() {
                           >
                             <span className="flex items-center gap-1.5 text-body-sm font-medium text-on-surface">
                               <Icon name={isAppointment ? "event" : "notifications"} className="text-[16px]" />
-                              {lead.contact_phone}
+                              {leadDisplayName(lead)}
                             </span>
                             <span className="text-[12px] text-text-muted">
                               {isAppointment ? "Randevu" : "Hatırlatma"}: {new Date(dueAt).toLocaleString("tr-TR")}
@@ -146,87 +212,185 @@ export default function DashboardPage() {
         </div>
       </header>
 
-      {!isLoading && staleAlerts.length > 0 && (
-        <Link
-          href="/listings"
-          className="flex items-center gap-3 rounded-lg bg-yellow-100 px-5 py-3.5 text-body-sm text-yellow-800 transition-colors hover:bg-yellow-200"
-        >
-          <Icon name="warning" />
-          <span>
-            <span className="font-semibold">{staleAlerts.length} portföy</span>{" "}
-            uzun süredir aktif ve emsallere göre pahalı — en durgunu: &ldquo;{staleAlerts[0].title}&rdquo;{" "}
-            (%{staleAlerts[0].overprice_pct} pahalı, {staleAlerts[0].age_days} gündür aktif)
-          </span>
-        </Link>
-      )}
-
       {isLoading ? (
         <div className="flex items-center justify-center gap-2 py-24 text-body-sm text-text-muted">
           <Spinner />
           Yükleniyor...
         </div>
       ) : (
-        <div className="grid grid-cols-1 gap-gutter xl:grid-cols-12">
-          <div className="flex flex-col gap-6 xl:col-span-8">
-            <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
-              {listings.slice(0, 4).map((listing) => (
-                <ListingCard key={listing.id} listing={listing} />
-              ))}
-              {listings.length === 0 && (
-                <p className="text-body-sm text-text-muted md:col-span-2">
-                  Henüz portföy eklenmedi.
-                </p>
-              )}
-            </div>
+        <>
+          <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
+            <StatTile icon="home_work" label="Aktif Portföy" value={listings.filter((l) => l.status === "active").length} href="/listings" />
+            <StatTile icon="group" label="Toplam Aday" value={leads.length} href="/leads" />
+            <StatTile icon="fiber_new" label="Yanıt Bekleyen Yeni Aday" value={newLeads.length} href="/leads" />
+            <StatTile icon="event_upcoming" label="48 Saat İçinde Randevu / Hatırlatma" value={urgentLeads.length} href="/leads" />
           </div>
 
-          <div className="flex flex-col gap-6 xl:col-span-4">
+          {staleAlerts.length > 0 && (
             <Link
-              href="/listings/new"
-              className="group relative flex h-64 cursor-pointer flex-col items-center justify-center overflow-hidden rounded-lg border-2 border-dashed border-outline-variant bg-surface-container-lowest transition-colors hover:bg-surface-bright"
+              href="/listings"
+              className="flex items-center gap-3 rounded-lg bg-yellow-100 px-5 py-3.5 text-body-sm text-yellow-800 transition-colors hover:bg-yellow-200"
             >
-              <div className="z-10 mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-white shadow-md transition-transform group-hover:scale-110">
-                <Icon name="add" />
-              </div>
-              <p className="z-10 text-title-md font-medium text-primary">Yeni İlan Ekle</p>
+              <Icon name="warning" />
+              <span>
+                <span className="font-semibold">{staleAlerts.length} portföy</span>{" "}
+                uzun süredir aktif ve emsallere göre pahalı — en durgunu: &ldquo;{staleAlerts[0].title}&rdquo;{" "}
+                (%{staleAlerts[0].overprice_pct} pahalı, {staleAlerts[0].age_days} gündür aktif)
+              </span>
             </Link>
+          )}
 
-            <div className="flex flex-1 flex-col rounded-lg bg-surface-container-lowest p-6 shadow-[0px_10px_30px_rgba(0,0,0,0.04)]">
-              <div className="mb-6 flex items-center justify-between">
-                <h3 className="text-[18px] text-title-md text-primary">Aday Mesajları</h3>
-                <Badge variant="brand">YZ Destekli</Badge>
+          <div className="grid grid-cols-1 gap-gutter xl:grid-cols-12">
+            <div className="flex flex-col gap-6 xl:col-span-7">
+              <div className="rounded-lg bg-surface-container-lowest p-6 shadow-[0px_10px_30px_rgba(0,0,0,0.04)]">
+                <div className="mb-4 flex items-center justify-between">
+                  <h3 className="text-[18px] text-title-md text-primary">Bugünün Ajandası</h3>
+                  <Badge variant="neutral">{urgentLeads.length} kayıt</Badge>
+                </div>
+                {urgentLeads.length === 0 ? (
+                  <p className="text-body-sm text-text-muted">
+                    Önümüzdeki 48 saatte planlı randevu veya hatırlatma yok. Adaylar sayfasından yeni bir
+                    randevu planlayabilir ya da hatırlatma ekleyebilirsiniz.
+                  </p>
+                ) : (
+                  <ul className="flex flex-col gap-1">
+                    {urgentLeads.slice(0, 6).map(({ lead, dueAt, isAppointment }) => (
+                      <li key={lead.id}>
+                        <Link
+                          href="/leads"
+                          className="flex items-center gap-3 rounded p-3 transition-colors hover:bg-surface-bright"
+                        >
+                          <div
+                            className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-full ${
+                              isAppointment ? "bg-mint-accent text-secondary" : "bg-yellow-100 text-yellow-800"
+                            }`}
+                          >
+                            <Icon name={isAppointment ? "event" : "alarm"} />
+                          </div>
+                          <div className="min-w-0 flex-1">
+                            <p className="truncate text-body-sm font-semibold text-primary">
+                              {leadDisplayName(lead)}
+                              {lead.contact_name && (
+                                <span className="ml-2 font-normal text-text-muted">{lead.contact_phone}</span>
+                              )}
+                            </p>
+                            <p className="truncate text-[12px] text-text-muted">
+                              {isAppointment
+                                ? `Yer gösterimi${lead.appointment_location ? ` · ${lead.appointment_location}` : ""}`
+                                : `Hatırlatma${lead.reminder_note ? ` · ${lead.reminder_note}` : ""}`}
+                            </p>
+                          </div>
+                          <p className="shrink-0 text-[12px] font-medium text-on-surface">
+                            {new Date(dueAt).toLocaleString("tr-TR", {
+                              day: "2-digit",
+                              month: "2-digit",
+                              hour: "2-digit",
+                              minute: "2-digit",
+                            })}
+                          </p>
+                        </Link>
+                      </li>
+                    ))}
+                  </ul>
+                )}
               </div>
-              <div className="flex max-h-[400px] flex-col gap-2 overflow-y-auto pr-2">
-                {leads.slice(0, 6).map((lead) => (
-                  <Link
-                    key={lead.id}
-                    href="/leads"
-                    className="flex gap-4 rounded border border-transparent p-3 transition-colors hover:border-surface-variant hover:bg-surface-bright"
-                  >
-                    <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-surface-container text-outline">
-                      <Icon name="person" />
-                    </div>
-                    <div className="flex-1">
-                      <div className="flex items-start justify-between">
-                        <h4 className="font-semibold text-primary">{lead.contact_phone}</h4>
+
+              <div className="rounded-lg bg-surface-container-lowest p-6 shadow-[0px_10px_30px_rgba(0,0,0,0.04)]">
+                <div className="mb-4 flex items-center justify-between">
+                  <h3 className="text-[18px] text-title-md text-primary">Aday Mesajları</h3>
+                  <Badge variant="brand">YZ Destekli</Badge>
+                </div>
+                <div className="flex max-h-[380px] flex-col gap-1 overflow-y-auto pr-1">
+                  {recentLeads.slice(0, 6).map((lead) => (
+                    <Link
+                      key={lead.id}
+                      href="/leads"
+                      className="flex items-center gap-3 rounded p-3 transition-colors hover:bg-surface-bright"
+                    >
+                      <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-surface-container text-outline">
+                        <Icon name="person" />
                       </div>
-                      <p className="mt-1 text-[12px] text-text-muted">
-                        {lead.district ?? "Bölge belirtilmedi"}
-                        {lead.budget_max ? ` · ${formatCurrency(lead.budget_max)}'ye kadar` : ""}
-                      </p>
-                    </div>
-                    <div className="flex items-center text-outline">
-                      <Icon name="chevron_right" />
-                    </div>
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-center gap-2">
+                          <p className="truncate text-body-sm font-semibold text-primary">{leadDisplayName(lead)}</p>
+                          <Badge variant={statusVariant(lead.status)}>
+                            {LEAD_STATUS_LABELS[lead.status] ?? lead.status}
+                          </Badge>
+                        </div>
+                        <p className="mt-0.5 truncate text-[12px] text-text-muted">
+                          {lead.contact_name ? `${lead.contact_phone} · ` : ""}
+                          {lead.district ?? "Bölge belirtilmedi"}
+                          {lead.budget_max ? ` · ${formatCurrency(lead.budget_max)}'ye kadar` : ""}
+                        </p>
+                      </div>
+                      <Icon name="chevron_right" className="shrink-0 text-outline" />
+                    </Link>
+                  ))}
+                  {leads.length === 0 && (
+                    <p className="text-body-sm text-text-muted">
+                      Henüz aday yok — WhatsApp hattınız bağlandığında gelen mesajlar otomatik olarak burada
+                      listelenir.
+                    </p>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            <div className="flex flex-col gap-6 xl:col-span-5">
+              <div className="rounded-lg bg-surface-container-lowest p-4 shadow-[0px_10px_30px_rgba(0,0,0,0.04)]">
+                <h3 className="mb-2 px-3 pt-2 text-[18px] text-title-md text-primary">Hızlı İşlemler</h3>
+                <QuickAction icon="add_home_work" title="Yeni İlan Ekle" subtitle="6 adımlı rehberli sihirbaz" href="/listings/new" />
+                <QuickAction icon="mic" title="Sesli Not ile İlan" subtitle="Konuşun, taslak otomatik oluşsun" href="/assistant" />
+                <QuickAction icon="content_paste" title="Toplu İçe Aktar" subtitle="Sahibinden sayfa kaynağından" href="/listings/import" />
+                <QuickAction icon="person_add" title="Aday Ekle" subtitle="Telefon + kriterlerle manuel kayıt" href="/leads" />
+              </div>
+
+              <div className="rounded-lg bg-surface-container-lowest p-6 shadow-[0px_10px_30px_rgba(0,0,0,0.04)]">
+                <div className="mb-4 flex items-center justify-between">
+                  <h3 className="text-[18px] text-title-md text-primary">Son Eklenen Portföyler</h3>
+                  <Link href="/listings" className="text-[12px] font-semibold text-secondary hover:underline">
+                    Tümünü Gör
                   </Link>
-                ))}
-                {leads.length === 0 && (
-                  <p className="text-body-sm text-text-muted">Henüz lead eklenmedi.</p>
+                </div>
+                {recentListings.length === 0 ? (
+                  <p className="text-body-sm text-text-muted">Henüz portföy eklenmedi.</p>
+                ) : (
+                  <ul className="flex flex-col gap-1">
+                    {recentListings.slice(0, 5).map((listing) => (
+                      <li key={listing.id}>
+                        <Link
+                          href={`/listings/${listing.id}`}
+                          className="flex items-center gap-3 rounded p-2.5 transition-colors hover:bg-surface-bright"
+                        >
+                          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-mint-accent text-secondary">
+                            <Icon
+                              name={
+                                listing.property_type === "land"
+                                  ? "landscape"
+                                  : listing.property_type === "commercial"
+                                    ? "storefront"
+                                    : "apartment"
+                              }
+                              className="!text-[18px]"
+                            />
+                          </div>
+                          <div className="min-w-0 flex-1">
+                            <p className="truncate text-body-sm font-medium text-on-surface">{listing.title}</p>
+                            <p className="truncate text-[12px] text-text-muted">{listing.district}</p>
+                          </div>
+                          <p className="shrink-0 text-body-sm font-semibold text-primary">
+                            {formatCurrency(listing.price)}
+                            {listing.listing_type === "rent" ? " / ay" : ""}
+                          </p>
+                        </Link>
+                      </li>
+                    ))}
+                  </ul>
                 )}
               </div>
             </div>
           </div>
-        </div>
+        </>
       )}
     </div>
   );
