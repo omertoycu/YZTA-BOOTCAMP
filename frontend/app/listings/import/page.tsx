@@ -5,12 +5,13 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { ArrowLeft } from "lucide-react";
 import { apiFetch, getToken } from "@/lib/api";
-import type { Listing, ListingPortfolioExtract, ListingType } from "@/lib/types";
+import type { Listing, ListingPortfolioExtract, ListingType, PropertyType } from "@/lib/types";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { Alert } from "@/components/ui/Alert";
 import { Icon } from "@/components/ui/Icon";
 import { ListingTypeToggle } from "@/components/ui/ListingTypeToggle";
+import { PropertyTypeSelect } from "@/components/ui/PropertyTypeSelect";
 
 interface DraftListing {
   selected: boolean;
@@ -20,6 +21,7 @@ interface DraftListing {
   roomCount: string;
   squareMeters: string;
   listingType: ListingType;
+  propertyType: PropertyType;
   coverPhotoUrl: string | null;
 }
 
@@ -63,6 +65,7 @@ export default function ImportPortfolioPage() {
           roomCount: item.room_count ?? "",
           squareMeters: item.square_meters != null ? String(item.square_meters) : "",
           listingType: item.listing_type ?? "sale",
+          propertyType: item.property_type ?? "residential",
           coverPhotoUrl: item.cover_photo_url,
         }))
       );
@@ -109,6 +112,7 @@ export default function ImportPortfolioPage() {
             room_count: draft.roomCount.trim() || "Belirtilmedi",
             square_meters: draft.squareMeters ? Number(draft.squareMeters) : null,
             listing_type: draft.listingType,
+            property_type: draft.propertyType,
           }),
         });
         succeeded += 1;
@@ -233,10 +237,14 @@ export default function ImportPortfolioPage() {
                     />
                   </div>
                 </div>
-                <div className="pl-7">
+                <div className="flex items-center gap-3 pl-7">
                   <ListingTypeToggle
                     value={draft.listingType}
                     onChange={(listingType) => updateDraft(index, { listingType })}
+                  />
+                  <PropertyTypeSelect
+                    value={draft.propertyType}
+                    onChange={(propertyType) => updateDraft(index, { propertyType })}
                   />
                 </div>
                 <div className="grid grid-cols-2 gap-3 pl-7 sm:grid-cols-4">

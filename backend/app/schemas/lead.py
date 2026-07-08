@@ -1,5 +1,6 @@
 import uuid
 from datetime import datetime
+from typing import Literal
 
 from pydantic import BaseModel
 
@@ -14,6 +15,10 @@ class LeadCreate(BaseModel):
     # Set edilirse eşleştirmede bölge tam eşleşmesi yerine coğrafi yarıçap
     # filtresi uygulanır (bkz. app/agents/matching.py).
     radius_km: float | None = None
+    # None = belirtilmedi/fark etmez — Matching Agent bu durumda filtre
+    # uygulamaz (bkz. app/agents/matching.py).
+    listing_type_preference: Literal["sale", "rent"] | None = None
+    property_type_preference: Literal["residential", "commercial", "land"] | None = None
     # WhatsApp Intake Agent gelene kadar (Sprint 2), bu ikisi manuel/demo amaçlı
     # elle girilir; gerçek konuşma verisi geldiğinde otomatik güncellenecek.
     message_count: int = 0
@@ -30,6 +35,8 @@ class LeadResponse(BaseModel):
     budget_max: float | None
     room_count: str | None
     radius_km: float | None
+    listing_type_preference: str | None
+    property_type_preference: str | None
     message_count: int
     last_contacted_at: datetime | None
     auto_follow_up_enabled: bool
@@ -54,6 +61,8 @@ class LeadUpdate(BaseModel):
     budget_max: float | None = None
     room_count: str | None = None
     radius_km: float | None = None
+    listing_type_preference: Literal["sale", "rent"] | None = None
+    property_type_preference: Literal["residential", "commercial", "land"] | None = None
 
 
 class WhatsAppMessageResponse(BaseModel):
@@ -73,6 +82,8 @@ class LeadFieldExtractionDraft(BaseModel):
     budget_max: float | None = None
     room_count: str | None = None
     radius_km: float | None = None
+    listing_type_preference: Literal["sale", "rent"] | None = None
+    property_type_preference: Literal["residential", "commercial", "land"] | None = None
 
 
 class SuggestReplyResponse(BaseModel):
@@ -85,6 +96,9 @@ class MatchResult(BaseModel):
     title: str
     price: float
     match_reason: str
+    # AI yeniden sıralama (bkz. app/agents/match_ranking.py) çalışmazsa
+    # (yapılandırılmamış/hata) None kalır — frontend bu durumda göstermez.
+    relevance_score: int | None = None
 
 
 class FollowUpRequest(BaseModel):

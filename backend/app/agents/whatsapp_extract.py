@@ -25,7 +25,15 @@ GREETING_DENYLIST = {
     "evet", "hayır", "anladım",
 }
 
-EXTRACTABLE_LEAD_FIELDS = ("district", "budget_min", "budget_max", "room_count", "radius_km")
+EXTRACTABLE_LEAD_FIELDS = (
+    "district",
+    "budget_min",
+    "budget_max",
+    "room_count",
+    "radius_km",
+    "listing_type_preference",
+    "property_type_preference",
+)
 
 PROMPT_TEMPLATE = """Bu metin, bir emlak danışmanına WhatsApp üzerinden gelen bir aday mesajıdır \
 (örn. "Kadıköy'de 3+1 arıyorum, bütçem 5 milyon TL civarı"). Mesajı oku ve SADECE aşağıdaki JSON \
@@ -36,11 +44,18 @@ PROMPT_TEMPLATE = """Bu metin, bir emlak danışmanına WhatsApp üzerinden gele
   "budget_min": <TL cinsinden sayı; aralık belirtilmişse alt sınır, yoksa null>,
   "budget_max": <TL cinsinden sayı; bütçe üst sınırı/tek rakam, yoksa null>,
   "room_count": "<örn. '2+1', '3+1'; yoksa null>",
-  "radius_km": <"X km çevresi" gibi bir yarıçap belirtilmişse sayı, yoksa null>
+  "radius_km": <"X km çevresi" gibi bir yarıçap belirtilmişse sayı, yoksa null>,
+  "listing_type_preference": "<'satılık'/'almak' gibi ifadeler için 'sale'; 'kiralık'/'kira' gibi \
+ifadeler için 'rent'; belirtilmemişse null>",
+  "property_type_preference": "<'daire'/'konut'/'villa'/'ev' gibi ifadeler için 'residential'; \
+'iş yeri'/'ofis'/'dükkan'/'mağaza'/'depo' gibi ifadeler için 'commercial'; 'arsa'/'arazi' için \
+'land'; belirtilmemişse null>"
 }}
 
-Emin olmadığın alanları null bırak, tahmin yapma. Yanıtın geçerli JSON olmalı, markdown kod bloğu \
-(```) kullanma.
+Emin olmadığın alanları null bırak, tahmin yapma. "district" alanına SADECE mahalle/ilçe/il gibi \
+idari bir birim yaz — "cadde"/"sokak"/"bulvar" gibi bir sokak adı geçiyorsa onu YOKSAY, mesajda \
+ayrıca idari birim varsa onu kullan (yoksa null bırak, sokak adını district'e yazma). Yanıtın \
+geçerli JSON olmalı, markdown kod bloğu (```) kullanma.
 
 Mesaj: \"\"\"{message}\"\"\""""
 

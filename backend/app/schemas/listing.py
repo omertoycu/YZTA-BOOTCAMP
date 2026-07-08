@@ -16,6 +16,9 @@ class ListingCreate(BaseModel):
     # Fiyat önerisi (Pricing Agent) emsalleri satılık/kiralık ayırmadan
     # karşılaştırınca anlamsız aralıklar üretiyordu — bkz. pricing.py.
     listing_type: Literal["sale", "rent"] = "sale"
+    # Oda sayısının anlamsız olduğu ticari/arsa ilanlarında Matching Agent
+    # room_count filtresini atlamak için kullanılır (bkz. app/agents/matching.py).
+    property_type: Literal["residential", "commercial", "land"] = "residential"
 
 
 class ListingResponse(BaseModel):
@@ -26,6 +29,7 @@ class ListingResponse(BaseModel):
     room_count: str
     square_meters: int | None
     listing_type: str
+    property_type: str
     status: str
     photos: list[str] = []
     created_at: datetime
@@ -45,6 +49,10 @@ class ListingStatusUpdate(BaseModel):
 
 class ListingTypeUpdate(BaseModel):
     listing_type: Literal["sale", "rent"]
+
+
+class ListingPropertyTypeUpdate(BaseModel):
+    property_type: Literal["residential", "commercial", "land"]
 
 
 class ListingPhotoFromUrlRequest(BaseModel):
@@ -68,6 +76,7 @@ class ListingExtractResponse(BaseModel):
     # Sadece best-effort bir öneri — danışman inceleme ekranında değiştirebilir,
     # tespit edilemezse None (formda varsayılan "sale" seçili gelir).
     listing_type: Literal["sale", "rent"] | None = None
+    property_type: Literal["residential", "commercial", "land"] | None = None
     cover_photo_url: str | None = None
 
 
@@ -88,3 +97,4 @@ class VoiceListingDraftResponse(BaseModel):
     room_count: str | None
     square_meters: int | None
     listing_type: Literal["sale", "rent"] | None = None
+    property_type: Literal["residential", "commercial", "land"] | None = None

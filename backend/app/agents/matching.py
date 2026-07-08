@@ -15,6 +15,21 @@ BUDGET_TOLERANCE_RATIO = 0.05
 
 _ROOM_SEPARATOR = re.compile(r"\s*\+\s*")
 
+# Konum eşleştirmesinde tam alan ifadesi başlıkta geçmiyorsa (ör. Gemini'nin
+# district'e bir cadde/sokak adı yazdığı durumlarda) kelime bazında ortak-önek
+# karşılaştırmasına düşülür — bu jenerik son ekler anlam taşımadığı için
+# kıyaslamadan önce ayıklanır (bkz. _significant_words).
+_LOCATION_SUFFIX_WORDS = {
+    "cadde", "caddesi", "sokak", "sokağı", "sokagi", "bulvar", "bulvarı", "bulvari",
+    "mahalle", "mahallesi", "köy", "köyü", "koy", "koyu",
+}
+_MIN_FUZZY_WORD_LEN = 3
+_MIN_SHARED_PREFIX = 5
+
+# Oda sayısının anlamsız olduğu emlak tipleri — bu tiplerde room_count filtresi
+# hiç uygulanmaz (bkz. matching_node).
+_ROOM_COUNT_EXEMPT_PROPERTY_TYPES = {"commercial", "land"}
+
 
 def _normalize(value: str) -> str:
     """district/room_count karşılaştırmalarını case+whitespace-insensitive
@@ -32,16 +47,45 @@ def _normalize_room_count(value: str) -> str:
     return _ROOM_SEPARATOR.sub("+", _normalize(value))
 
 
+def _significant_words(value: str) -> list[str]:
+    return [
+        word
+        for word in _normalize(value).split()
+        if word not in _LOCATION_SUFFIX_WORDS and len(word) >= _MIN_FUZZY_WORD_LEN
+    ]
+
+
+def _words_share_prefix(word_a: str, word_b: str) -> bool:
+    shorter, longer = (word_a, word_b) if len(word_a) <= len(word_b) else (word_b, word_a)
+    prefix_len = min(len(shorter), _MIN_SHARED_PREFIX)
+    return longer.startswith(shorter[:prefix_len])
+
+
 def _title_mentions_area(title: str | None, area: str) -> bool:
     """Sahibinden'in konum alanı genelde sadece il/ilçe düzeyinde (örn. "Bursa
     / Osmangazi") — mahalle bilgisi (örn. "Çekirge") neredeyse hep ilanın
     BAŞLIĞINDA geçer ("ÇEKİRGEDE SATILIK..."). Lead "Çekirge" arıyorsa ve
     hiçbir listing.district buna birebir uymuyorsa (hepsi "Osmangazi"), gerçek
     bir eşleşme sessizce kaçırılır — bu yüzden başlığı da tarıyoruz (gerçek
-    prod hatası, kullanıcı bildirdi)."""
+    prod hatası, kullanıcı bildirdi).
+
+    Tam ifade birebir geçmiyorsa kelime bazında ortak-önek karşılaştırmasına
+    düşülür: Gemini'nin district alanına bir cadde/sokak adı yazdığı durumlarda
+    (ör. "Uluyol Caddesi") Türkçe hal ekleri ("Uluyol**a** Yakın") birebir
+    substring eşleşmesini kırıyordu — bu da gerçek bir prod hatası (kullanıcı
+    bildirdi). cadde/sokak/mahalle gibi jenerik kelimeler ayıklanıp kalan
+    anlamlı kelimeler için ilk ~5 karakter ortak mı diye bakılır."""
     if not title or not area.strip():
         return False
-    return _normalize(area) in _normalize(title)
+    normalized_title = _normalize(title)
+    if _normalize(area) in normalized_title:
+        return True
+    title_words = normalized_title.split()
+    return any(
+        _words_share_prefix(area_word, title_word)
+        for area_word in _significant_words(area)
+        for title_word in title_words
+    )
 
 
 def matching_node(state: AgentState, db: Session) -> AgentState:
@@ -68,18 +112,32 @@ def matching_node(state: AgentState, db: Session) -> AgentState:
     bir Nominatim hatası, aranan bölgenin tam içindeki gerçek bir portföyü de
     listeden düşürüyordu). Hem bölge hem oda sayısı karşılaştırmaları
     case/whitespace-insensitive (_normalize).
+
+    `listing_type_preference` (sale/rent) ve `property_type_preference`
+    (residential/commercial/land) set edilmişse sert filtre uygular — None ise
+    (belirtilmedi) hiçbir portföy bu kritere göre elenmez (recall-öncelikli
+    felsefe: bilinmeyen tercihte fazla eşleşme az eşleşmeden iyidir, kullanıcı
+    talebi). property_type_preference commercial/land ise room_count filtresi
+    hiç uygulanmaz — oda sayısı kavramı bu tiplerde anlamsız (gerçek prod
+    hatası: "kiralık iş yeri" arayan bir aday, alakasız bir room_count/budget
+    yüzünden ticari bir portföyü kaçırabiliyordu, kullanıcı bildirdi).
     Bölgesel emsal embedding tabanlı benzerlik Sprint 2'de Pricing Agent ile birlikte eklendi.
     """
     radius_km = state.get("radius_km")
     center = geocode_district(db, state["district"]) if radius_km and state.get("district") else None
+    property_type_preference = state.get("property_type_preference")
 
     query = select(Listing).where(Listing.status == "active")
-    if state.get("room_count"):
+    if state.get("room_count") and property_type_preference not in _ROOM_COUNT_EXEMPT_PROPERTY_TYPES:
         target_room = _normalize_room_count(state["room_count"])
         query = query.where(
             func.regexp_replace(func.lower(func.trim(Listing.room_count)), r"\s*\+\s*", "+", "g")
             == target_room
         )
+    if state.get("listing_type_preference"):
+        query = query.where(Listing.listing_type == state["listing_type_preference"])
+    if property_type_preference:
+        query = query.where(Listing.property_type == property_type_preference)
 
     budget_max = state.get("budget_max")
     budget_min = state.get("budget_min")

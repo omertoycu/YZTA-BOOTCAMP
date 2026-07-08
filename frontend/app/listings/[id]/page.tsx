@@ -5,7 +5,7 @@ import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import { ArrowLeft, Ruler, DoorOpen, MapPin, Sparkles, CalendarDays, Eye, Link2, Check, Trash2 } from "lucide-react";
 import { apiFetch, apiFetchBlob, getToken } from "@/lib/api";
-import type { Listing, ListingViewStats, PricingSuggestion } from "@/lib/types";
+import type { Listing, ListingViewStats, PricingSuggestion, PropertyType } from "@/lib/types";
 import { formatCurrency } from "@/lib/format";
 import { Button } from "@/components/ui/Button";
 import { Badge } from "@/components/ui/Badge";
@@ -15,6 +15,7 @@ import { Icon } from "@/components/ui/Icon";
 import { Input } from "@/components/ui/Input";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { ListingTypeToggle } from "@/components/ui/ListingTypeToggle";
+import { PropertyTypeSelect } from "@/components/ui/PropertyTypeSelect";
 
 export default function ListingDetailPage() {
   const router = useRouter();
@@ -105,6 +106,20 @@ export default function ListingDetailPage() {
       setListing(updated);
     } catch (err) {
       setError(err instanceof Error ? err.message : "İlan tipi güncellenemedi");
+    }
+  }
+
+  async function handlePropertyTypeChange(propertyType: PropertyType) {
+    if (!listing || listing.property_type === propertyType) return;
+    setError(null);
+    try {
+      const updated = await apiFetch<Listing>(`/listings/${listing.id}/property-type`, {
+        method: "PATCH",
+        body: JSON.stringify({ property_type: propertyType }),
+      });
+      setListing(updated);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Emlak tipi güncellenemedi");
     }
   }
 
@@ -242,6 +257,7 @@ export default function ListingDetailPage() {
                 {LISTING_STATUS_LABELS[listing.status] ?? listing.status}
               </Badge>
               <ListingTypeToggle value={listing.listing_type} onChange={handleTypeChange} />
+              <PropertyTypeSelect value={listing.property_type} onChange={handlePropertyTypeChange} />
               <Badge variant="neutral">
                 <CalendarDays className="h-3 w-3" />
                 {new Date(listing.created_at).toLocaleDateString("tr-TR")}

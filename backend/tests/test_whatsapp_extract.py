@@ -141,6 +141,29 @@ def test_extract_lead_fields_parses_valid_response(monkeypatch):
     assert result["room_count"] == "3+1"
 
 
+def test_extract_lead_fields_parses_listing_and_property_type_preference(monkeypatch):
+    """Gerçek prod hatası (kullanıcı bildirdi): sistem kiralık/satılık ve
+    konut/iş yeri/arsa ayrımını hiç bilmiyordu — bu iki alan artık Gemini
+    şemasının bir parçası."""
+    def _fake_generate_content(self, prompt, generation_config=None):
+        class _Resp:
+            text = (
+                '{"district": "Osmangazi", "budget_min": null, "budget_max": null, '
+                '"room_count": null, "radius_km": null, "listing_type_preference": "rent", '
+                '"property_type_preference": "commercial"}'
+            )
+
+        return _Resp()
+
+    monkeypatch.setattr(whatsapp_extract.settings, "gemini_api_key", "fake-key")
+    monkeypatch.setattr("google.generativeai.configure", lambda **kwargs: None)
+    monkeypatch.setattr("google.generativeai.GenerativeModel.generate_content", _fake_generate_content)
+
+    result = extract_lead_fields("Osmangazi'de kiralık bir iş yeri arıyorum")
+    assert result["listing_type_preference"] == "rent"
+    assert result["property_type_preference"] == "commercial"
+
+
 def test_extract_lead_fields_raises_not_configured_without_api_key(monkeypatch):
     monkeypatch.setattr(whatsapp_extract.settings, "gemini_api_key", None)
     with pytest.raises(WhatsAppExtractError, match="__not_configured__"):

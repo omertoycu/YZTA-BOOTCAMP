@@ -18,6 +18,7 @@ export interface CurrentUser {
 }
 
 export type ListingType = "sale" | "rent";
+export type PropertyType = "residential" | "commercial" | "land";
 
 export interface Listing {
   id: string;
@@ -27,6 +28,7 @@ export interface Listing {
   room_count: string;
   square_meters: number | null;
   listing_type: ListingType;
+  property_type: PropertyType;
   status: string;
   photos: string[];
   created_at: string;
@@ -39,6 +41,7 @@ export interface ListingExtract {
   room_count: string | null;
   square_meters: number | null;
   listing_type: ListingType | null;
+  property_type: PropertyType | null;
   cover_photo_url: string | null;
 }
 
@@ -54,6 +57,7 @@ export interface VoiceListingDraft {
   room_count: string | null;
   square_meters: number | null;
   listing_type: ListingType | null;
+  property_type: PropertyType | null;
 }
 
 export type LeadStatus = "new" | "contacted" | "viewing" | "negotiation" | "won" | "lost";
@@ -68,6 +72,8 @@ export interface Lead {
   budget_max: number | null;
   room_count: string | null;
   radius_km: number | null;
+  listing_type_preference: ListingType | null;
+  property_type_preference: PropertyType | null;
   message_count: number;
   last_contacted_at: string | null;
   auto_follow_up_enabled: boolean;
@@ -90,6 +96,8 @@ export interface LeadUpdatePayload {
   budget_max?: number | null;
   room_count?: string | null;
   radius_km?: number | null;
+  listing_type_preference?: ListingType | null;
+  property_type_preference?: PropertyType | null;
 }
 
 export interface WhatsAppMessage {
@@ -107,6 +115,8 @@ export interface LeadFieldExtractionDraft {
   budget_max: number | null;
   room_count: string | null;
   radius_km: number | null;
+  listing_type_preference: ListingType | null;
+  property_type_preference: PropertyType | null;
 }
 
 export interface SuggestReplyResult {
@@ -153,6 +163,7 @@ export interface MatchResult {
   title: string;
   price: number;
   match_reason: string;
+  relevance_score: number | null;
 }
 
 export interface LeadScore {

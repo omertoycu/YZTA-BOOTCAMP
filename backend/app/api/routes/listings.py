@@ -36,6 +36,7 @@ from app.schemas.listing import (
     ListingExtractResponse,
     ListingPhotoFromUrlRequest,
     ListingPortfolioExtractResponse,
+    ListingPropertyTypeUpdate,
     ListingResponse,
     ListingStatusUpdate,
     ListingTypeUpdate,
@@ -183,6 +184,23 @@ def update_listing_type(
     listing.listing_type = payload.listing_type
     db.commit()
     index_listing(listing)
+    return listing
+
+
+@router.patch("/{listing_id}/property-type", response_model=ListingResponse)
+def update_listing_property_type(
+    listing_id: str,
+    payload: ListingPropertyTypeUpdate,
+    db: Session = Depends(get_tenant_db),
+):
+    """Konut/iş yeri/arsa ayrımı danışman panelinden düzeltilebilir — Matching
+    Agent bunu bilmeden ticari/arsa ilanlarına anlamsız oda sayısı filtresi
+    uygulamaya devam eder (bkz. app/agents/matching.py)."""
+    listing = db.get(Listing, listing_id)
+    if not listing:
+        raise HTTPException(status_code=404, detail="Portföy bulunamadı")
+    listing.property_type = payload.property_type
+    db.commit()
     return listing
 
 

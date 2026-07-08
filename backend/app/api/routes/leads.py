@@ -8,6 +8,7 @@ from app.agents.calendar_invite import build_appointment_ics
 from app.agents.follow_up import disable_auto_follow_up, enable_auto_follow_up
 from app.agents.graph import build_matching_graph
 from app.agents.lead_voice_note import VoiceNoteError, transcribe_and_extract_note
+from app.agents.match_ranking import rerank_candidates_with_ai
 from app.agents.reply_draft import ReplyDraftError, draft_reply
 from app.agents.scoring import calculate_lead_score
 from app.agents.voice_listing import MAX_AUDIO_BYTES
@@ -145,6 +146,29 @@ def _lead_to_match_state(lead: Lead) -> dict:
         "room_count": lead.room_count,
         "district": lead.district,
         "radius_km": float(lead.radius_km) if lead.radius_km else None,
+        "listing_type_preference": lead.listing_type_preference,
+        "property_type_preference": lead.property_type_preference,
+    }
+
+
+def _last_inbound_message_text(db: Session, lead_id) -> str | None:
+    return db.execute(
+        select(WhatsAppMessage.body)
+        .where(WhatsAppMessage.lead_id == lead_id, WhatsAppMessage.direction == "in")
+        .order_by(WhatsAppMessage.created_at.desc())
+        .limit(1)
+    ).scalar_one_or_none()
+
+
+def _match_criteria(lead: Lead) -> dict:
+    """rerank_candidates_with_ai'ın prompt'una geçirilen okunabilir kriter özeti."""
+    return {
+        "bölge": lead.district,
+        "bütçe_min": float(lead.budget_min) if lead.budget_min else None,
+        "bütçe_max": float(lead.budget_max) if lead.budget_max else None,
+        "oda_sayısı": lead.room_count,
+        "işlem_tipi": lead.listing_type_preference,
+        "emlak_tipi": lead.property_type_preference,
     }
 
 
@@ -156,7 +180,11 @@ def match_lead(lead_id: str, db: Session = Depends(get_tenant_db)):
 
     graph = build_matching_graph(db)
     result = graph.invoke(_lead_to_match_state(lead))
-    return result["candidate_listings"]
+    return rerank_candidates_with_ai(
+        original_message=_last_inbound_message_text(db, lead.id),
+        criteria=_match_criteria(lead),
+        candidates=result["candidate_listings"],
+    )
 
 
 @router.post("/{lead_id}/score", response_model=LeadScoreResponse, status_code=201)
@@ -397,7 +425,12 @@ def send_matches_via_whatsapp(
 
     graph = build_matching_graph(db)
     result = graph.invoke(_lead_to_match_state(lead))
-    matches = result["candidate_listings"][:3]
+    ranked = rerank_candidates_with_ai(
+        original_message=_last_inbound_message_text(db, lead.id),
+        criteria=_match_criteria(lead),
+        candidates=result["candidate_listings"],
+    )
+    matches = ranked[:3]
     if not matches:
         raise HTTPException(status_code=404, detail="Bu adayın kriterlerine uyan portföy bulunamadı")
 
@@ -498,16 +531,15 @@ def suggest_reply(lead_id: str, db: Session = Depends(get_tenant_db)):
     if not lead:
         raise HTTPException(status_code=404, detail="Lead bulunamadı")
 
+    last_inbound = _last_inbound_message_text(db, lead.id)
+
     graph = build_matching_graph(db)
     result = graph.invoke(_lead_to_match_state(lead))
-    candidates = result["candidate_listings"][:3]
-
-    last_inbound = db.execute(
-        select(WhatsAppMessage.body)
-        .where(WhatsAppMessage.lead_id == lead.id, WhatsAppMessage.direction == "in")
-        .order_by(WhatsAppMessage.created_at.desc())
-        .limit(1)
-    ).scalar_one_or_none()
+    candidates = rerank_candidates_with_ai(
+        original_message=last_inbound,
+        criteria=_match_criteria(lead),
+        candidates=result["candidate_listings"],
+    )[:3]
 
     try:
         draft = draft_reply(

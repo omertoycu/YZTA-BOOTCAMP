@@ -5,12 +5,13 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { ArrowLeft } from "lucide-react";
 import { apiFetch, apiUpload, getToken } from "@/lib/api";
-import type { Listing, ListingExtract, ListingType } from "@/lib/types";
+import type { Listing, ListingExtract, ListingType, PropertyType } from "@/lib/types";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { Alert } from "@/components/ui/Alert";
 import { Icon } from "@/components/ui/Icon";
 import { ListingTypeToggle } from "@/components/ui/ListingTypeToggle";
+import { PropertyTypeSelect } from "@/components/ui/PropertyTypeSelect";
 import { cn } from "@/lib/utils";
 
 const TOTAL_STEPS = 6;
@@ -30,6 +31,7 @@ export default function NewListingPage() {
   const [roomCount, setRoomCount] = useState("2+1");
   const [squareMeters, setSquareMeters] = useState("");
   const [listingType, setListingType] = useState<ListingType>("sale");
+  const [propertyType, setPropertyType] = useState<PropertyType>("residential");
   // Yapıştırılan kaynaktan çıkarılan kapak görseli URL'i — ilan oluşturulunca
   // sunucu tarafında indirilip depoya eklenir (bkz. photos/from-url).
   const [extractedCoverUrl, setExtractedCoverUrl] = useState<string | null>(null);
@@ -73,6 +75,7 @@ export default function NewListingPage() {
       if (fields.room_count) setRoomCount(fields.room_count);
       if (fields.square_meters) setSquareMeters(String(fields.square_meters));
       if (fields.listing_type) setListingType(fields.listing_type);
+      if (fields.property_type) setPropertyType(fields.property_type);
       setExtractedCoverUrl(fields.cover_photo_url ?? null);
       goNext();
     } catch (err) {
@@ -117,6 +120,7 @@ export default function NewListingPage() {
           room_count: roomCount,
           square_meters: squareMeters ? Number(squareMeters) : null,
           listing_type: listingType,
+          property_type: propertyType,
         }),
       });
 
@@ -227,6 +231,12 @@ export default function NewListingPage() {
           <div className="flex flex-col gap-4">
             <h2 className="text-title-md text-primary">Satılık mı, kiralık mı?</h2>
             <ListingTypeToggle value={listingType} onChange={setListingType} />
+            <div className="flex flex-col gap-1.5">
+              <label htmlFor="propertyType" className="text-body-sm text-text-muted">
+                Emlak tipi
+              </label>
+              <PropertyTypeSelect value={propertyType} onChange={setPropertyType} className="w-fit" />
+            </div>
             <Input
               id="price"
               label={listingType === "rent" ? "Aylık kira (TL)" : "Satış fiyatı (TL)"}

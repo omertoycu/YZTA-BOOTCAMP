@@ -25,6 +25,11 @@ class Lead(Base):
     # Set edilirse matching_node district tam eşleşmesi yerine bu yarıçapta
     # coğrafi filtre uygular (bkz. app/agents/geocoding.py, app/agents/matching.py).
     radius_km: Mapped[float | None] = mapped_column(Numeric(6, 2), nullable=True)
+    # Adayın aradığı işlem/emlak tipi (sale/rent, residential/commercial/land).
+    # None = belirtilmedi/fark etmez — Matching Agent bu durumda filtre uygulamaz
+    # (recall-öncelikli: bilinmeyen tercihte hiçbir portföy elenmez).
+    listing_type_preference: Mapped[str | None] = mapped_column(String(10), nullable=True)
+    property_type_preference: Mapped[str | None] = mapped_column(String(20), nullable=True)
     # message_count/last_contacted_at manuel girişte elle, WhatsApp Intake Agent'ında
     # (app/agents/intake.py) otomatik güncellenir. Mesaj içeriği/transkript ayrı bir
     # tabloda tutulmuyor — sadece idempotency için whatsapp_inbound_events var.

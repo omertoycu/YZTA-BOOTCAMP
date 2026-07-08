@@ -9,4 +9,6 @@ class AgentState(TypedDict, total=False):
     room_count: str | None
     district: str | None
     radius_km: float | None
+    listing_type_preference: str | None
+    property_type_preference: str | None
     candidate_listings: list[dict]

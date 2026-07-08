@@ -365,6 +365,148 @@ def test_matches_via_title_even_with_radius_search(client, monkeypatch):
     assert titles == {"Çekirgede satılık daire"}
 
 
+def test_listing_type_preference_excludes_wrong_transaction_type(client, monkeypatch):
+    """Gerçek prod hatası (kullanıcı bildirdi): kiralık arayan bir adaya
+    sistem satılık bir ilan da önerebiliyordu — Lead'de bu tercihi tutan alan
+    yoktu. Artık listing_type_preference set edilince yanlış işlem tipi
+    (satılık/kiralık) tamamen elenmeli."""
+    monkeypatch.setattr(matching, "geocode_district", lambda db, district: None)
+
+    headers = _register(client, "Ofis Tip Test 1", "owner1@tip-test.com")
+    client.post(
+        "/listings",
+        json={
+            "title": "Kiralık daire",
+            "district": "Osmangazi",
+            "price": 15000,
+            "room_count": "2+1",
+            "listing_type": "rent",
+        },
+        headers=headers,
+    )
+    client.post(
+        "/listings",
+        json={
+            "title": "Satılık daire",
+            "district": "Osmangazi",
+            "price": 15000,
+            "room_count": "2+1",
+            "listing_type": "sale",
+        },
+        headers=headers,
+    )
+
+    lead_resp = client.post(
+        "/leads",
+        json={
+            "contact_phone": "5551114400",
+            "district": "Osmangazi",
+            "room_count": "2+1",
+            "listing_type_preference": "rent",
+        },
+        headers=headers,
+    )
+    lead_id = lead_resp.json()["id"]
+
+    match_resp = client.post(f"/leads/{lead_id}/match", headers=headers)
+    assert match_resp.status_code == 200
+    titles = {m["title"] for m in match_resp.json()}
+    assert titles == {"Kiralık daire"}
+
+
+def test_commercial_property_type_skips_room_count_filter(client, monkeypatch):
+    """Gerçek prod hatası (kullanıcı bildirdi): "kiralık iş yeri" arayan bir
+    adayın lead kaydında alakasız/eksik bir room_count varsa (ör. önceki bir
+    konut aramasından kalma), ticari bir portföy oda sayısı uyuşmadığı için
+    yanlışlıkla elenebiliyordu. property_type_preference "commercial" ise
+    room_count filtresi hiç uygulanmamalı."""
+    monkeypatch.setattr(matching, "geocode_district", lambda db, district: None)
+
+    headers = _register(client, "Ofis Tip Test 2", "owner2@tip-test.com")
+    client.post(
+        "/listings",
+        json={
+            "title": "BEGO GAYRİMENKULDEN ULUYOLA YAKIN 600 M2 KİRALIK İŞ YERİ",
+            "district": "Osmangazi",
+            "price": 30000,
+            "room_count": "Belirtilmedi",
+            "listing_type": "rent",
+            "property_type": "commercial",
+        },
+        headers=headers,
+    )
+
+    lead_resp = client.post(
+        "/leads",
+        json={
+            "contact_phone": "5551114411",
+            "district": "Osmangazi",
+            "room_count": "3+1",  # alakasız/eski bir aramadan kalma
+            "listing_type_preference": "rent",
+            "property_type_preference": "commercial",
+        },
+        headers=headers,
+    )
+    lead_id = lead_resp.json()["id"]
+
+    match_resp = client.post(f"/leads/{lead_id}/match", headers=headers)
+    assert match_resp.status_code == 200
+    titles = {m["title"] for m in match_resp.json()}
+    assert titles == {"BEGO GAYRİMENKULDEN ULUYOLA YAKIN 600 M2 KİRALIK İŞ YERİ"}
+
+
+def test_matches_via_fuzzy_street_name_with_turkish_suffix(client, monkeypatch):
+    """Gerçek prod hatası (kullanıcı bildirdi): "BEGO GAYRİMENKULDEN ULUYOLA
+    YAKIN 600 M2 KİRALIK İŞ YERİ" ilanı, "uluyol caddesinde kiralık iş yeri"
+    diyen bir adaya eşleşme olarak sunulmadı. Gemini'nin district'e ("mahalle/
+    ilçe" yerine) bir cadde adı ("Uluyol Caddesi") yazması muhtemeldi — bu ne
+    listing.district ("Osmangazi") ile birebir eşleşiyor ne de eski birebir
+    substring kontrolüyle başlıktaki "ULUYOL**A**" (datif ek) ile eşleşiyordu.
+    Artık kelime bazında ortak-önek karşılaştırması bu ek farkını tolere etmeli."""
+    monkeypatch.setattr(matching, "geocode_district", lambda db, district: None)
+
+    headers = _register(client, "Ofis Tip Test 3", "owner3@tip-test.com")
+    client.post(
+        "/listings",
+        json={
+            "title": "BEGO GAYRİMENKULDEN ULUYOLA YAKIN 600 M2 KİRALIK İŞ YERİ",
+            "district": "Osmangazi",
+            "price": 30000,
+            "room_count": "Belirtilmedi",
+            "listing_type": "rent",
+            "property_type": "commercial",
+        },
+        headers=headers,
+    )
+    client.post(
+        "/listings",
+        json={
+            "title": "Alakasız başka bir bölgede satılık daire",
+            "district": "Nilüfer",
+            "price": 900000,
+            "room_count": "2+1",
+        },
+        headers=headers,
+    )
+
+    lead_resp = client.post(
+        "/leads",
+        json={
+            "contact_phone": "5551114422",
+            "district": "Uluyol Caddesi",
+            "listing_type_preference": "rent",
+            "property_type_preference": "commercial",
+        },
+        headers=headers,
+    )
+    lead_id = lead_resp.json()["id"]
+
+    match_resp = client.post(f"/leads/{lead_id}/match", headers=headers)
+    assert match_resp.status_code == 200
+    titles = {m["title"] for m in match_resp.json()}
+    assert titles == {"BEGO GAYRİMENKULDEN ULUYOLA YAKIN 600 M2 KİRALIK İŞ YERİ"}
+
+
 def test_neighborhood_match_is_turkish_capital_i_safe(client, monkeypatch):
     """Regresyon: hem başlık hem aranan bölge Türkçe büyük "İ" içerdiğinde
     (ör. "İZMİR"), Python'un str.lower()'ının bunu bir COMBINING DOT ABOVE

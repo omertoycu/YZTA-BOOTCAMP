@@ -20,6 +20,9 @@ class Listing(Base):
     room_count: Mapped[str] = mapped_column(String(20), nullable=False)
     square_meters: Mapped[int] = mapped_column(Integer, nullable=True)
     listing_type: Mapped[str] = mapped_column(String(10), default="sale")
+    # Konut/iş yeri/arsa ayrımı — oda sayısının anlamsız olduğu ticari/arsa
+    # ilanlarında Matching Agent room_count filtresini atlar (bkz. matching.py).
+    property_type: Mapped[str] = mapped_column(String(20), default="residential")
     status: Mapped[str] = mapped_column(String(20), default="active")
     photos: Mapped[dict] = mapped_column(JSONB, default=list)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())

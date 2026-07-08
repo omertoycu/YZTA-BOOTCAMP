@@ -37,7 +37,9 @@ import type {
   LeadStatus,
   LeadUpdatePayload,
   LeadVoiceNoteDraft,
+  ListingType,
   MatchResult,
+  PropertyType,
   SendMatchesResult,
   SuggestReplyResult,
   WhatsAppMessage,
@@ -65,6 +67,17 @@ const LEAD_STATUS_LABELS: Record<LeadStatus, string> = {
   negotiation: "Pazarlık",
   won: "Kazanıldı",
   lost: "Kaybedildi",
+};
+
+const LISTING_TYPE_PREFERENCE_LABELS: Record<ListingType, string> = {
+  sale: "Satılık arıyor",
+  rent: "Kiralık arıyor",
+};
+
+const PROPERTY_TYPE_PREFERENCE_LABELS: Record<PropertyType, string> = {
+  residential: "Konut",
+  commercial: "İş Yeri",
+  land: "Arsa",
 };
 
 function statusVariant(status: LeadStatus): NonNullable<BadgeProps["variant"]> {
@@ -144,6 +157,8 @@ export default function LeadsPage() {
   const [budgetMax, setBudgetMax] = useState("");
   const [roomCount, setRoomCount] = useState("2+1");
   const [radiusKm, setRadiusKm] = useState("");
+  const [listingTypePreference, setListingTypePreference] = useState<ListingType | "">("");
+  const [propertyTypePreference, setPropertyTypePreference] = useState<PropertyType | "">("");
 
   useEffect(() => {
     if (!getToken()) {
@@ -178,12 +193,16 @@ export default function LeadsPage() {
           budget_max: budgetMax ? Number(budgetMax) : null,
           room_count: roomCount || null,
           radius_km: radiusKm ? Number(radiusKm) : null,
+          listing_type_preference: listingTypePreference || null,
+          property_type_preference: propertyTypePreference || null,
         }),
       });
       setContactPhone("");
       setDistrict("");
       setBudgetMax("");
       setRadiusKm("");
+      setListingTypePreference("");
+      setPropertyTypePreference("");
       await loadLeads();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Lead eklenemedi");
@@ -331,6 +350,8 @@ export default function LeadsPage() {
         budget_max: reanalyzeDraft.budget_max,
         room_count: reanalyzeDraft.room_count,
         radius_km: reanalyzeDraft.radius_km,
+        listing_type_preference: reanalyzeDraft.listing_type_preference,
+        property_type_preference: reanalyzeDraft.property_type_preference,
       };
       const updated = await apiFetch<Lead>(`/leads/${leadId}`, {
         method: "PATCH",
@@ -637,6 +658,37 @@ export default function LeadsPage() {
               value={radiusKm}
               onChange={(e) => setRadiusKm(e.target.value)}
             />
+            <div className="flex flex-col gap-1.5">
+              <label htmlFor="listingTypePreference" className="text-body-sm text-text-muted">
+                İşlem tipi
+              </label>
+              <select
+                id="listingTypePreference"
+                value={listingTypePreference}
+                onChange={(e) => setListingTypePreference(e.target.value as ListingType | "")}
+                className="h-10 rounded-lg border border-outline-variant bg-surface-container-lowest px-3 text-body-sm text-on-surface focus:border-secondary focus:outline-none"
+              >
+                <option value="">Fark etmez</option>
+                <option value="sale">Satılık</option>
+                <option value="rent">Kiralık</option>
+              </select>
+            </div>
+            <div className="flex flex-col gap-1.5">
+              <label htmlFor="propertyTypePreference" className="text-body-sm text-text-muted">
+                Emlak tipi
+              </label>
+              <select
+                id="propertyTypePreference"
+                value={propertyTypePreference}
+                onChange={(e) => setPropertyTypePreference(e.target.value as PropertyType | "")}
+                className="h-10 rounded-lg border border-outline-variant bg-surface-container-lowest px-3 text-body-sm text-on-surface focus:border-secondary focus:outline-none"
+              >
+                <option value="">Fark etmez</option>
+                <option value="residential">Konut</option>
+                <option value="commercial">İş Yeri</option>
+                <option value="land">Arsa</option>
+              </select>
+            </div>
             <Button type="submit" className="lg:col-span-5 lg:w-fit">
               <Plus className="h-4 w-4" />
               Aday ekle
@@ -734,6 +786,12 @@ export default function LeadsPage() {
                       <Compass className="h-3 w-3" />
                       {lead.radius_km} km yarıçap
                     </Badge>
+                  )}
+                  {lead.listing_type_preference && (
+                    <Badge variant="neutral">{LISTING_TYPE_PREFERENCE_LABELS[lead.listing_type_preference]}</Badge>
+                  )}
+                  {lead.property_type_preference && (
+                    <Badge variant="neutral">{PROPERTY_TYPE_PREFERENCE_LABELS[lead.property_type_preference]}</Badge>
                   )}
                   {lead.fields_extracted_by_ai && (
                     <Badge variant="brand">
@@ -1247,6 +1305,47 @@ export default function LeadsPage() {
                           })
                         }
                       />
+                      <div className="flex flex-col gap-1.5">
+                        <label htmlFor={`reanalyze-listing-type-${lead.id}`} className="text-body-sm text-text-muted">
+                          İşlem tipi
+                        </label>
+                        <select
+                          id={`reanalyze-listing-type-${lead.id}`}
+                          value={reanalyzeDraft.listing_type_preference ?? ""}
+                          onChange={(e) =>
+                            setReanalyzeDraft({
+                              ...reanalyzeDraft,
+                              listing_type_preference: (e.target.value || null) as ListingType | null,
+                            })
+                          }
+                          className="h-10 rounded-lg border border-outline-variant bg-surface-container-lowest px-3 text-body-sm text-on-surface focus:border-secondary focus:outline-none"
+                        >
+                          <option value="">Fark etmez</option>
+                          <option value="sale">Satılık</option>
+                          <option value="rent">Kiralık</option>
+                        </select>
+                      </div>
+                      <div className="flex flex-col gap-1.5">
+                        <label htmlFor={`reanalyze-property-type-${lead.id}`} className="text-body-sm text-text-muted">
+                          Emlak tipi
+                        </label>
+                        <select
+                          id={`reanalyze-property-type-${lead.id}`}
+                          value={reanalyzeDraft.property_type_preference ?? ""}
+                          onChange={(e) =>
+                            setReanalyzeDraft({
+                              ...reanalyzeDraft,
+                              property_type_preference: (e.target.value || null) as PropertyType | null,
+                            })
+                          }
+                          className="h-10 rounded-lg border border-outline-variant bg-surface-container-lowest px-3 text-body-sm text-on-surface focus:border-secondary focus:outline-none"
+                        >
+                          <option value="">Fark etmez</option>
+                          <option value="residential">Konut</option>
+                          <option value="commercial">İş Yeri</option>
+                          <option value="land">Arsa</option>
+                        </select>
+                      </div>
                     </div>
                     <div className="flex justify-between">
                       <Button
@@ -1325,9 +1424,14 @@ export default function LeadsPage() {
                           >
                             <div className="flex items-center justify-between gap-3 text-body-sm text-on-surface">
                               <span className="font-medium">{match.title}</span>
-                              <span className="shrink-0 font-semibold text-primary">
-                                {formatCurrency(match.price)}
-                              </span>
+                              <div className="flex shrink-0 items-center gap-2">
+                                {match.relevance_score != null && (
+                                  <Badge variant={scoreVariant(match.relevance_score)}>
+                                    %{match.relevance_score} uygun
+                                  </Badge>
+                                )}
+                                <span className="font-semibold text-primary">{formatCurrency(match.price)}</span>
+                              </div>
                             </div>
                             {match.match_reason && (
                               <p className="text-[12px] text-text-muted">{match.match_reason}</p>
