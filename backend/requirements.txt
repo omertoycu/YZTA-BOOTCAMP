@@ -3,17 +3,23 @@ uvicorn[standard]==0.30.1
 sqlalchemy==2.0.30
 alembic==1.13.1
 psycopg2-binary==2.9.9
-pydantic==2.7.1
+pydantic==2.12.5
 pydantic-settings==2.2.1
 python-jose[cryptography]==3.3.0
 passlib[bcrypt]==1.7.4
 bcrypt==4.0.1
 langgraph==0.1.5
 google-generativeai==0.8.3
+# Sadece Fiyat Önerisi'nin web'den piyasa doğrulaması için (bkz. app/agents/
+# market_price_check.py) — google-generativeai artık Google tarafından
+# durduruldu ve Gemini 2.5'in google_search (grounding) aracını güvenilir
+# desteklemiyor; bu yeni resmi SDK'yı SADECE bu özellik kullanıyor, diğer
+# agent'lar eski kütüphanede kalıyor (aynı GEMINI_API_KEY geçerli).
+google-genai==2.10.0
 python-multipart==0.0.9
 sentry-sdk[fastapi]==2.5.1
 pytest==8.2.1
-httpx==0.27.0
+httpx==0.28.1
 chromadb==0.5.5
 beautifulsoup4==4.12.3
 lxml==5.2.2

@@ -109,3 +109,27 @@ def test_pricing_suggestion_does_not_mix_sale_and_rent_comparables(client):
     # milyonlarca TL'lik emsaller hiç dahil olmamalı.
     assert body["suggested_max"] < 100000
     assert all(comp["price"] < 100000 for comp in body["comparables"])
+
+
+def test_market_price_check_unknown_listing_returns_404(client):
+    headers = _register(client, "Ofis Market Check 404", "owner@market-check-404.com")
+    fake_id = "00000000-0000-0000-0000-000000000000"
+    resp = client.get(f"/listings/{fake_id}/market-price-check", headers=headers)
+    assert resp.status_code == 404
+
+
+def test_market_price_check_returns_no_data_without_gemini_key(client, monkeypatch):
+    """fetch_market_price_check tamamen best-effort — API key yokken route
+    yine de 200 döner, sadece has_market_data=False olur (sert hata değil)."""
+    from app.agents import market_price_check
+
+    monkeypatch.setattr(market_price_check.settings, "gemini_api_key", None)
+
+    headers = _register(client, "Ofis Market Check", "owner@market-check.com")
+    listing = _create_listing(client, headers, title="Web karşılaştırması test ilanı")
+
+    resp = client.get(f"/listings/{listing['id']}/market-price-check", headers=headers)
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["has_market_data"] is False
+    assert body["sources"] == []

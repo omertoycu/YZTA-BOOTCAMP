@@ -14,6 +14,7 @@ from app.agents.listing_import import (
     parse_sahibinden_portfolio,
 )
 from app.agents.location_report import LocationReportError, get_travel_summary, render_report_pdf
+from app.agents.market_price_check import fetch_market_price_check
 from app.agents.pricing import (
     index_listing,
     reindex_office_listings,
@@ -43,7 +44,7 @@ from app.schemas.listing import (
     LocationReportRequest,
     VoiceListingDraftResponse,
 )
-from app.schemas.pricing import PricingSuggestionResponse, StaleListingAlert
+from app.schemas.pricing import MarketPriceCheckResponse, PricingSuggestionResponse, StaleListingAlert
 from app.schemas.public import ListingViewStatsResponse
 
 router = APIRouter(prefix="/listings", tags=["listings"])
@@ -388,6 +389,20 @@ def get_pricing_suggestion(listing_id: str, db: Session = Depends(get_tenant_db)
     # önce ofisin ilanları endekse geri yazılır — bkz. reindex_office_listings.
     reindex_office_listings(db)
     return suggest_price_range(listing)
+
+
+@router.get("/{listing_id}/market-price-check", response_model=MarketPriceCheckResponse)
+def get_market_price_check(listing_id: str, db: Session = Depends(get_tenant_db)):
+    """Ofisin kendi portföyüyle sınırlı yukarıdaki öneriden farklı olarak,
+    Gemini'nin web arama (grounding) aracıyla piyasa genelinde muadil ilanları
+    araştırıp bir aralık üretir (bkz. app/agents/market_price_check.py).
+    fetch_market_price_check tamamen best-effort olduğu için (hiç exception
+    fırlatmaz) burada ayrıca 503 map'lemeye gerek yok — has_market_data=False
+    zaten "veri yok" anlamına geliyor, hata değil."""
+    listing = db.get(Listing, listing_id)
+    if not listing:
+        raise HTTPException(status_code=404, detail="Portföy bulunamadı")
+    return fetch_market_price_check(listing)
 
 
 @router.get("/{listing_id}/view-stats", response_model=ListingViewStatsResponse)

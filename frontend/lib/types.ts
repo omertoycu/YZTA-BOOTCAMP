@@ -231,6 +231,19 @@ export interface PricingSuggestion {
   comparables: Array<{ title: string; price: number; district: string; room_count: string }>;
 }
 
+export interface MarketSource {
+  title: string;
+  url: string;
+}
+
+export interface MarketPriceCheck {
+  has_market_data: boolean;
+  estimated_min: number | null;
+  estimated_max: number | null;
+  summary: string | null;
+  sources: MarketSource[];
+}
+
 export interface PublicListing {
   id: string;
   title: string;

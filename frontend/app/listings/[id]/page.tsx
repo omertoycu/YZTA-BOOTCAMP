@@ -3,9 +3,9 @@
 import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
-import { ArrowLeft, Ruler, DoorOpen, MapPin, Sparkles, CalendarDays, Eye, Link2, Check, Trash2 } from "lucide-react";
+import { ArrowLeft, Ruler, DoorOpen, MapPin, Sparkles, CalendarDays, Eye, Link2, Check, Trash2, Globe } from "lucide-react";
 import { apiFetch, apiFetchBlob, getToken } from "@/lib/api";
-import type { Listing, ListingViewStats, PricingSuggestion, PropertyType } from "@/lib/types";
+import type { Listing, ListingViewStats, MarketPriceCheck, PricingSuggestion, PropertyType } from "@/lib/types";
 import { formatCurrency } from "@/lib/format";
 import { Button } from "@/components/ui/Button";
 import { Badge } from "@/components/ui/Badge";
@@ -35,6 +35,10 @@ export default function ListingDetailPage() {
   const [pricing, setPricing] = useState<PricingSuggestion | null>(null);
   const [pricingLoading, setPricingLoading] = useState(false);
   const [pricingError, setPricingError] = useState<string | null>(null);
+
+  const [marketCheck, setMarketCheck] = useState<MarketPriceCheck | null>(null);
+  const [marketCheckLoading, setMarketCheckLoading] = useState(false);
+  const [marketCheckError, setMarketCheckError] = useState<string | null>(null);
 
   const [targetAddress, setTargetAddress] = useState("");
   const [targetLabel, setTargetLabel] = useState("");
@@ -134,6 +138,20 @@ export default function ListingDetailPage() {
       setPricingError(err instanceof Error ? err.message : "Fiyat önerisi alınamadı");
     } finally {
       setPricingLoading(false);
+    }
+  }
+
+  async function handleMarketCheck() {
+    if (!listing) return;
+    setMarketCheckLoading(true);
+    setMarketCheckError(null);
+    try {
+      const result = await apiFetch<MarketPriceCheck>(`/listings/${listing.id}/market-price-check`);
+      setMarketCheck(result);
+    } catch (err) {
+      setMarketCheckError(err instanceof Error ? err.message : "Web'den piyasa verisi alınamadı");
+    } finally {
+      setMarketCheckLoading(false);
     }
   }
 
@@ -326,6 +344,52 @@ export default function ListingDetailPage() {
                     )} (${pricing.comparable_count} emsal)`
                   : pricing.message}
               </p>
+            )}
+
+            <div className="flex items-center justify-between border-t border-outline-variant pt-3">
+              <div>
+                <h3 className="text-body-md font-medium text-on-surface">Web'den karşılaştır</h3>
+                <p className="text-[12px] text-text-muted">
+                  Gemini, aynı konum/tipteki güncel ilanları web'de araştırıp bir aralık önerir.
+                </p>
+              </div>
+              <Button variant="outline" size="sm" isLoading={marketCheckLoading} onClick={handleMarketCheck}>
+                <Globe className="h-3.5 w-3.5" />
+                Web'den Karşılaştır
+              </Button>
+            </div>
+            {marketCheckError && <Alert>{marketCheckError}</Alert>}
+            {marketCheck && (
+              <div className="flex flex-col gap-1.5">
+                <p className="text-body-sm text-text-muted">
+                  {marketCheck.has_market_data
+                    ? `Tahmini piyasa aralığı: ${formatCurrency(marketCheck.estimated_min ?? 0)} - ${formatCurrency(
+                        marketCheck.estimated_max ?? 0
+                      )}`
+                    : marketCheck.summary ?? "Web'de güvenilir bir emsal bulunamadı."}
+                </p>
+                {marketCheck.has_market_data && marketCheck.summary && (
+                  <p className="text-[12px] text-text-muted">{marketCheck.summary}</p>
+                )}
+                {marketCheck.sources.length > 0 && (
+                  <div className="flex flex-wrap gap-x-3 gap-y-1">
+                    {marketCheck.sources.map((source) => (
+                      <a
+                        key={source.url}
+                        href={source.url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-[12px] text-secondary underline hover:text-primary"
+                      >
+                        {source.title}
+                      </a>
+                    ))}
+                  </div>
+                )}
+                <p className="text-[11px] text-text-muted">
+                  AI tahmini — harici web kaynaklarından, kesin değildir.
+                </p>
+              </div>
             )}
           </div>
 
