@@ -1,4 +1,3 @@
-from base64 import b64encode
 from urllib.parse import urlparse
 
 import httpx
@@ -13,7 +12,6 @@ from app.agents.listing_import import (
     parse_listing_html,
     parse_sahibinden_portfolio,
 )
-from app.agents.location_report import LocationReportError, get_travel_summary, render_report_pdf
 from app.agents.market_price_check import fetch_market_price_check
 from app.agents.pricing import (
     index_listing,
@@ -26,11 +24,10 @@ from app.agents.voice_listing import MAX_AUDIO_BYTES, VoiceListingError, transcr
 from app.api.deps import get_current_user
 from app.core.geo import infer_city
 from app.core.http import get_http_client
-from app.core.storage import MAX_PHOTO_BYTES, fetch_photo, upload_photo
+from app.core.storage import MAX_PHOTO_BYTES, delete_photo, fetch_photo, upload_photo
 from app.middleware.tenant import get_tenant_db
 from app.models.listing import Listing
 from app.models.listing_view import ListingView
-from app.models.office import Office
 from app.schemas.listing import (
     ListingCreate,
     ListingExtractFromHtmlRequest,
@@ -42,7 +39,7 @@ from app.schemas.listing import (
     ListingResponse,
     ListingStatusUpdate,
     ListingTypeUpdate,
-    LocationReportRequest,
+    ListingUpdate,
     VoiceListingDraftResponse,
 )
 from app.schemas.pricing import MarketPriceCheckResponse, PricingSuggestionResponse, StaleListingAlert
@@ -152,6 +149,68 @@ def create_voice_draft(
         raise HTTPException(status_code=502, detail=str(exc)) from exc
 
     return VoiceListingDraftResponse(**draft)
+
+
+@router.patch("/{listing_id}", response_model=ListingResponse)
+def update_listing(
+    listing_id: str,
+    payload: ListingUpdate,
+    db: Session = Depends(get_tenant_db),
+):
+    """Danışmanın portföy detay sayfasından başlık/fiyat/konum/oda/m² gibi temel
+    alanları düzeltebilmesi için genel amaçlı kısmi güncelleme. status/listing_type/
+    property_type için ayrı, dar kapsamlı route'lar zaten var (yukarıda) — onlara
+    dokunulmaz. Fiyat veya konum değişebildiği için ChromaDB emsal endeksi
+    (Pricing Agent) yeniden yazılır, aksi halde eski değerlerle arar."""
+    listing = db.get(Listing, listing_id)
+    if not listing:
+        raise HTTPException(status_code=404, detail="Portföy bulunamadı")
+
+    updates = payload.model_dump(exclude_unset=True)
+    if "title" in updates and not updates["title"].strip():
+        raise HTTPException(status_code=422, detail="Başlık boş olamaz")
+    if "district" in updates and not updates["district"].strip():
+        raise HTTPException(status_code=422, detail="İlçe boş olamaz")
+    if "room_count" in updates and not updates["room_count"].strip():
+        raise HTTPException(status_code=422, detail="Oda sayısı boş olamaz")
+    if "price" in updates and updates["price"] <= 0:
+        raise HTTPException(status_code=422, detail="Fiyat sıfırdan büyük olmalı")
+
+    for field, value in updates.items():
+        setattr(listing, field, value)
+
+    # city gönderilmeden sadece district/neighborhood güncellenmiş olabilir —
+    # create_listing ile aynı çıkarım mantığı (bkz. app/core/geo.py: infer_city).
+    if not listing.city and listing.district:
+        listing.city = infer_city(listing.district, listing.neighborhood)
+
+    db.commit()
+    index_listing(listing)
+    return listing
+
+
+@router.delete("/{listing_id}/photos/{photo_index}", response_model=ListingResponse)
+def delete_listing_photo(
+    listing_id: str,
+    photo_index: int,
+    db: Session = Depends(get_tenant_db),
+):
+    """Fotoğraf listesinden tek bir fotoğrafı kaldırır (sıra numarasına göre —
+    ListingResponse.photos'un döndürdüğü proxy URL'lerinden değil, ham S3
+    key'inden bağımsız olsun diye index kullanılıyor). S3'ten silme best-effort
+    (bkz. storage.delete_photo); listing.photos'tan çıkarma her koşulda olur."""
+    listing = db.get(Listing, listing_id)
+    if not listing:
+        raise HTTPException(status_code=404, detail="Portföy bulunamadı")
+    photos = list(listing.photos)
+    if photo_index < 0 or photo_index >= len(photos):
+        raise HTTPException(status_code=404, detail="Fotoğraf bulunamadı")
+
+    key = photos.pop(photo_index)
+    listing.photos = photos
+    db.commit()
+    delete_photo(key)
+    return listing
 
 
 @router.patch("/{listing_id}/status", response_model=ListingResponse)
@@ -280,65 +339,6 @@ def get_listing_photo(key: str):
         content=body,
         media_type=content_type,
         headers={"Cache-Control": "public, max-age=31536000, immutable"},
-    )
-
-
-@router.post("/{listing_id}/location-report")
-def create_location_report(
-    listing_id: str,
-    payload: LocationReportRequest,
-    db: Session = Depends(get_tenant_db),
-    current_user: dict = Depends(get_current_user),
-):
-    """Markalı ulaşım/konum raporu PDF'i üretir. Portföyün bölgesi origin,
-    danışmanın girdiği hedef adres destination olarak Google Directions API'ye
-    serbest metin gönderilir — Google kendi içinde geocode ettiği için ayrıca
-    Nominatim'e gerek yok. PDF diske/S3'e kaydedilmez, doğrudan indirilir."""
-    listing = db.get(Listing, listing_id)
-    if not listing:
-        raise HTTPException(status_code=404, detail="Portföy bulunamadı")
-    office = db.get(Office, current_user["office_id"])
-
-    # Sabit il adı eklemiyoruz — eskiden "İstanbul" sabitti ve Bursa'daki bir
-    # ofis için tüm süreler yanlış şehirden hesaplanıyordu (gerçek bug). İlanın
-    # kendi şehir/mahalle alanları doluysa geocode isabetini artırmak için
-    # origin'e eklenir; Google Directions serbest metni kendi geocode eder.
-    origin_parts = [listing.neighborhood, listing.district, listing.city, "Türkiye"]
-    origin = ", ".join(p for p in origin_parts if p)
-    try:
-        travel_summary = get_travel_summary(origin, payload.target_address)
-    except LocationReportError as exc:
-        if str(exc) == "__not_configured__":
-            raise HTTPException(status_code=503, detail="Ulaşım raporu şu an aktif değil") from exc
-        raise HTTPException(status_code=502, detail=str(exc)) from exc
-
-    # Ofis logosu varsa PDF'e gömmek için S3'ten çekilir — best-effort, logo
-    # alınamazsa rapor logosuz üretilmeye devam eder.
-    logo_data_uri = None
-    if office and office.logo_key:
-        try:
-            logo_bytes, logo_content_type = fetch_photo(office.logo_key)
-            logo_data_uri = f"data:{logo_content_type};base64,{b64encode(logo_bytes).decode()}"
-        except HTTPException:
-            pass
-
-    pdf_bytes = render_report_pdf(
-        office_name=office.name if office else "PortföyAI",
-        listing_title=listing.title,
-        listing_district=listing.district,
-        target_label=payload.target_label or payload.target_address,
-        travel_summary=travel_summary,
-        listing_price=float(listing.price),
-        listing_room_count=listing.room_count,
-        listing_square_meters=listing.square_meters,
-        listing_type=listing.listing_type,
-        logo_data_uri=logo_data_uri,
-    )
-
-    return Response(
-        content=pdf_bytes,
-        media_type="application/pdf",
-        headers={"Content-Disposition": f'inline; filename="ulasim-raporu-{listing_id}.pdf"'},
     )
 
 

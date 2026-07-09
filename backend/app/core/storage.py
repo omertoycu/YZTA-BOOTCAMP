@@ -67,6 +67,20 @@ def upload_photo(file_bytes: bytes, content_type: str, listing_id: str) -> str:
     return key
 
 
+def delete_photo(key: str) -> None:
+    """Bir fotoğrafı bucket'tan siler. Best-effort: bucket yapılandırılmamışsa
+    ya da S3 hatası olursa sessizce döner — DB kaynak-of-truth (listing.photos'tan
+    çıkarma) her koşulda gerçekleşsin diye çağıran taraf bu hatayı engellemez
+    (bkz. delete_listing'deki aynı desen)."""
+    if not settings.s3_endpoint_url or not settings.s3_bucket_name:
+        return
+    try:
+        client = _get_s3_client()
+        client.delete_object(Bucket=settings.s3_bucket_name, Key=key)
+    except (BotoCoreError, ClientError):
+        pass
+
+
 def upload_office_logo(file_bytes: bytes, content_type: str, office_id: str) -> str:
     """Ofis logosunu yükler, saklanacak nesne anahtarını döner — upload_photo
     ile aynı kurallar (boyut sınırı, tip whitelist'i, private bucket), sadece

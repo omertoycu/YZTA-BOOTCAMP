@@ -39,7 +39,7 @@ Backend Railway'de, ofis paneli Vercel'de canlıdır.
 
 ### Öne Çıkan Özellikler (rakiplerde olmayan)
 - 🎙️ **Sesli Not → İlan** ✅ — Danışman telefonuna konuşur; yapay zeka kaydı dinleyip ilan taslağını (başlık, bölge, fiyat, oda sayısı, m²) otomatik hazırlar. Danışman onaylamadan hiçbir ilan yayınlanmaz.
-- 🗺️ **Markalı Ulaşım/Konum Raporu** ✅ — Danışman bir hedef adres girer; sistem araçla, yürüyerek ve toplu taşımayla süreleri hesaplayıp ofis logolu bir PDF rapor oluşturur.
+- 🎙️ **Sesli Not → CRM Güncellemesi** ✅ — Bir aday hakkındaki görüşmeyi sesli anlatır; yapay zeka görüşme özeti, önerilen pipeline durumu ve hatırlatma taslağı hazırlar. Onay olmadan hiçbir şey yazılmaz.
 - 💬 **Otomatik WhatsApp Takip Zinciri** 🟡 — Danışman "Otomatik Takip"i açtığında sistem müşteriye 1., 3. ve 7. günlerde giderek yumuşayan hatırlatma mesajları gönderir; müşteri yanıt verdiği an zincir otomatik durur. Kod hazır, WhatsApp hattının resmi onayı bekleniyor.
 
 ### Temel Özellikler (sektörde standart, ürünün olmazsa olmazı)
@@ -77,8 +77,6 @@ Backend Railway'de, ofis paneli Vercel'de canlıdır.
 | Konum/Coğrafya | OpenStreetMap Nominatim (ücretsiz, API key gerektirmez) | ✅ Aktif | Bölge → koordinat geocoding, DB önbellek, yarıçap bazlı eşleştirme |
 | Dosya Depolama | boto3 + S3-uyumlu servis (Railway Bucket / Tigris) | 🟡 Kurulum aşamasında | İlan fotoğrafı yükleme; bucket public-read doğrulaması bekleniyor |
 | Ödeme | iyzico Abonelik Yönetimi (v2 API) | ⏳ Planlanan — sandbox aktivasyonu bekleniyor | Starter/Professional/Enterprise abonelik planları |
-| Harita/Rota | Google Maps Directions API | ✅ Aktif, Railway'de canlı | Ulaşım/konum raporu — araç/yürüyüş/toplu taşıma süresi |
-| PDF Üretimi | WeasyPrint (native Pango/Cairo bağımlılıkları Dockerfile'a eklendi) | ✅ Aktif | Markalı, logolu ulaşım raporu çıktısı |
 | Frontend | Next.js 16 (App Router) + TypeScript + Tailwind CSS | ✅ Aktif, Vercel'de canlı | Ofis paneli — bento-grid dashboard, rehberli (6 adımlı) ilan ekleme sihirbazı |
 | Hata İzleme | Sentry | ⏳ Planlanan — DSN henüz eklenmedi | Prod ortamda hata yakalama |
 | CI/CD | GitHub Actions (test) + Railway (backend) + Vercel (frontend) | ✅ Aktif | Otomatik test + deploy |
@@ -265,7 +263,7 @@ Sprint 2'de gerçek entegrasyonları (ödeme, WhatsApp) ve Pricing/Scoring ajanl
 | Production deployment (Railway backend+DB, Vercel frontend) — orijinalde Sprint 3 story'siydi (#14), erken taşındı | ✅ Canlı; kalan: Sentry DSN, ChromaDB kalıcı disk (Volume) |
 | İlan detay sayfası (`/listings/[id]`) — "İncele" butonu önceden kendi sayfasına link veriyordu, hiçbir etkisi yoktu | ✅ Tamamlandı |
 | Voice-to-Listing: Gemini native ses girişiyle sesli not → ilan taslağı — orijinalde Sprint 3 story'siydi (#11), erken taşındı, Whisper'a gerek kalmadı | ✅ Canlı |
-| Markalı Ulaşım/Konum Raporu (PDF) — orijinalde Sprint 3 story'siydi (#12), erken taşındı | ✅ Canlı |
+| Markalı Ulaşım/Konum Raporu (PDF) — orijinalde Sprint 3 story'siydi (#12), erken taşındı | ❌ Kaldırıldı (2026-07-10) — Google Directions API entegrasyonu güvenilir çalışmadığı için üründen çıkarıldı |
 | WhatsApp takip mesajı (manuel tetiklenen giden mesaj) — orijinalde Sprint 3 story'sinin (#13) bir parçası | 🟡 Kod tamam; ofisin WhatsApp numarasına bağlı olması gerekiyor |
 | Otomatik WhatsApp takip zinciri (3 aşamalı, cron-tetiklemeli, aday yanıt verince duran) — Sprint 3 story'sinin (#13) kalan yarısı | 🟡 Kod tamam (scheduler endpoint'i dahil); Meta doğrulaması + cron kurulumu bekleniyor |
 | Reports sayfası: bölge/skor/kaynak dağılımı | ✅ Tamamlandı |

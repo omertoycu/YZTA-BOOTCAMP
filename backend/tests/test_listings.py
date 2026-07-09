@@ -218,6 +218,141 @@ def test_upload_photo_unknown_listing_returns_404(client):
     assert resp.status_code == 404
 
 
+def test_update_listing_patches_only_given_fields(client):
+    headers = _register(client, "Ofis Listing Edit 1", "owner-edit1@listing-test.com")
+    create_resp = client.post(
+        "/listings",
+        json={"title": "Eski başlık", "district": "Kadikoy", "price": 15000, "room_count": "2+1"},
+        headers=headers,
+    )
+    listing_id = create_resp.json()["id"]
+
+    patch_resp = client.patch(
+        f"/listings/{listing_id}",
+        json={"price": 20000},
+        headers=headers,
+    )
+    assert patch_resp.status_code == 200
+    body = patch_resp.json()
+    assert body["price"] == 20000
+    # dokunulmayan alanlar aynı kalmalı
+    assert body["title"] == "Eski başlık"
+    assert body["district"] == "Kadikoy"
+
+
+def test_update_listing_can_change_title_and_location(client):
+    headers = _register(client, "Ofis Listing Edit 2", "owner-edit2@listing-test.com")
+    create_resp = client.post(
+        "/listings",
+        json={"title": "Eski başlık", "district": "Kadikoy", "price": 15000, "room_count": "2+1"},
+        headers=headers,
+    )
+    listing_id = create_resp.json()["id"]
+
+    patch_resp = client.patch(
+        f"/listings/{listing_id}",
+        json={"title": "Yeni başlık", "district": "Uskudar", "room_count": "3+1", "square_meters": 120},
+        headers=headers,
+    )
+    assert patch_resp.status_code == 200
+    body = patch_resp.json()
+    assert body["title"] == "Yeni başlık"
+    assert body["district"] == "Uskudar"
+    assert body["room_count"] == "3+1"
+    assert body["square_meters"] == 120
+
+
+def test_update_listing_rejects_empty_title(client):
+    headers = _register(client, "Ofis Listing Edit 3", "owner-edit3@listing-test.com")
+    create_resp = client.post(
+        "/listings",
+        json={"title": "Başlık", "district": "Kadikoy", "price": 15000, "room_count": "2+1"},
+        headers=headers,
+    )
+    listing_id = create_resp.json()["id"]
+
+    resp = client.patch(f"/listings/{listing_id}", json={"title": "   "}, headers=headers)
+    assert resp.status_code == 422
+
+
+def test_update_listing_rejects_non_positive_price(client):
+    headers = _register(client, "Ofis Listing Edit 4", "owner-edit4@listing-test.com")
+    create_resp = client.post(
+        "/listings",
+        json={"title": "Başlık", "district": "Kadikoy", "price": 15000, "room_count": "2+1"},
+        headers=headers,
+    )
+    listing_id = create_resp.json()["id"]
+
+    resp = client.patch(f"/listings/{listing_id}", json={"price": 0}, headers=headers)
+    assert resp.status_code == 422
+
+
+def test_update_unknown_listing_returns_404(client):
+    headers = _register(client, "Ofis Listing Edit 5", "owner-edit5@listing-test.com")
+    fake_id = "00000000-0000-0000-0000-000000000000"
+    resp = client.patch(f"/listings/{fake_id}", json={"price": 10000}, headers=headers)
+    assert resp.status_code == 404
+
+
+def test_update_listing_requires_auth(client):
+    resp = client.patch("/listings/does-not-exist", json={"price": 10000})
+    assert resp.status_code == 401
+
+
+def test_delete_listing_photo_removes_from_list(client, monkeypatch):
+    from app.api.routes import listings as listings_route
+
+    fake_keys = iter(["listings/fake/one.jpg", "listings/fake/two.jpg"])
+    monkeypatch.setattr(
+        listings_route, "upload_photo", lambda file_bytes, content_type, listing_id: next(fake_keys)
+    )
+    deleted_keys = []
+    monkeypatch.setattr(listings_route, "delete_photo", lambda key: deleted_keys.append(key))
+
+    headers = _register(client, "Ofis Listing Photo Delete 1", "owner-photodel1@listing-test.com")
+    create_resp = client.post(
+        "/listings",
+        json={"title": "Fotoğraflı ilan", "district": "Kadikoy", "price": 15000, "room_count": "2+1"},
+        headers=headers,
+    )
+    listing_id = create_resp.json()["id"]
+
+    for _ in range(2):
+        upload_resp = client.post(
+            f"/listings/{listing_id}/photos",
+            files={"file": ("test.jpg", b"fake-image-bytes", "image/jpeg")},
+            headers=headers,
+        )
+        assert upload_resp.status_code == 200
+    assert len(upload_resp.json()["photos"]) == 2
+
+    delete_resp = client.delete(f"/listings/{listing_id}/photos/0", headers=headers)
+    assert delete_resp.status_code == 200
+    assert len(delete_resp.json()["photos"]) == 1
+    assert deleted_keys == ["listings/fake/one.jpg"]
+
+
+def test_delete_listing_photo_out_of_range_returns_404(client):
+    headers = _register(client, "Ofis Listing Photo Delete 2", "owner-photodel2@listing-test.com")
+    create_resp = client.post(
+        "/listings",
+        json={"title": "Fotosuz ilan", "district": "Kadikoy", "price": 15000, "room_count": "2+1"},
+        headers=headers,
+    )
+    listing_id = create_resp.json()["id"]
+
+    resp = client.delete(f"/listings/{listing_id}/photos/0", headers=headers)
+    assert resp.status_code == 404
+
+
+def test_delete_listing_photo_unknown_listing_returns_404(client):
+    headers = _register(client, "Ofis Listing Photo Delete 3", "owner-photodel3@listing-test.com")
+    fake_id = "00000000-0000-0000-0000-000000000000"
+    resp = client.delete(f"/listings/{fake_id}/photos/0", headers=headers)
+    assert resp.status_code == 404
+
+
 class _FakeImageResponse:
     def __init__(self, content: bytes, content_type: str = "image/jpeg"):
         self.content = content

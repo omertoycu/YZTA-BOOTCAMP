@@ -28,7 +28,7 @@ PLANS: dict[str, dict] = {
         "features": [
             "Sınırsız portföy",
             "Sesli Not → İlan",
-            "Ulaşım/Konum Raporu (PDF)",
+            "Sesli Not → CRM Güncellemesi",
             "Otomatik WhatsApp takip zinciri",
         ],
     },

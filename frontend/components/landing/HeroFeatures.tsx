@@ -9,10 +9,10 @@ const FEATURES = [
       "Danışman telefonuna konuşur; yapay zeka kaydı dinleyip ilan taslağını (başlık, bölge, fiyat, oda sayısı, m²) otomatik hazırlar.",
   },
   {
-    icon: "map",
-    title: "Markalı Ulaşım/Konum Raporu",
+    icon: "sync_alt",
+    title: "Sesli Not → CRM Güncellemesi",
     description:
-      "Bir hedef adres girilir; sistem araçla, yürüyerek ve toplu taşımayla süreleri hesaplayıp ofis logolu bir PDF rapor oluşturur.",
+      "Bir aday hakkındaki görüşmeyi sesli anlat; yapay zeka görüşme özeti, önerilen pipeline durumu ve hatırlatma taslağı hazırlar — onay olmadan hiçbir şey yazılmaz.",
   },
   {
     icon: "forum",

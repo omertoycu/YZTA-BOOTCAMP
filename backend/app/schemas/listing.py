@@ -49,6 +49,18 @@ class ListingResponse(BaseModel):
         return [photo_proxy_url(key) for key in photos]
 
 
+class ListingUpdate(BaseModel):
+    # Tüm alanlar opsiyonel — route model_dump(exclude_unset=True) ile sadece
+    # gönderilen alanları uygular, diğerlerini olduğu gibi bırakır.
+    title: str | None = None
+    city: str | None = None
+    district: str | None = None
+    neighborhood: str | None = None
+    price: float | None = None
+    room_count: str | None = None
+    square_meters: int | None = None
+
+
 class ListingStatusUpdate(BaseModel):
     status: str
 
@@ -92,11 +104,6 @@ class ListingExtractResponse(BaseModel):
 
 class ListingPortfolioExtractResponse(BaseModel):
     listings: list[ListingExtractResponse]
-
-
-class LocationReportRequest(BaseModel):
-    target_address: str
-    target_label: str | None = None
 
 
 class VoiceListingDraftResponse(BaseModel):

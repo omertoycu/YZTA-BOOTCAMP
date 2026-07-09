@@ -51,10 +51,9 @@ def upload_my_office_logo(
     db: Session = Depends(get_db),
     current_user: dict = Depends(get_current_user),
 ):
-    """Ofis logosu yükler — sidebar/profil/dashboard'da görünür ve markalı
-    ulaşım raporu PDF'inde kullanılır (bkz. app/agents/location_report.py).
-    İlan fotoğraflarıyla aynı S3 deposu/limitleri; app rolünün offices
-    üzerinde logo_key için kolon seviyeli UPDATE yetkisi migration 0021'de."""
+    """Ofis logosu yükler — sidebar/profil/dashboard'da görünür. İlan
+    fotoğraflarıyla aynı S3 deposu/limitleri; app rolünün offices üzerinde
+    logo_key için kolon seviyeli UPDATE yetkisi migration 0021'de."""
     office = db.get(Office, current_user["office_id"])
     if not office:
         raise HTTPException(status_code=404, detail="Ofis bulunamadı")
