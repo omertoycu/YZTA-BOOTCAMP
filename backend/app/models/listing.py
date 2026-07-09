@@ -15,7 +15,13 @@ class Listing(Base):
     office_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("offices.id"), nullable=False)
     agent_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=False)
     title: Mapped[str] = mapped_column(String(255), nullable=False)
+    # Yapılandırılmış konum: city/neighborhood migration 0025 ile geldi, eski
+    # kayıtlar için nullable. district zorunlu kalır — Matching Agent ve
+    # raporlar hâlâ onun üzerinden çalışır. city boş gönderilirse route,
+    # ilçe+mahalleden çıkarmayı dener (bkz. app/core/geo.py: infer_city).
+    city: Mapped[str | None] = mapped_column(String(120), nullable=True)
     district: Mapped[str] = mapped_column(String(120), nullable=False)
+    neighborhood: Mapped[str | None] = mapped_column(String(120), nullable=True)
     price: Mapped[float] = mapped_column(Numeric(12, 2), nullable=False)
     room_count: Mapped[str] = mapped_column(String(20), nullable=False)
     square_meters: Mapped[int] = mapped_column(Integer, nullable=True)

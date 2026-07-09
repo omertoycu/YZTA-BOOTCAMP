@@ -214,7 +214,7 @@ export default function AssistantPage() {
         {phase === "processing" && (
           <div className="flex flex-col items-center gap-3 py-10">
             <Spinner className="h-8 w-8" />
-            <p className="text-body-sm text-text-muted">Gemini dinliyor ve ilan taslağı hazırlıyor...</p>
+            <p className="text-body-sm text-text-muted">Ses kaydınız işleniyor, ilan taslağı hazırlanıyor...</p>
           </div>
         )}
 

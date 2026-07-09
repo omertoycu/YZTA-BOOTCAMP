@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import {
   motion,
@@ -12,13 +12,19 @@ import {
 } from "framer-motion";
 import { buttonVariants } from "@/components/ui/Button";
 import { Icon } from "@/components/ui/Icon";
+import { Reveal } from "@/components/landing/Reveal";
 import { cn } from "@/lib/utils";
 
 /**
- * Scroll-scrub hero: video sayfaya sabitlenir, kullanıcı kaydırdıkça
- * videonun currentTime'ı scroll ilerlemesiyle senkron ilerler
- * (video dosyası her karesi keyframe olacak şekilde encode edildi,
- * aksi halde seek'ler kare atlar). Metin fazları da aynı ilerlemeye bağlı.
+ * Masaüstü: scroll-scrub hero — video sayfaya sabitlenir, kullanıcı kaydırdıkça
+ * videonun currentTime'ı scroll ilerlemesiyle senkron ilerler (video her karesi
+ * keyframe olacak şekilde encode edildi, aksi halde seek'ler kare atlar).
+ *
+ * Mobil: scroll'a bağlı video seek mobil tarayıcılarda güvenilir çalışmıyor
+ * (iOS Safari seek'leri throttle'lıyor, adres çubuğu yüzünden viewport yüksekliği
+ * oynuyor) — gerçek kullanıcı şikayeti: kaydırınca animasyon hiç görünmüyordu.
+ * Bu yüzden mobilde video kendi kendine oynar (muted+playsInline+loop autoplay
+ * her mobil tarayıcıda serbest), fazlar normal akışta Reveal ile giriş yapar.
  */
 
 const PHASES = [
@@ -70,7 +76,76 @@ function Phase({
   );
 }
 
-export function Hero({ isAuthenticated = false }: { isAuthenticated?: boolean }) {
+function LandingNav({ isAuthenticated }: { isAuthenticated: boolean }) {
+  return (
+    <nav className="absolute inset-x-0 top-0 z-10 flex items-center justify-between px-6 py-6 md:px-12">
+      <span className="text-title-md font-black tracking-tight text-on-primary">PortföyAI</span>
+      <Link
+        href={isAuthenticated ? "/dashboard" : "/login"}
+        className="rounded-full border border-on-primary/30 px-5 py-2 text-body-sm font-medium text-on-primary backdrop-blur-sm transition-colors hover:bg-on-primary/10"
+      >
+        {isAuthenticated ? "Panele Git" : "Giriş Yap"}
+      </Link>
+    </nav>
+  );
+}
+
+function MobileHero({ isAuthenticated }: { isAuthenticated: boolean }) {
+  const [first, ...rest] = PHASES;
+  return (
+    <section className="bg-primary">
+      <div className="relative min-h-[100svh] overflow-hidden">
+        <video
+          className="absolute inset-0 h-full w-full object-cover"
+          src="/hero-villa.mp4"
+          poster="/hero-villa-poster.jpg"
+          autoPlay
+          loop
+          muted
+          playsInline
+        />
+        <div className="absolute inset-0 bg-gradient-to-t from-primary/80 via-primary/30 to-primary/50" />
+        <LandingNav isAuthenticated={isAuthenticated} />
+        <div className="relative flex min-h-[100svh] flex-col justify-end gap-6 px-6 pb-16 pt-24">
+          <Reveal>
+            <p className="mb-3 text-label-caps tracking-[0.2em] text-on-primary/80 [text-shadow:0_1px_12px_rgba(0,0,0,0.5)]">
+              {first.kicker}
+            </p>
+            <h1 className="text-[34px] font-bold leading-[42px] text-on-primary [text-shadow:0_2px_28px_rgba(0,0,0,0.55)]">
+              {first.title}
+            </h1>
+          </Reveal>
+          <Reveal delay={0.15}>
+            <Link
+              href={isAuthenticated ? "/dashboard" : "/login"}
+              className={cn(
+                buttonVariants({ size: "lg" }),
+                "w-full bg-on-primary text-primary hover:opacity-90"
+              )}
+            >
+              {isAuthenticated ? "Panele Git" : "Ücretsiz Dene"}
+            </Link>
+          </Reveal>
+        </div>
+      </div>
+
+      <div className="flex flex-col gap-12 px-6 py-16">
+        {rest.map((phase) => (
+          <Reveal key={phase.kicker}>
+            <p className="mb-3 text-label-caps tracking-[0.2em] text-on-primary/70">{phase.kicker}</p>
+            <h2 className="text-[28px] font-bold leading-[36px] text-on-primary">{phase.title}</h2>
+          </Reveal>
+        ))}
+        <Reveal>
+          <p className="mb-3 text-label-caps tracking-[0.2em] text-on-primary/70">Otomatik Takip</p>
+          <h2 className="text-[28px] font-bold leading-[36px] text-on-primary">Takip hiç unutulmaz</h2>
+        </Reveal>
+      </div>
+    </section>
+  );
+}
+
+function ScrubHero({ isAuthenticated }: { isAuthenticated: boolean }) {
   const containerRef = useRef<HTMLDivElement>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
 
@@ -107,15 +182,7 @@ export function Hero({ isAuthenticated = false }: { isAuthenticated?: boolean })
         <div className="absolute inset-0 bg-gradient-to-t from-primary/55 via-transparent to-primary/45" />
         <div className="absolute inset-0 bg-gradient-to-r from-primary/70 via-primary/30 to-transparent" />
 
-        <nav className="absolute inset-x-0 top-0 z-10 flex items-center justify-between px-6 py-6 md:px-12">
-          <span className="text-title-md font-black tracking-tight text-on-primary">PortföyAI</span>
-          <Link
-            href={isAuthenticated ? "/dashboard" : "/login"}
-            className="rounded-full border border-on-primary/30 px-5 py-2 text-body-sm font-medium text-on-primary backdrop-blur-sm transition-colors hover:bg-on-primary/10"
-          >
-            {isAuthenticated ? "Panele Git" : "Giriş Yap"}
-          </Link>
-        </nav>
+        <LandingNav isAuthenticated={isAuthenticated} />
 
         {PHASES.map((phase) => (
           <Phase key={phase.kicker} progress={progress} {...phase} />
@@ -151,4 +218,22 @@ export function Hero({ isAuthenticated = false }: { isAuthenticated?: boolean })
       </div>
     </section>
   );
+}
+
+export function Hero({ isAuthenticated = false }: { isAuthenticated?: boolean }) {
+  // Dokunmatik/dar ekranda scrub yerine mobil varyant. matchMedia sadece
+  // istemcide çalıştığı için ilk render masaüstü varsayar; mobilde bir sonraki
+  // frame'de doğru varyanta geçilir (sayfa zaten "use client").
+  const [isMobile, setIsMobile] = useState(false);
+
+  useEffect(() => {
+    const query = window.matchMedia("(max-width: 767px)");
+    const update = () => setIsMobile(query.matches);
+    update();
+    query.addEventListener("change", update);
+    return () => query.removeEventListener("change", update);
+  }, []);
+
+  if (isMobile) return <MobileHero isAuthenticated={isAuthenticated} />;
+  return <ScrubHero isAuthenticated={isAuthenticated} />;
 }

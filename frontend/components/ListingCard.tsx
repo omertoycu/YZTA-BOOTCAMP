@@ -4,7 +4,7 @@ import { useState } from "react";
 import Link from "next/link";
 import { Trash2 } from "lucide-react";
 import type { Listing, PropertyType } from "@/lib/types";
-import { formatCurrency } from "@/lib/format";
+import { formatCurrency, formatLocation } from "@/lib/format";
 import { Icon } from "@/components/ui/Icon";
 import { cn } from "@/lib/utils";
 
@@ -51,8 +51,8 @@ export function ListingCard({ listing, onDelete }: { listing: Listing; onDelete?
             <h3 className="truncate text-[16px] font-semibold leading-snug text-primary" title={listing.title}>
               {listing.title}
             </h3>
-            <p className="text-[12px] leading-tight text-text-muted">
-              {listing.district} · {visuals.label}
+            <p className="truncate text-[12px] leading-tight text-text-muted" title={formatLocation(listing)}>
+              {formatLocation(listing)} · {visuals.label}
             </p>
           </div>
         </div>

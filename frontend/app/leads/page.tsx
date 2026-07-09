@@ -1118,7 +1118,7 @@ export default function LeadsPage() {
                     {voiceNotePhase === "processing" && (
                       <div className="flex flex-col items-center gap-2 py-6">
                         <Spinner />
-                        <p className="text-body-sm text-text-muted">Gemini dinliyor ve notu çıkarıyor...</p>
+                        <p className="text-body-sm text-text-muted">Ses kaydınız işleniyor, görüşme notu hazırlanıyor...</p>
                       </div>
                     )}
 
@@ -1263,7 +1263,7 @@ export default function LeadsPage() {
                 {activeTab === "eslestirme" && openReanalyzeLead === lead.id && reanalyzeDraft && (
                   <div className="flex flex-col gap-3 rounded bg-surface-bright p-3">
                     <p className="text-body-sm text-text-muted">
-                      Gemini, adayın WhatsApp mesajlarından bu alanları önerdi — göndermeden önce düzenleyebilirsiniz.
+                      Adayın WhatsApp mesajlarından bu alanlar önerildi — kaydetmeden önce düzenleyebilirsiniz.
                     </p>
                     <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
                       <Input
@@ -1369,7 +1369,7 @@ export default function LeadsPage() {
                 {activeTab === "eslestirme" && openReplyLead === lead.id && (
                   <div className="flex flex-col gap-3 rounded bg-surface-bright p-3">
                     <p className="text-body-sm text-text-muted">
-                      Gemini, mevcut portföylerinize dayanarak bir yanıt taslağı üretti — göndermeden önce düzenleyebilirsiniz.
+                      Mevcut portföylerinize dayanarak bir yanıt taslağı hazırlandı — göndermeden önce düzenleyebilirsiniz.
                     </p>
                     <textarea
                       value={replyDraft}

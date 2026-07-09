@@ -99,7 +99,11 @@ def test_parse_sahibinden_extracts_fields_from_json_ld_and_html():
     fields = listing_import.parse_sahibinden(FAKE_SAHIBINDEN_HTML)
     assert fields["title"] == "Deniz manzaralı Satılık 3+1 daire"
     assert fields["price"] == 2500000.0
-    assert fields["district"] == "Fenerbahce"
+    # Konum metni ("Istanbul / Kadikoy / Fenerbahce") aksansız gelse bile
+    # statik sözlükle kanonik il/ilçe/mahalle alanlarına oturtulmalı.
+    assert fields["city"] == "İstanbul"
+    assert fields["district"] == "Kadıköy"
+    assert fields["neighborhood"] == "Fenerbahçe"
     assert fields["room_count"] == "3+1"
     assert fields["square_meters"] == 140
     assert fields["listing_type"] == "sale"
@@ -188,7 +192,9 @@ def test_extract_from_html_returns_parsed_fields_without_fetching(client):
     assert resp.status_code == 200
     body = resp.json()
     assert body["title"] == "Deniz manzaralı Satılık 3+1 daire"
-    assert body["district"] == "Fenerbahce"
+    assert body["city"] == "İstanbul"
+    assert body["district"] == "Kadıköy"
+    assert body["neighborhood"] == "Fenerbahçe"
     assert body["room_count"] == "3+1"
     assert body["square_meters"] == 140
 
@@ -197,7 +203,11 @@ def test_parse_emlakjet_extracts_fields_from_json_ld():
     fields = listing_import.parse_emlakjet(FAKE_EMLAKJET_HTML)
     assert fields["title"] == "Emlakjet 2+1 bahçe katı"
     assert fields["price"] == 1750000.0
+    assert fields["city"] == "İstanbul"
     assert fields["district"] == "Beşiktaş"
+    # Adres alanı + breadcrumb aynı parçaları tekrar veriyor — tekrarlar
+    # mahalle sanılmamalı (tekilleştirme, bkz. geo.resolve_location).
+    assert fields["neighborhood"] is None
     assert fields["room_count"] == "2+1"
     assert fields["square_meters"] == 95
     # Başlıkta "satılık"/"kiralık" geçmiyor ama breadcrumb'ın son halkası
@@ -218,6 +228,7 @@ def test_parse_emlakjet_falls_back_to_breadcrumb_for_district():
     </head><body></body></html>
     """
     fields = listing_import.parse_emlakjet(html)
+    assert fields["city"] == "İstanbul"
     assert fields["district"] == "Üsküdar"
     assert fields["title"] == "Adressiz ilan"
 
@@ -266,6 +277,7 @@ def test_parse_sahibinden_portfolio_extracts_all_cards_and_dedupes_promo():
 
     first, second, third = results
     assert first["title"] == "Altıparmak'ta Satılık 3+1 Daire"
+    assert first["city"] == "Bursa"
     assert first["district"] == "Osmangazi"
     assert first["price"] == 2500000.0
     assert first["room_count"] == "3+1"

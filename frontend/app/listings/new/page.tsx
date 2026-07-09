@@ -5,36 +5,34 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { ArrowLeft } from "lucide-react";
 import { apiFetch, apiUpload, getToken } from "@/lib/api";
-import type { Listing, ListingExtract, ListingType, PropertyType } from "@/lib/types";
+import type { Listing, ListingType, PropertyType } from "@/lib/types";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { Alert } from "@/components/ui/Alert";
 import { Icon } from "@/components/ui/Icon";
 import { ListingTypeToggle } from "@/components/ui/ListingTypeToggle";
 import { PropertyTypeSelect } from "@/components/ui/PropertyTypeSelect";
+import { LocationAutocomplete } from "@/components/ui/LocationAutocomplete";
 import { cn } from "@/lib/utils";
 
-const TOTAL_STEPS = 6;
+const TOTAL_STEPS = 5;
 const MAX_PHOTO_BYTES = 8 * 1024 * 1024; // 8MB, backend ile aynı sınır
 
 export default function NewListingPage() {
   const router = useRouter();
   const [step, setStep] = useState(1);
   const [error, setError] = useState<string | null>(null);
-  const [isExtracting, setIsExtracting] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
 
-  const [pastedHtml, setPastedHtml] = useState("");
   const [title, setTitle] = useState("");
+  const [city, setCity] = useState("");
   const [district, setDistrict] = useState("");
+  const [neighborhood, setNeighborhood] = useState("");
   const [price, setPrice] = useState("");
   const [roomCount, setRoomCount] = useState("2+1");
   const [squareMeters, setSquareMeters] = useState("");
   const [listingType, setListingType] = useState<ListingType>("sale");
   const [propertyType, setPropertyType] = useState<PropertyType>("residential");
-  // Yapıştırılan kaynaktan çıkarılan kapak görseli URL'i — ilan oluşturulunca
-  // sunucu tarafında indirilip depoya eklenir (bkz. photos/from-url).
-  const [extractedCoverUrl, setExtractedCoverUrl] = useState<string | null>(null);
   const [photos, setPhotos] = useState<File[]>([]);
   const [photoPreviewUrls, setPhotoPreviewUrls] = useState<string[]>([]);
 
@@ -60,30 +58,6 @@ export default function NewListingPage() {
 
   const parsedPrice = Number(price);
   const isPriceValid = price.trim() !== "" && Number.isFinite(parsedPrice) && parsedPrice > 0;
-
-  async function handleExtract() {
-    setError(null);
-    setIsExtracting(true);
-    try {
-      const fields = await apiFetch<ListingExtract>("/listings/extract-from-html", {
-        method: "POST",
-        body: JSON.stringify({ html: pastedHtml }),
-      });
-      if (fields.title) setTitle(fields.title);
-      if (fields.district) setDistrict(fields.district);
-      if (fields.price) setPrice(String(fields.price));
-      if (fields.room_count) setRoomCount(fields.room_count);
-      if (fields.square_meters) setSquareMeters(String(fields.square_meters));
-      if (fields.listing_type) setListingType(fields.listing_type);
-      if (fields.property_type) setPropertyType(fields.property_type);
-      setExtractedCoverUrl(fields.cover_photo_url ?? null);
-      goNext();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Sayfadan bilgi çıkarılamadı, elle devam edebilirsiniz");
-    } finally {
-      setIsExtracting(false);
-    }
-  }
 
   function handlePhotoSelect(e: React.ChangeEvent<HTMLInputElement>) {
     const files = Array.from(e.target.files ?? []);
@@ -115,7 +89,9 @@ export default function NewListingPage() {
         method: "POST",
         body: JSON.stringify({
           title,
+          city: city.trim() || null,
           district,
+          neighborhood: neighborhood.trim() || null,
           price: Number(price),
           room_count: roomCount,
           square_meters: squareMeters ? Number(squareMeters) : null,
@@ -130,19 +106,6 @@ export default function NewListingPage() {
           await apiUpload(`/listings/${listing.id}/photos`, file);
         } catch {
           failedPhotos.push(file.name);
-        }
-      }
-
-      // Yapıştırılan kaynaktan kapak görseli çıkarıldıysa ve danışman elle
-      // fotoğraf eklemediyse, kapağı sunucu tarafında indirip ekle (best-effort).
-      if (extractedCoverUrl && photos.length === 0) {
-        try {
-          await apiFetch(`/listings/${listing.id}/photos/from-url`, {
-            method: "POST",
-            body: JSON.stringify({ url: extractedCoverUrl }),
-          });
-        } catch {
-          failedPhotos.push("ilan kapak görseli");
         }
       }
 
@@ -163,7 +126,7 @@ export default function NewListingPage() {
   }
 
   return (
-    <div className="mx-auto flex max-w-xl flex-col gap-8 py-8">
+    <div className="mx-auto flex w-full max-w-xl flex-col gap-6 py-4 sm:gap-8 sm:py-8">
       <Link href="/listings" className="inline-flex w-fit items-center gap-1 text-body-sm text-text-muted hover:text-primary">
         <ArrowLeft className="h-4 w-4" />
         Portföylere dön
@@ -183,38 +146,56 @@ export default function NewListingPage() {
         ))}
       </div>
 
-      <div className="rounded-lg bg-surface-container-lowest p-6 shadow-[0px_10px_30px_rgba(0,0,0,0.04)]">
+      <div className="rounded-lg bg-surface-container-lowest p-4 shadow-[0px_10px_30px_rgba(0,0,0,0.04)] sm:p-6">
         {step === 1 && (
           <div className="flex flex-col gap-4">
-            <h2 className="text-title-md text-primary">Sahibinden veya Emlakjet sayfa kaynağını yapıştırın</h2>
+            <h2 className="text-title-md text-primary">Bu ilan nerede?</h2>
             <p className="text-body-sm text-text-muted">
-              İsterseniz kendi ilanınızın sayfasını tarayıcınızda açıp (Ctrl+U ile) sayfa kaynağını
-              kopyalayıp buraya yapıştırın — bilgileri otomatik bulmayı deneriz. İsterseniz atlayıp
-              elle girebilirsiniz.
+              Yazmaya başlayın, eşleşen sonuçlardan seçin — önce şehir, sonra ilçe ve mahalle.
             </p>
-            <textarea
-              value={pastedHtml}
-              onChange={(e) => setPastedHtml(e.target.value)}
-              placeholder="Sayfa kaynağını buraya yapıştırın..."
-              className="h-40 w-full rounded border border-outline-variant bg-surface-container-lowest p-3 text-body-sm text-on-surface placeholder:text-text-muted focus:border-secondary focus:outline-none focus:ring-2 focus:ring-secondary-container"
+            <LocationAutocomplete
+              id="city"
+              label="Şehir"
+              value={city}
+              onChange={(value) => {
+                setCity(value);
+                setDistrict("");
+                setNeighborhood("");
+              }}
+              endpoint="/geo/cities"
+              placeholder="Örn. İstanbul"
+              autoFocus
+            />
+            <LocationAutocomplete
+              id="district"
+              label="İlçe"
+              value={district}
+              onChange={(value) => {
+                setDistrict(value);
+                setNeighborhood("");
+              }}
+              endpoint="/geo/districts"
+              params={city.trim() ? { city: city.trim() } : {}}
+              placeholder={city.trim() ? "Örn. Kadıköy" : "Önce şehir seçin"}
+              disabled={!city.trim()}
+            />
+            <LocationAutocomplete
+              id="neighborhood"
+              label="Mahalle (opsiyonel)"
+              value={neighborhood}
+              onChange={setNeighborhood}
+              endpoint="/geo/neighborhoods"
+              params={{
+                ...(city.trim() ? { city: city.trim() } : {}),
+                ...(district.trim() ? { district: district.trim() } : {}),
+              }}
+              placeholder={district.trim() ? "Örn. Caferağa" : "Önce ilçe seçin"}
+              disabled={!district.trim()}
             />
           </div>
         )}
 
         {step === 2 && (
-          <div className="flex flex-col gap-4">
-            <h2 className="text-title-md text-primary">Bu ilan hangi bölgede?</h2>
-            <Input
-              id="district"
-              placeholder="Örn. Kadıköy"
-              value={district}
-              onChange={(e) => setDistrict(e.target.value)}
-              autoFocus
-            />
-          </div>
-        )}
-
-        {step === 3 && (
           <div className="flex flex-col gap-4">
             <h2 className="text-title-md text-primary">Kaç oda?</h2>
             <Input
@@ -227,7 +208,7 @@ export default function NewListingPage() {
           </div>
         )}
 
-        {step === 4 && (
+        {step === 3 && (
           <div className="flex flex-col gap-4">
             <h2 className="text-title-md text-primary">Satılık mı, kiralık mı?</h2>
             <ListingTypeToggle value={listingType} onChange={setListingType} />
@@ -249,7 +230,7 @@ export default function NewListingPage() {
           </div>
         )}
 
-        {step === 5 && (
+        {step === 4 && (
           <div className="flex flex-col gap-4">
             <h2 className="text-title-md text-primary">Son birkaç detay</h2>
             <Input
@@ -270,7 +251,7 @@ export default function NewListingPage() {
           </div>
         )}
 
-        {step === 6 && (
+        {step === 5 && (
           <div className="flex flex-col gap-4">
             <h2 className="text-title-md text-primary">Fotoğraf ekleyin (opsiyonel)</h2>
             <div className="grid grid-cols-3 gap-2">
@@ -312,24 +293,13 @@ export default function NewListingPage() {
             Geri
           </Button>
 
-          {step === 1 && (
-            <div className="flex gap-2">
-              <Button variant="outline" onClick={goNext}>
-                Atla, elle gireceğim
-              </Button>
-              <Button isLoading={isExtracting} disabled={!pastedHtml} onClick={handleExtract}>
-                Bilgileri bul
-              </Button>
-            </div>
-          )}
-
-          {step > 1 && step < TOTAL_STEPS && (
+          {step < TOTAL_STEPS && (
             <Button
               onClick={goNext}
               disabled={
-                (step === 2 && !district) ||
-                (step === 3 && !roomCount.trim()) ||
-                (step === 4 && !isPriceValid)
+                (step === 1 && (!city.trim() || !district.trim())) ||
+                (step === 2 && !roomCount.trim()) ||
+                (step === 3 && !isPriceValid)
               }
             >
               İleri

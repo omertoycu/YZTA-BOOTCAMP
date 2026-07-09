@@ -3,10 +3,10 @@
 import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
-import { ArrowLeft, Ruler, DoorOpen, MapPin, Sparkles, CalendarDays, Eye, Link2, Check, Trash2, Globe } from "lucide-react";
+import { ArrowLeft, Ruler, DoorOpen, MapPin, Sparkles, CalendarDays, Eye, Link2, Check, Trash2 } from "lucide-react";
 import { apiFetch, apiFetchBlob, getToken } from "@/lib/api";
-import type { Listing, ListingViewStats, MarketPriceCheck, PricingSuggestion, PropertyType } from "@/lib/types";
-import { formatCurrency } from "@/lib/format";
+import type { Listing, ListingViewStats, MarketPriceCheck, PropertyType } from "@/lib/types";
+import { formatCurrency, formatLocation } from "@/lib/format";
 import { Button } from "@/components/ui/Button";
 import { Badge } from "@/components/ui/Badge";
 import { Alert } from "@/components/ui/Alert";
@@ -31,10 +31,6 @@ export default function ListingDetailPage() {
     optioned: "Opsiyonlu",
     sold: "Satıldı",
   };
-
-  const [pricing, setPricing] = useState<PricingSuggestion | null>(null);
-  const [pricingLoading, setPricingLoading] = useState(false);
-  const [pricingError, setPricingError] = useState<string | null>(null);
 
   const [marketCheck, setMarketCheck] = useState<MarketPriceCheck | null>(null);
   const [marketCheckLoading, setMarketCheckLoading] = useState(false);
@@ -127,20 +123,6 @@ export default function ListingDetailPage() {
     }
   }
 
-  async function handlePricingSuggestion() {
-    if (!listing) return;
-    setPricingLoading(true);
-    setPricingError(null);
-    try {
-      const suggestion = await apiFetch<PricingSuggestion>(`/listings/${listing.id}/pricing-suggestion`);
-      setPricing(suggestion);
-    } catch (err) {
-      setPricingError(err instanceof Error ? err.message : "Fiyat önerisi alınamadı");
-    } finally {
-      setPricingLoading(false);
-    }
-  }
-
   async function handleMarketCheck() {
     if (!listing) return;
     setMarketCheckLoading(true);
@@ -149,7 +131,7 @@ export default function ListingDetailPage() {
       const result = await apiFetch<MarketPriceCheck>(`/listings/${listing.id}/market-price-check`);
       setMarketCheck(result);
     } catch (err) {
-      setMarketCheckError(err instanceof Error ? err.message : "Web'den piyasa verisi alınamadı");
+      setMarketCheckError(err instanceof Error ? err.message : "Piyasa verisi alınamadı");
     } finally {
       setMarketCheckLoading(false);
     }
@@ -305,7 +287,7 @@ export default function ListingDetailPage() {
             <h1 className="text-headline-lg text-primary">{listing.title}</h1>
             <p className="mt-1 flex items-center gap-1 text-body-sm text-text-muted">
               <MapPin className="h-4 w-4" />
-              {listing.district}
+              {formatLocation(listing)}
             </p>
           </div>
 
@@ -328,34 +310,16 @@ export default function ListingDetailPage() {
           </div>
 
           <div className="flex flex-col gap-3 rounded-lg bg-surface-container-lowest p-4 shadow-[0px_10px_30px_rgba(0,0,0,0.04)]">
-            <div className="flex items-center justify-between">
-              <h2 className="text-title-md text-primary">Fiyat önerisi</h2>
-              <Button variant="outline" size="sm" isLoading={pricingLoading} onClick={handlePricingSuggestion}>
-                <Sparkles className="h-3.5 w-3.5" />
-                Hesapla
-              </Button>
-            </div>
-            {pricingError && <Alert>{pricingError}</Alert>}
-            {pricing && (
-              <p className="text-body-sm text-text-muted">
-                {pricing.has_enough_data
-                  ? `Benzer ilan aralığı: ${formatCurrency(pricing.suggested_min ?? 0)} - ${formatCurrency(
-                      pricing.suggested_max ?? 0
-                    )} (${pricing.comparable_count} emsal)`
-                  : pricing.message}
-              </p>
-            )}
-
-            <div className="flex items-center justify-between border-t border-outline-variant pt-3">
+            <div className="flex flex-wrap items-center justify-between gap-2">
               <div>
-                <h3 className="text-body-md font-medium text-on-surface">Web'den karşılaştır</h3>
+                <h2 className="text-title-md text-primary">Fiyat Önerisi</h2>
                 <p className="text-[12px] text-text-muted">
-                  Gemini, aynı konum/tipteki güncel ilanları web'de araştırıp bir aralık önerir.
+                  Bölgedeki güncel emsal ilanlar taranır, tahmini bir piyasa aralığı sunulur.
                 </p>
               </div>
               <Button variant="outline" size="sm" isLoading={marketCheckLoading} onClick={handleMarketCheck}>
-                <Globe className="h-3.5 w-3.5" />
-                Web'den Karşılaştır
+                <Sparkles className="h-3.5 w-3.5" />
+                Öneri Al
               </Button>
             </div>
             {marketCheckError && <Alert>{marketCheckError}</Alert>}
@@ -366,7 +330,7 @@ export default function ListingDetailPage() {
                     ? `Tahmini piyasa aralığı: ${formatCurrency(marketCheck.estimated_min ?? 0)} - ${formatCurrency(
                         marketCheck.estimated_max ?? 0
                       )}`
-                    : marketCheck.summary ?? "Web'de güvenilir bir emsal bulunamadı."}
+                    : marketCheck.summary ?? "Güvenilir bir emsal bulunamadı."}
                 </p>
                 {marketCheck.has_market_data && marketCheck.summary && (
                   <p className="text-[12px] text-text-muted">{marketCheck.summary}</p>
@@ -387,7 +351,7 @@ export default function ListingDetailPage() {
                   </div>
                 )}
                 <p className="text-[11px] text-text-muted">
-                  AI tahmini — harici web kaynaklarından, kesin değildir.
+                  Güncel piyasa verilerine dayalı tahmindir, kesin değerleme değildir.
                 </p>
               </div>
             )}

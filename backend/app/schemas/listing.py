@@ -9,7 +9,11 @@ from app.core.storage import photo_proxy_url
 
 class ListingCreate(BaseModel):
     title: str
+    # city gönderilmezse route ilçe+mahalleden çıkarmayı dener (infer_city) —
+    # portal aktarımı ve sesli not akışı şehir bilgisi vermeden de çalışır.
+    city: str | None = None
     district: str
+    neighborhood: str | None = None
     price: float
     room_count: str
     square_meters: int | None = None
@@ -24,7 +28,9 @@ class ListingCreate(BaseModel):
 class ListingResponse(BaseModel):
     id: uuid.UUID
     title: str
+    city: str | None = None
     district: str
+    neighborhood: str | None = None
     price: float
     room_count: str
     square_meters: int | None
@@ -69,7 +75,11 @@ class ListingExtractFromHtmlRequest(BaseModel):
 
 class ListingExtractResponse(BaseModel):
     title: str | None
+    # Portal kaynağında şehir çoğunlukla yoktur — parser ilçe+mahalle
+    # eşleşmesinden çıkarır (bkz. app/core/geo.py: resolve_location).
+    city: str | None = None
     district: str | None
+    neighborhood: str | None = None
     price: float | None
     room_count: str | None
     square_meters: int | None

@@ -10,6 +10,8 @@
 //   SMOKE_OUT    ekran görüntüsü dizini (varsayılan ./smoke-shots)
 //   SMOKE_TOKEN  set edilirse localStorage'a portfoyai_token olarak yazılır —
 //                korumalı sayfalar (/dashboard, /listings...) böyle gezilir.
+//   SMOKE_VIEWPORT  "390x844" gibi — mobil görünüm doğrulaması için
+//                   (varsayılan 1440x900).
 import { chromium } from "playwright";
 import { mkdirSync } from "node:fs";
 import { join } from "node:path";
@@ -20,8 +22,9 @@ const routes = process.argv.slice(2).length ? process.argv.slice(2) : ["/", "/lo
 
 mkdirSync(OUT, { recursive: true });
 
+const [vw, vh] = (process.env.SMOKE_VIEWPORT || "1440x900").split("x").map(Number);
 const browser = await chromium.launch();
-const page = await browser.newPage({ viewport: { width: 1440, height: 900 } });
+const page = await browser.newPage({ viewport: { width: vw, height: vh } });
 
 const errors = [];
 page.on("console", (m) => m.type() === "error" && errors.push(`[console] ${m.text()}`));

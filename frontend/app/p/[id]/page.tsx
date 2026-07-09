@@ -5,7 +5,7 @@ import { useParams } from "next/navigation";
 import { DoorOpen, MapPin, Ruler } from "lucide-react";
 import { apiFetch } from "@/lib/api";
 import type { PublicListing } from "@/lib/types";
-import { formatCurrency } from "@/lib/format";
+import { formatCurrency, formatLocation } from "@/lib/format";
 import { Spinner } from "@/components/ui/Spinner";
 import { Icon } from "@/components/ui/Icon";
 
@@ -94,7 +94,7 @@ export default function PublicListingPage() {
           <h1 className="text-headline-lg text-primary">{listing.title}</h1>
           <p className="mt-1 flex items-center gap-1 text-body-sm text-text-muted">
             <MapPin className="h-4 w-4" />
-            {listing.district}
+            {formatLocation(listing)}
           </p>
           <p className="mt-3 text-headline-md font-semibold text-primary">
             {formatCurrency(listing.price)}

@@ -3,10 +3,9 @@
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { AlertTriangle, Building2, Sparkles } from "lucide-react";
+import { AlertTriangle, Building2 } from "lucide-react";
 import { apiFetch, getToken } from "@/lib/api";
-import type { Listing, ListingType, PricingSuggestion, PropertyType, StaleListingAlert } from "@/lib/types";
-import { formatCurrency } from "@/lib/format";
+import type { Listing, ListingType, PropertyType, StaleListingAlert } from "@/lib/types";
 import { Button } from "@/components/ui/Button";
 import { Icon } from "@/components/ui/Icon";
 import { Spinner } from "@/components/ui/Spinner";
@@ -71,9 +70,6 @@ export default function ListingsPage() {
   const [listings, setListings] = useState<Listing[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [pricingByListing, setPricingByListing] = useState<Record<string, PricingSuggestion>>({});
-  const [pricingLoading, setPricingLoading] = useState<string | null>(null);
-  const [pricingError, setPricingError] = useState<string | null>(null);
   const [staleAlertsByListing, setStaleAlertsByListing] = useState<Record<string, StaleListingAlert>>({});
   const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null);
   const [deleteLoading, setDeleteLoading] = useState(false);
@@ -104,10 +100,11 @@ export default function ListingsPage() {
     const max = maxSqm !== "" ? Number(maxSqm) : null;
 
     return listings.filter((listing) => {
-      // Şehir/ilçe/mahalle: tek bir yapılandırılmış alan yok — district
-      // (il/ilçe) ve title (mahalle çoğunlukla burada geçiyor, bkz.
-      // Matching Agent'ın aynı yaklaşımı) birlikte aranıyor.
-      if (query && !normalizeTr(`${listing.title} ${listing.district}`).includes(query)) {
+      // Şehir/ilçe/mahalle artık yapılandırılmış alanlar (migration 0025);
+      // eski kayıtlarda city/neighborhood boş olabileceği için başlık da
+      // aramaya dahil edilmeye devam ediyor.
+      const haystack = `${listing.title} ${listing.city ?? ""} ${listing.district} ${listing.neighborhood ?? ""}`;
+      if (query && !normalizeTr(haystack).includes(query)) {
         return false;
       }
       if (statusFilter !== "all" && listing.listing_type !== statusFilter) return false;
@@ -147,19 +144,6 @@ export default function ListingsPage() {
     }
   }
 
-  async function handlePricingSuggestion(listingId: string) {
-    setPricingLoading(listingId);
-    setPricingError(null);
-    try {
-      const suggestion = await apiFetch<PricingSuggestion>(`/listings/${listingId}/pricing-suggestion`);
-      setPricingByListing((prev) => ({ ...prev, [listingId]: suggestion }));
-    } catch (err) {
-      setPricingError(err instanceof Error ? err.message : "Fiyat önerisi alınamadı");
-    } finally {
-      setPricingLoading(null);
-    }
-  }
-
   async function handleDeleteListing(listingId: string) {
     setError(null);
     setDeleteLoading(true);
@@ -176,7 +160,7 @@ export default function ListingsPage() {
 
   return (
     <div className="flex flex-col gap-8">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h1 className="text-headline-lg text-primary">Portföyler</h1>
           <p className="mt-1 text-body-sm text-text-muted">
@@ -192,7 +176,6 @@ export default function ListingsPage() {
       </div>
 
       {error && <Alert>{error}</Alert>}
-      {pricingError && <Alert>{pricingError}</Alert>}
 
       {isLoading && (
         <div className="flex items-center justify-center gap-2 py-16 text-body-sm text-text-muted">
@@ -285,7 +268,6 @@ export default function ListingsPage() {
 
       <div className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-3">
         {filteredListings.map((listing) => {
-          const suggestion = pricingByListing[listing.id];
           const staleAlert = staleAlertsByListing[listing.id];
           return (
             <div key={listing.id} className="flex flex-col gap-2">
@@ -294,25 +276,6 @@ export default function ListingsPage() {
                 <div className="flex items-start gap-2 rounded bg-yellow-100 px-3 py-2.5 text-body-sm text-yellow-800">
                   <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
                   <span>{staleAlert.message}</span>
-                </div>
-              )}
-              <Button
-                variant="outline"
-                size="sm"
-                isLoading={pricingLoading === listing.id}
-                onClick={() => handlePricingSuggestion(listing.id)}
-                className="w-fit"
-              >
-                <Sparkles className="h-3.5 w-3.5" />
-                Fiyat önerisi
-              </Button>
-              {suggestion && (
-                <div className="rounded bg-mint-accent px-3 py-2.5 text-body-sm text-on-secondary-container">
-                  {suggestion.has_enough_data
-                    ? `Benzer ilan aralığı: ${formatCurrency(suggestion.suggested_min ?? 0)} - ${formatCurrency(
-                        suggestion.suggested_max ?? 0
-                      )} (${suggestion.comparable_count} emsal)`
-                    : suggestion.message}
                 </div>
               )}
             </div>

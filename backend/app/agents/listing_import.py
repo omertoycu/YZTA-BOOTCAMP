@@ -5,6 +5,7 @@ from urllib.parse import urlparse
 import httpx
 from bs4 import BeautifulSoup
 
+from app.core.geo import resolve_location
 from app.core.http import get_http_client
 from app.core.text import fold_turkish_i
 
@@ -117,13 +118,15 @@ def parse_sahibinden(html: str) -> dict:
         price_text = price_el.get_text(strip=True) if price_el else None
     price = _parse_turkish_price(price_text) if price_text else None
 
-    district = None
+    # Konum metni "İstanbul / Kadıköy / Caferağa Mah." kalıbında gelir —
+    # parçalar statik il/ilçe/mahalle sözlüğüyle alanlara oturtulur, il
+    # yoksa ilçe+mahalleden çıkarılır (bkz. app/core/geo.py).
+    location = {"city": None, "district": None, "neighborhood": None}
     location_el = soup.find(class_=re.compile("classifiedInfo.*location|location-text", re.I))
     if location_el:
         location_text = location_el.get_text(" ", strip=True)
-        parts = [p for p in re.split(r"[/,]", location_text) if p.strip()]
-        if parts:
-            district = parts[-1].strip()
+        parts = [p.strip() for p in re.split(r"[/,]", location_text) if p.strip()]
+        location = resolve_location(parts)
 
     room_count, square_meters = _shared_room_and_sqm(soup)
     listing_type = _detect_listing_type(title)
@@ -131,7 +134,9 @@ def parse_sahibinden(html: str) -> dict:
 
     return {
         "title": title,
-        "district": district,
+        "city": location["city"],
+        "district": location["district"],
+        "neighborhood": location["neighborhood"],
         "price": price,
         "room_count": room_count,
         "square_meters": square_meters,
@@ -196,14 +201,20 @@ def parse_emlakjet(html: str) -> dict:
         ]
         breadcrumb_items = [i for i in breadcrumb_items if i]
 
-    # İlçe: JSON-LD adresinden (addressLocality ilçeye denk gelir); yoksa
-    # breadcrumb'ın sondan bir önceki halkası genelde ilçe sayfasıdır.
-    district = None
+    # Konum: JSON-LD adres alanları (addressRegion≈il, addressLocality≈ilçe)
+    # ve breadcrumb halkaları tek bir aday listesinde toplanıp statik
+    # il/ilçe/mahalle sözlüğüyle alanlara oturtulur — il hiç geçmiyorsa
+    # ilçe+mahalleden çıkarılır (bkz. app/core/geo.py: resolve_location).
+    location_parts: list[str] = []
     address = listing_ld.get("address")
     if isinstance(address, dict):
-        district = address.get("addressLocality") or address.get("addressRegion")
-    if not district and len(breadcrumb_items) >= 2:
-        district = breadcrumb_items[-2]
+        for key in ("addressRegion", "addressLocality", "addressDistrict"):
+            value = address.get(key)
+            if isinstance(value, str) and value.strip():
+                location_parts.append(value.strip())
+    # Breadcrumb'ın son halkası ilanın kendi adıdır, öncekiler konum sayfaları.
+    location_parts.extend(breadcrumb_items[:-1])
+    location = resolve_location(location_parts)
 
     room_count, square_meters = _shared_room_and_sqm(soup)
     # Breadcrumb'ın son halkası genelde ilanın kendi adı ("Satılık Daire
@@ -213,7 +224,9 @@ def parse_emlakjet(html: str) -> dict:
 
     return {
         "title": title,
-        "district": district,
+        "city": location["city"],
+        "district": location["district"],
+        "neighborhood": location["neighborhood"],
         "price": price,
         "room_count": room_count,
         "square_meters": square_meters,
@@ -252,12 +265,11 @@ def parse_sahibinden_portfolio(html: str) -> list[dict]:
         price_el = card.select_one("p.price")
         price = _parse_turkish_price(price_el.get_text(strip=True)) if price_el else None
 
-        district = None
+        location = {"city": None, "district": None, "neighborhood": None}
         location_el = card.select_one("p.location")
         if location_el:
-            parts = [p for p in re.split(r"[/,]", location_el.get_text(" ", strip=True)) if p.strip()]
-            if parts:
-                district = parts[-1].strip()
+            parts = [p.strip() for p in re.split(r"[/,]", location_el.get_text(" ", strip=True)) if p.strip()]
+            location = resolve_location(parts)
 
         room_el = card.select_one("p.rooms")
         room_count = room_el.get_text(strip=True) if room_el else None
@@ -279,13 +291,15 @@ def parse_sahibinden_portfolio(html: str) -> list[dict]:
         img_el = card.select_one(".classified-image img")
         cover_photo_url = img_el.get("src") if img_el else None
 
-        if not title and price is None and not district:
+        if not title and price is None and not location["district"]:
             continue  # boş/tanınmayan kart, atla
 
         results.append(
             {
                 "title": title,
-                "district": district,
+                "city": location["city"],
+                "district": location["district"],
+                "neighborhood": location["neighborhood"],
                 "price": price,
                 "room_count": room_count,
                 "square_meters": square_meters,

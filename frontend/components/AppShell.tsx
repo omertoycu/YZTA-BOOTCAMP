@@ -13,7 +13,9 @@ export function AppShell({ children }: { children: ReactNode }) {
   }
 
   return (
-    <div className="flex h-screen overflow-hidden">
+    // h-screen yerine h-[100dvh]: mobil tarayıcılarda adres çubuğu
+    // gizlenip/gösterilince 100vh sabit kalıp içeriğin altını kesiyordu.
+    <div className="flex h-[100dvh] overflow-hidden">
       <Sidebar />
       <main className="h-full flex-1 overflow-y-auto p-4 pt-20 md:ml-72 md:p-8">{children}</main>
     </div>

@@ -9,7 +9,9 @@ from app.core.storage import photo_proxy_url
 class PublicListingResponse(BaseModel):
     id: uuid.UUID
     title: str
+    city: str | None = None
     district: str
+    neighborhood: str | None = None
     price: float
     room_count: str
     square_meters: int | None

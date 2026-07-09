@@ -24,6 +24,7 @@ from app.agents.pricing import (
 from app.agents.stale_listing import find_stale_listings
 from app.agents.voice_listing import MAX_AUDIO_BYTES, VoiceListingError, transcribe_and_extract
 from app.api.deps import get_current_user
+from app.core.geo import infer_city
 from app.core.http import get_http_client
 from app.core.storage import MAX_PHOTO_BYTES, fetch_photo, upload_photo
 from app.middleware.tenant import get_tenant_db
@@ -67,10 +68,15 @@ def create_listing(
     db: Session = Depends(get_tenant_db),
     current_user: dict = Depends(get_current_user),
 ):
+    data = payload.model_dump()
+    # Portal aktarımı/sesli not şehir bilgisi vermeden gelebilir — ilçe
+    # (+mahalle) statik sözlükte tekil eşleşiyorsa şehir etiketi otomatik konur.
+    if not data.get("city") and data.get("district"):
+        data["city"] = infer_city(data["district"], data.get("neighborhood"))
     listing = Listing(
         office_id=current_user["office_id"],
         agent_id=current_user["user_id"],
-        **payload.model_dump(),
+        **data,
     )
     db.add(listing)
     db.commit()
@@ -293,11 +299,12 @@ def create_location_report(
         raise HTTPException(status_code=404, detail="Portföy bulunamadı")
     office = db.get(Office, current_user["office_id"])
 
-    # İl adı eklemiyoruz — eskiden "İstanbul" sabitti ve Bursa'daki bir ofis
-    # için tüm süreler yanlış şehirden hesaplanıyordu (gerçek bug). Google
-    # Directions serbest metni kendi geocode ettiği için "Osmangazi, Türkiye"
-    # yeterli.
-    origin = f"{listing.district}, Türkiye"
+    # Sabit il adı eklemiyoruz — eskiden "İstanbul" sabitti ve Bursa'daki bir
+    # ofis için tüm süreler yanlış şehirden hesaplanıyordu (gerçek bug). İlanın
+    # kendi şehir/mahalle alanları doluysa geocode isabetini artırmak için
+    # origin'e eklenir; Google Directions serbest metni kendi geocode eder.
+    origin_parts = [listing.neighborhood, listing.district, listing.city, "Türkiye"]
+    origin = ", ".join(p for p in origin_parts if p)
     try:
         travel_summary = get_travel_summary(origin, payload.target_address)
     except LocationReportError as exc:

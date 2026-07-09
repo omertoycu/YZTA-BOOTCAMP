@@ -24,7 +24,9 @@ export type PropertyType = "residential" | "commercial" | "land";
 export interface Listing {
   id: string;
   title: string;
+  city: string | null;
   district: string;
+  neighborhood: string | null;
   price: number;
   room_count: string;
   square_meters: number | null;
@@ -37,7 +39,9 @@ export interface Listing {
 
 export interface ListingExtract {
   title: string | null;
+  city: string | null;
   district: string | null;
+  neighborhood: string | null;
   price: number | null;
   room_count: string | null;
   square_meters: number | null;
@@ -233,7 +237,9 @@ export interface MarketPriceCheck {
 export interface PublicListing {
   id: string;
   title: string;
+  city: string | null;
   district: string;
+  neighborhood: string | null;
   price: number;
   room_count: string;
   square_meters: number | null;

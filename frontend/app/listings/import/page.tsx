@@ -16,7 +16,9 @@ import { PropertyTypeSelect } from "@/components/ui/PropertyTypeSelect";
 interface DraftListing {
   selected: boolean;
   title: string;
+  city: string;
   district: string;
+  neighborhood: string;
   price: string;
   roomCount: string;
   squareMeters: string;
@@ -60,7 +62,11 @@ export default function ImportPortfolioPage() {
         result.listings.map((item) => ({
           selected: true,
           title: item.title ?? "",
+          // Şehir portal kaynağında çoğu zaman yoktur — backend ilçe+mahalle
+          // eşleşmesinden çıkarıp doldurur (bkz. app/core/geo.py).
+          city: item.city ?? "",
           district: item.district ?? "",
+          neighborhood: item.neighborhood ?? "",
           price: item.price != null ? String(item.price) : "",
           roomCount: item.room_count ?? "",
           squareMeters: item.square_meters != null ? String(item.square_meters) : "",
@@ -107,7 +113,9 @@ export default function ImportPortfolioPage() {
           method: "POST",
           body: JSON.stringify({
             title: draft.title,
+            city: draft.city.trim() || null,
             district: draft.district,
+            neighborhood: draft.neighborhood.trim() || null,
             price: Number(draft.price),
             room_count: draft.roomCount.trim() || "Belirtilmedi",
             square_meters: draft.squareMeters ? Number(draft.squareMeters) : null,
@@ -237,7 +245,7 @@ export default function ImportPortfolioPage() {
                     />
                   </div>
                 </div>
-                <div className="flex items-center gap-3 pl-7">
+                <div className="flex flex-wrap items-center gap-3 pl-7">
                   <ListingTypeToggle
                     value={draft.listingType}
                     onChange={(listingType) => updateDraft(index, { listingType })}
@@ -247,12 +255,25 @@ export default function ImportPortfolioPage() {
                     onChange={(propertyType) => updateDraft(index, { propertyType })}
                   />
                 </div>
-                <div className="grid grid-cols-2 gap-3 pl-7 sm:grid-cols-4">
+                <div className="grid grid-cols-2 gap-3 pl-7 sm:grid-cols-3">
+                  <Input
+                    id={`city-${index}`}
+                    label="Şehir"
+                    placeholder="İlçeden otomatik bulunur"
+                    value={draft.city}
+                    onChange={(e) => updateDraft(index, { city: e.target.value })}
+                  />
                   <Input
                     id={`district-${index}`}
-                    label="Bölge"
+                    label="İlçe"
                     value={draft.district}
                     onChange={(e) => updateDraft(index, { district: e.target.value })}
+                  />
+                  <Input
+                    id={`neighborhood-${index}`}
+                    label="Mahalle"
+                    value={draft.neighborhood}
+                    onChange={(e) => updateDraft(index, { neighborhood: e.target.value })}
                   />
                   <Input
                     id={`price-${index}`}
@@ -276,7 +297,7 @@ export default function ImportPortfolioPage() {
                   />
                 </div>
                 {draft.selected && !isDraftValid(draft) && (
-                  <p className="pl-7 text-body-sm text-error">Başlık, bölge ve geçerli bir fiyat gerekli.</p>
+                  <p className="pl-7 text-body-sm text-error">Başlık, ilçe ve geçerli bir fiyat gerekli.</p>
                 )}
               </div>
             ))}
