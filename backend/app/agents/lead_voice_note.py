@@ -4,6 +4,7 @@ from datetime import date, datetime, timezone
 
 import google.generativeai as genai
 
+from app.core.ai_limits import MAX_TOKENS_VOICE
 from app.core.config import settings
 
 MODEL_NAME = "gemini-2.5-flash"
@@ -77,7 +78,10 @@ def transcribe_and_extract_note(audio_bytes: bytes, content_type: str, today: da
     try:
         response = model.generate_content(
             [{"mime_type": content_type, "data": audio_bytes}, prompt],
-            generation_config={"response_mime_type": "application/json"},
+            generation_config={
+                "response_mime_type": "application/json",
+                "max_output_tokens": MAX_TOKENS_VOICE,
+            },
         )
     except Exception as exc:  # Gemini SDK'sı tek bir ortak hata tipi sağlamıyor
         raise VoiceNoteError(f"Ses işlenemedi: {exc}") from exc

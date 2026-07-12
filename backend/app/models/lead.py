@@ -71,6 +71,13 @@ class Lead(Base):
     # faturayı şişiremesin diye.
     llm_extraction_count: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
     last_llm_extraction_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    # Hibrit konuşma özeti önbelleği (bkz. app/agents/lead_summary.py):
+    # yapısal alanlar boşken konuşma uzarsa Gemini'yle BİR KEZ üretilen tek
+    # cümlelik özet burada saklanır — her yanıt taslağında yeniden üretilmez
+    # (token tasarrufu). Yapısal alanlar doluysa özet deterministik üretilir
+    # ve bu kolonlar hiç kullanılmaz.
+    conversation_summary: Mapped[str | None] = mapped_column(Text, nullable=True)
+    conversation_summary_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     # En az bir alan (district/budget/room_count) AI çıkarımıyla dolduysa True.
     # PATCH /leads/{id} ile danışman elle düzenlerse False'a döner — kaba ama
     # basit tek bayrak (alan bazlı değil), sadece UI rozeti için.

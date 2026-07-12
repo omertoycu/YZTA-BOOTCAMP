@@ -50,6 +50,13 @@ class Settings(BaseSettings):
     s3_access_key_id: str | None = None
     s3_secret_access_key: str | None = None
 
+    # Apify ile Sahibinden mağaza sayfası aktarımı (POST /listings/import-store):
+    # token boşsa endpoint 503 döner (kurulmadıysa sert hata değil, iyzico/S3
+    # deseniyle aynı). Actor değiştirilebilir — varsayılan cheerio-scraper ham
+    # sayfa HTML'ini döndürür, mevcut parse_sahibinden_portfolio onu ayrıştırır.
+    apify_token: str | None = None
+    apify_actor_id: str = "apify~cheerio-scraper"
+
     # Pricing Agent: bölgesel emsal ilan embedding'leri için kalıcı ChromaDB dizini.
     chroma_persist_dir: str = "./chroma_data"
 

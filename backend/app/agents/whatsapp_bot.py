@@ -15,13 +15,17 @@ Bu katman yalnızca app/agents/intake.py'den, ofis auto_reply_enabled ise
 çağrılır; her hata best-effort yutulur, webhook her koşulda 200 döner.
 """
 
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.agents.graph import build_matching_graph
+from app.agents.lead_summary import build_structured_summary
+from app.agents.match_payload import append_match_links, format_match_lines
 from app.agents.reply_draft import ReplyDraftError, draft_reply
 from app.core.text import fold_turkish_i
 from app.models.lead import Lead
 from app.models.office import Office
+from app.models.whatsapp_message import WhatsAppMessage
 
 MAX_AUTO_MATCHES = 3
 
@@ -33,6 +37,32 @@ COMMAND_ALIASES: dict[str, set[str]] = {
     "status": {"durum", "bilgilerim", "kriterlerim"},
     "agent": {"danişman", "danisman", "temsilci", "yetkili"},
 }
+
+# Erken yönlendirme (semantic router'ın kural tabanlı hali): tek başına
+# teşekkür/onay/vedalaşma olan mesajlar RAG/LLM zincirine hiç girmeden statik
+# yanıtlanır. TAM eşleşme (detect_command ile aynı ilke) — "tamam ama bütçem
+# 5 milyon" gibi içerik taşıyan bir mesaj asla nezaket sayılmaz. Girdiler
+# _normalize'dan (fold_turkish_i) geçmiş halleriyle yazılmalı: ı→i düşer
+# ("tamamdır"→"tamamdir") ama ş/ç/ü/ğ/ö korunur — o yüzden hem Türkçe hem
+# ASCII yazımlar ayrı ayrı listelenir. whatsapp_extract.GREETING_DENYLIST'le
+# bilinçli örtüşür ama farklı iş görür: o extraction'ı susturur (sessizlik),
+# bu statik bir kapanış yanıtı üretir. "merhaba"/"selam"/"evet"/"hayır" gibi
+# açılış/cevap ifadeleri BİLİNÇLİ olarak dışarıda — onlara "rica ederiz"
+# demek saçma olur, mevcut sessizlik/karşılama davranışı korunur.
+COURTESY_ALIASES: set[str] = {
+    "tesekkurler", "teşekkürler", "tesekkur ederim", "teşekkür ederim",
+    "tesekkur", "teşekkür", "cok tesekkurler", "çok teşekkürler", "tsk",
+    "sagol", "sağol", "sag ol", "sağ ol", "sagolun", "sağolun", "eyvallah",
+    "tamam", "tamamdir", "ok", "okey", "okay", "peki", "olur", "anladim",
+    "iyi gunler", "iyi günler", "iyi aksamlar", "iyi akşamlar", "iyi geceler",
+    "gorusuruz", "görüşürüz", "gorusmek uzere", "görüşmek üzere",
+    "hoscakal", "hoşçakal", "hoscakalin", "hoşçakalın",
+}
+
+COURTESY_REPLY = (
+    "Rica ederiz! 🙂 Yeni bir talebiniz olduğunda yazmanız yeterli — "
+    "kısayollar için MENÜ yazabilirsiniz. İyi günler dileriz."
+)
 
 
 def _normalize(text: str) -> str:
@@ -52,6 +82,24 @@ def detect_command(text: str | None) -> str | None:
         if normalized in aliases:
             return command
     return None
+
+
+def detect_courtesy(text: str | None) -> bool:
+    """Mesaj tek başına bir teşekkür/onay/vedalaşma ifadesiyse True — çağıran
+    taraf (intake) bu durumda extraction'ı HİÇ çalıştırmaz (Gemini maliyeti
+    sıfır) ve build_auto_reply statik COURTESY_REPLY döner."""
+    if not text:
+        return False
+    return _normalize(text) in COURTESY_ALIASES
+
+
+def _last_outbound_body(db: Session, lead: Lead) -> str | None:
+    return db.execute(
+        select(WhatsAppMessage.body)
+        .where(WhatsAppMessage.lead_id == lead.id, WhatsAppMessage.direction == "out")
+        .order_by(WhatsAppMessage.created_at.desc())
+        .limit(1)
+    ).scalar_one_or_none()
 
 
 def _greeting(lead: Lead) -> str:
@@ -135,8 +183,7 @@ def _find_matches(db: Session, lead: Lead) -> list[dict]:
 
 def _matches_message(office: Office, lead: Lead, matches: list[dict]) -> str:
     lines = [f"{_greeting(lead)} {office.name} portföylerinden kriterlerinize uyanlar:"]
-    for i, match in enumerate(matches, start=1):
-        lines.append(f"{i}) {match['title']} — {_format_try(match['price'])}")
+    lines.extend(format_match_lines(matches))
     lines.append("Detay ve yer gösterimi için DANIŞMAN yazmanız yeterli.")
     return "\n".join(lines)
 
@@ -190,13 +237,18 @@ def _match_send_reply(db: Session, office: Office, lead: Lead) -> str:
             "Dilerseniz DANIŞMAN yazarak hemen görüşme talep edebilirsiniz."
         )
     try:
+        # Sadece DETERMİNİSTİK özet (yapısal alanlardan) — otomatik akışa
+        # LLM özet fallback'i bilinçli olarak eklenmez, webhook başına Gemini
+        # çağrısı artmaz (bkz. app/agents/lead_summary.py).
         draft = draft_reply(
             last_message=None,
             district=lead.district,
             room_count=lead.room_count,
             budget_max=float(lead.budget_max) if lead.budget_max else None,
             candidate_listings=matches,
+            lead_summary=build_structured_summary(lead),
         )
+        draft = append_match_links(draft, matches)
         return f"{draft}\n\nDetay ve yer gösterimi için DANIŞMAN yazmanız yeterli."
     except ReplyDraftError:
         return _matches_message(office, lead, matches)
@@ -210,6 +262,7 @@ def build_auto_reply(
     command: str | None,
     is_new_lead: bool,
     fields_updated: bool,
+    is_courtesy: bool = False,
 ) -> list[str]:
     """Gönderilecek otomatik yanıt mesajlarını sırasıyla döner; boş liste =
     sessiz kal (maliyet kalkanı: tanınmayan/İlgisiz mesajlara yanıt da
@@ -231,6 +284,13 @@ def build_auto_reply(
         # kez göndermenin bir anlamı yok.
         if not (is_new_lead and command == "menu"):
             messages.append(_command_reply(db, office, lead, command))
+    elif is_courtesy:
+        # Erken yönlendirme: teşekkür/vedalaşmaya statik kapanış yanıtı —
+        # Gemini'ye hiç gidilmez. Anti-spam: yeni adaya karşılama zaten
+        # gidiyor (üstüne "rica ederiz" saçma olur); son giden mesaj da zaten
+        # buysa tekrar gönderilmez ("tamam"→yanıt→"ok"→yanıt döngüsü olmaz).
+        if not is_new_lead and _last_outbound_body(db, lead) != COURTESY_REPLY:
+            messages.append(COURTESY_REPLY)
     elif fields_updated and _has_criteria(lead):
         messages.append(_match_send_reply(db, office, lead))
 

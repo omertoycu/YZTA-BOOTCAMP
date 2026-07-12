@@ -27,10 +27,30 @@ interface DraftListing {
   coverPhotoUrl: string | null;
 }
 
+function mapExtractToDrafts(result: ListingPortfolioExtract): DraftListing[] {
+  return result.listings.map((item) => ({
+    selected: true,
+    title: item.title ?? "",
+    // Şehir portal kaynağında çoğu zaman yoktur — backend ilçe+mahalle
+    // eşleşmesinden çıkarıp doldurur (bkz. app/core/geo.py).
+    city: item.city ?? "",
+    district: item.district ?? "",
+    neighborhood: item.neighborhood ?? "",
+    price: item.price != null ? String(item.price) : "",
+    roomCount: item.room_count ?? "",
+    squareMeters: item.square_meters != null ? String(item.square_meters) : "",
+    listingType: item.listing_type ?? "sale",
+    propertyType: item.property_type ?? "residential",
+    coverPhotoUrl: item.cover_photo_url,
+  }));
+}
+
 export default function ImportPortfolioPage() {
   const router = useRouter();
   const [pastedHtml, setPastedHtml] = useState("");
+  const [storeUrl, setStoreUrl] = useState("");
   const [isExtracting, setIsExtracting] = useState(false);
+  const [isFetchingStore, setIsFetchingStore] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [drafts, setDrafts] = useState<DraftListing[] | null>(null);
   const [isImporting, setIsImporting] = useState(false);
@@ -58,28 +78,36 @@ export default function ImportPortfolioPage() {
         setDrafts(null);
         return;
       }
-      setDrafts(
-        result.listings.map((item) => ({
-          selected: true,
-          title: item.title ?? "",
-          // Şehir portal kaynağında çoğu zaman yoktur — backend ilçe+mahalle
-          // eşleşmesinden çıkarıp doldurur (bkz. app/core/geo.py).
-          city: item.city ?? "",
-          district: item.district ?? "",
-          neighborhood: item.neighborhood ?? "",
-          price: item.price != null ? String(item.price) : "",
-          roomCount: item.room_count ?? "",
-          squareMeters: item.square_meters != null ? String(item.square_meters) : "",
-          listingType: item.listing_type ?? "sale",
-          propertyType: item.property_type ?? "residential",
-          coverPhotoUrl: item.cover_photo_url,
-        }))
-      );
+      setDrafts(mapExtractToDrafts(result));
     } catch (err) {
       setError(err instanceof Error ? err.message : "Sayfadan bilgi çıkarılamadı");
       setDrafts(null);
     } finally {
       setIsExtracting(false);
+    }
+  }
+
+  async function handleStoreImport() {
+    setError(null);
+    setImportSummary(null);
+    setIsFetchingStore(true);
+    try {
+      // Apify üzerinden mağaza sayfası çekimi 30-90 sn sürebilir — buton bu
+      // süre boyunca yükleniyor durumunda kalır, sonuç aynı inceleme akışına düşer.
+      const result = await apiFetch<ListingPortfolioExtract>("/listings/import-store", {
+        method: "POST",
+        body: JSON.stringify({ url: storeUrl.trim() }),
+      });
+      setDrafts(mapExtractToDrafts(result));
+    } catch (err) {
+      setError(
+        err instanceof Error
+          ? err.message
+          : "Mağaza sayfası okunamadı. Alternatif olarak sayfa kaynağını yapıştırabilir ya da Voice-to-Listing (Sesle İlan Ekleme) özelliğini kullanabilirsiniz."
+      );
+      setDrafts(null);
+    } finally {
+      setIsFetchingStore(false);
     }
   }
 
@@ -160,9 +188,10 @@ export default function ImportPortfolioPage() {
       <div>
         <h1 className="text-headline-lg text-primary">Sahibinden&apos;den Toplu Aktarım</h1>
         <p className="mt-1 text-body-sm text-text-muted">
-          Sahibinden&apos;de kendi portföyünüzün listelendiği sayfayı tarayıcınızda açın, Ctrl+U (sayfa
-          kaynağını görüntüle) ile açılan sekmedeki tüm metni kopyalayıp aşağıya yapıştırın. Sunucudan
-          hiçbir istek atılmaz; sadece yapıştırdığınız metin ayrıştırılır.
+          İki yol var: mağaza adresinizi yazın, ilanlar sizin yerinize çekilsin — ya da
+          Sahibinden&apos;de portföyünüzün listelendiği sayfayı açıp Ctrl+U (sayfa kaynağını görüntüle)
+          ile açılan sekmedeki tüm metni kopyalayıp aşağıya yapıştırın. Her iki yolda da hiçbir ilan
+          otomatik eklenmez; ayrıştırılan taslakları gözden geçirip onaylarsınız.
         </p>
       </div>
 
@@ -170,6 +199,40 @@ export default function ImportPortfolioPage() {
 
       {!drafts && (
         <div className="flex flex-col gap-3 rounded-lg bg-surface-container-lowest p-6 shadow-[0px_10px_30px_rgba(0,0,0,0.04)]">
+          <label className="text-body-sm font-medium text-on-surface" htmlFor="storeUrl">
+            Mağaza adresi ile aktar
+          </label>
+          <p className="text-body-sm text-text-muted">
+            Sahibinden mağazanızın adresini yazın (örn. magazaadi.sahibinden.com) — ilanlar sizin
+            yerinize çekilip aşağıdaki inceleme akışına düşer. Çekim 1-2 dakika sürebilir.
+          </p>
+          <div className="flex flex-wrap items-end gap-3">
+            <div className="min-w-[240px] flex-1">
+              <Input
+                id="storeUrl"
+                label=""
+                placeholder="magazaadi.sahibinden.com"
+                value={storeUrl}
+                onChange={(e) => setStoreUrl(e.target.value)}
+              />
+            </div>
+            <Button
+              isLoading={isFetchingStore}
+              disabled={!storeUrl.trim() || isExtracting}
+              onClick={handleStoreImport}
+              className="w-fit"
+            >
+              <Icon name="storefront" className="text-[18px]" />
+              Mağazadan Aktar
+            </Button>
+          </div>
+
+          <div className="my-2 flex items-center gap-3 text-body-sm text-text-muted">
+            <span className="h-px flex-1 bg-outline-variant" />
+            veya sayfa kaynağını yapıştırın
+            <span className="h-px flex-1 bg-outline-variant" />
+          </div>
+
           <label className="text-body-sm font-medium text-on-surface" htmlFor="portfolioHtml">
             Sayfa kaynağı
           </label>
@@ -181,7 +244,7 @@ export default function ImportPortfolioPage() {
             placeholder="Sayfa kaynağını buraya yapıştırın..."
             className="w-full rounded border border-outline-variant bg-surface-container-lowest p-3 font-mono text-xs text-on-surface focus:border-secondary focus:outline-none"
           />
-          <Button isLoading={isExtracting} disabled={!pastedHtml.trim()} onClick={handleExtract} className="w-fit">
+          <Button isLoading={isExtracting} disabled={!pastedHtml.trim() || isFetchingStore} onClick={handleExtract} className="w-fit">
             <Icon name="auto_awesome" className="text-[18px]" />
             İlanları Ayrıştır
           </Button>

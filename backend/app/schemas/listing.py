@@ -85,6 +85,11 @@ class ListingExtractFromHtmlRequest(BaseModel):
     html: str
 
 
+class StoreImportRequest(BaseModel):
+    # Sahibinden mağaza adresi, örn. "toycuemlak.sahibinden.com" (şema opsiyonel).
+    url: str
+
+
 class ListingExtractResponse(BaseModel):
     title: str | None
     # Portal kaynağında şehir çoğunlukla yoktur — parser ilçe+mahalle

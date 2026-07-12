@@ -4,6 +4,7 @@ from datetime import datetime, timedelta, timezone
 
 import google.generativeai as genai
 
+from app.core.ai_limits import MAX_TOKENS_EXTRACTION
 from app.core.config import settings
 
 MODEL_NAME = "gemini-2.5-flash"
@@ -160,7 +161,11 @@ def extract_lead_fields(message_text: str) -> dict:
     prompt = PROMPT_TEMPLATE.format(message=message_text)
     try:
         response = model.generate_content(
-            prompt, generation_config={"response_mime_type": "application/json"}
+            prompt,
+            generation_config={
+                "response_mime_type": "application/json",
+                "max_output_tokens": MAX_TOKENS_EXTRACTION,
+            },
         )
     except Exception as exc:  # Gemini SDK'sı tek bir ortak hata tipi sağlamıyor
         raise WhatsAppExtractError(f"Mesaj işlenemedi: {exc}") from exc

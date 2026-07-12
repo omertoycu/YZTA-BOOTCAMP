@@ -256,6 +256,11 @@ def matching_node(state: AgentState, db: Session) -> AgentState:
                 "listing_id": str(listing.id),
                 "title": listing.title,
                 "price": float(listing.price),
+                # WhatsApp mesajlarındaki temiz payload (fiyat/oda/konum/link)
+                # için — bkz. app/agents/match_payload.py: strip_match_payload.
+                "room_count": listing.room_count,
+                "district": listing.district,
+                "city": listing.city,
                 "match_reason": reason,
             }
         )

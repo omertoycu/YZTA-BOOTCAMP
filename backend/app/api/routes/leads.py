@@ -7,7 +7,15 @@ from sqlalchemy.orm import Session
 from app.agents.calendar_invite import build_appointment_ics
 from app.agents.follow_up import disable_auto_follow_up, enable_auto_follow_up
 from app.agents.graph import build_matching_graph
+from app.agents.lead_summary import (
+    LeadSummaryError,
+    build_structured_summary,
+    fresh_cached_summary,
+    should_generate_llm_summary,
+    summarize_conversation,
+)
 from app.agents.lead_voice_note import VoiceNoteError, transcribe_and_extract_note
+from app.agents.match_payload import append_match_links, format_match_lines
 from app.agents.match_ranking import rerank_candidates_with_ai
 from app.agents.reply_draft import ReplyDraftError, draft_reply
 from app.agents.voice_listing import MAX_AUDIO_BYTES
@@ -76,6 +84,12 @@ def _build_default_follow_up(lead: Lead, office: Office) -> str:
 # Satış hunisi aşamaları — won/lost terminal, gerisi ileri-geri serbest
 # (danışman yanlış tıklamayı düzeltebilmeli, katı bir state machine değil).
 LEAD_STATUSES = ("new", "contacted", "viewing", "negotiation", "won", "lost")
+
+# "Yeniden Analiz Et" (reanalyze) Gemini'ye tüm geçmişi değil sadece son N
+# gelen mesajı gönderir (kayan pencere) — çok mesajlaşan bir adayda prompt
+# sınırsız büyüyüp token maliyetini şişirmesin. Güncel arama kriteri zaten
+# neredeyse her zaman son mesajlardadır.
+REANALYZE_MESSAGE_WINDOW = 4
 
 
 @router.post("", response_model=LeadResponse, status_code=201)
@@ -173,6 +187,26 @@ def _last_inbound_message_text(db: Session, lead_id) -> str | None:
         .order_by(WhatsAppMessage.created_at.desc())
         .limit(1)
     ).scalar_one_or_none()
+
+
+def _recent_inbound_texts(db: Session, lead_id, limit: int) -> list[str]:
+    """Son `limit` gelen METİN mesajı, kronolojik sırada (kayan pencere —
+    hem reanalyze hem konuşma özeti bunu kullanır, tüm geçmiş asla gönderilmez)."""
+    newest_first = (
+        db.execute(
+            select(WhatsAppMessage.body)
+            .where(
+                WhatsAppMessage.lead_id == lead_id,
+                WhatsAppMessage.direction == "in",
+                WhatsAppMessage.message_type == "text",
+            )
+            .order_by(WhatsAppMessage.created_at.desc())
+            .limit(limit)
+        )
+        .scalars()
+        .all()
+    )
+    return [t for t in reversed(newest_first) if t]
 
 
 def _match_criteria(lead: Lead) -> dict:
@@ -428,8 +462,7 @@ def send_matches_via_whatsapp(
         raise HTTPException(status_code=404, detail="Bu adayın kriterlerine uyan portföy bulunamadı")
 
     lines = [f"Merhaba! {office.name} olarak kriterlerinize uyan portföylerimiz:"]
-    for i, match in enumerate(matches, start=1):
-        lines.append(f"{i}) {match['title']} — {match['price']:,.0f} TL".replace(",", "."))
+    lines.extend(format_match_lines(matches))
     lines.append("Detaylar ve yer gösterimi için bu numaradan bize ulaşabilirsiniz.")
     message = "\n".join(lines)
 
@@ -452,8 +485,9 @@ def send_matches_via_whatsapp(
 
 @router.post("/{lead_id}/reanalyze-messages", response_model=LeadFieldExtractionDraft)
 def reanalyze_lead_messages(lead_id: str, db: Session = Depends(get_tenant_db)):
-    """Danışmanın "Yeniden Analiz Et" tetiklemesi: lead'in gelen WhatsApp METİN
-    mesajlarını birleştirip Gemini'ye tekrar gönderir. Otomatik webhook
+    """Danışmanın "Yeniden Analiz Et" tetiklemesi: lead'in SON
+    REANALYZE_MESSAGE_WINDOW gelen WhatsApp METİN mesajını (kayan pencere)
+    birleştirip Gemini'ye tekrar gönderir. Otomatik webhook
     akışından (fill-only, doğrudan yazar) kasıtlı olarak farklı: SADECE TASLAK
     döner, hiçbir şey otomatik yazılmaz — danışman taslağı (gerekirse
     düzenleyip) PATCH /{lead_id} ile onaylar. "Zaten tüm alanlar dolu"
@@ -462,20 +496,8 @@ def reanalyze_lead_messages(lead_id: str, db: Session = Depends(get_tenant_db)):
     if not lead:
         raise HTTPException(status_code=404, detail="Lead bulunamadı")
 
-    inbound_texts = (
-        db.execute(
-            select(WhatsAppMessage.body)
-            .where(
-                WhatsAppMessage.lead_id == lead.id,
-                WhatsAppMessage.direction == "in",
-                WhatsAppMessage.message_type == "text",
-            )
-            .order_by(WhatsAppMessage.created_at.asc())
-        )
-        .scalars()
-        .all()
-    )
-    combined_text = "\n".join(t for t in inbound_texts if t)
+    inbound_texts = _recent_inbound_texts(db, lead.id, REANALYZE_MESSAGE_WINDOW)
+    combined_text = "\n".join(inbound_texts)
     if not combined_text.strip():
         raise HTTPException(status_code=422, detail="Bu aday için analiz edilecek WhatsApp metin mesajı yok")
 
@@ -513,6 +535,51 @@ def reanalyze_lead_messages(lead_id: str, db: Session = Depends(get_tenant_db)):
     return LeadFieldExtractionDraft(**extracted)
 
 
+def _resolve_lead_summary(db: Session, lead: Lead) -> str | None:
+    """Hibrit özetleyici (bkz. app/agents/lead_summary.py): önce deterministik
+    (yapısal alanlardan, sıfır maliyet), yoksa taze önbellek, o da yoksa ve
+    koşullar uygunsa (uzun konuşma + 5/24s bütçesinde yer) Gemini'yle BİR KEZ
+    üretilip leads.conversation_summary'ye önbelleklenir. Tamamen best-effort —
+    özet üretilemezse None döner, yanıt taslağı özetsiz devam eder.
+
+    DİKKAT: başarılı/başarısız LLM denemesi commit içerir (sayaç + önbellek) —
+    commit SET LOCAL tenant context'ini sıfırladığı için bu fonksiyon,
+    route'un RLS'li tablolara yapacağı SON sorgudan sonra çağrılmalı."""
+    summary = build_structured_summary(lead)
+    if summary is not None:
+        return summary
+    summary = fresh_cached_summary(lead)
+    if summary is not None:
+        return summary
+    if not should_generate_llm_summary(lead):
+        return None
+
+    recent = _recent_inbound_texts(db, lead.id, REANALYZE_MESSAGE_WINDOW)
+    if not recent:
+        return None
+
+    now = datetime.now(timezone.utc)
+    try:
+        summary = summarize_conversation(recent)
+    except LeadSummaryError as exc:
+        if str(exc) != "__not_configured__":
+            # Çağrı yapıldı ama başarısız — maliyet oluştu, sayaç yine işler
+            # (extraction'daki desenle aynı, bkz. intake._maybe_extract_and_apply).
+            lead.llm_extraction_count, lead.last_llm_extraction_at = compute_new_extraction_counters(
+                lead.llm_extraction_count, lead.last_llm_extraction_at, now
+            )
+            db.commit()
+        return None
+
+    lead.conversation_summary = summary
+    lead.conversation_summary_at = now
+    lead.llm_extraction_count, lead.last_llm_extraction_at = compute_new_extraction_counters(
+        lead.llm_extraction_count, lead.last_llm_extraction_at, now
+    )
+    db.commit()
+    return summary
+
+
 @router.post("/{lead_id}/suggest-reply", response_model=SuggestReplyResponse)
 def suggest_reply(lead_id: str, db: Session = Depends(get_tenant_db)):
     """Matching Agent'ın bulduğu GERÇEK portföyleri (send-matches ile aynı, en
@@ -534,6 +601,10 @@ def suggest_reply(lead_id: str, db: Session = Depends(get_tenant_db)):
         candidates=result["candidate_listings"],
     )[:3]
 
+    # RLS'li son DB okuması yukarıda bitti — özet çözümü commit içerebilir
+    # (bkz. _resolve_lead_summary docstring), bu yüzden en sona bırakıldı.
+    lead_summary = _resolve_lead_summary(db, lead)
+
     try:
         draft = draft_reply(
             last_message=last_inbound,
@@ -541,11 +612,16 @@ def suggest_reply(lead_id: str, db: Session = Depends(get_tenant_db)):
             room_count=lead.room_count,
             budget_max=float(lead.budget_max) if lead.budget_max else None,
             candidate_listings=candidates,
+            lead_summary=lead_summary,
         )
     except ReplyDraftError as exc:
         if str(exc) == "__not_configured__":
             raise HTTPException(status_code=503, detail="Yanıt taslağı özelliği şu an aktif değil") from exc
         raise HTTPException(status_code=502, detail=str(exc)) from exc
+
+    # İlan linkleri LLM prompt'una girmez (URL bozma riski) — taslağın sonuna
+    # deterministik eklenir, danışman göndermeden önce yine de düzenleyebilir.
+    draft = append_match_links(draft, candidates)
 
     return SuggestReplyResponse(draft=draft, match_count=len(candidates))
 

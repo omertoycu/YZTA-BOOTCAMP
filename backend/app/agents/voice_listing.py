@@ -3,6 +3,7 @@ import re
 
 import google.generativeai as genai
 
+from app.core.ai_limits import MAX_TOKENS_VOICE
 from app.core.config import settings
 
 MODEL_NAME = "gemini-2.5-flash"
@@ -71,7 +72,10 @@ def transcribe_and_extract(audio_bytes: bytes, content_type: str) -> dict:
     try:
         response = model.generate_content(
             [{"mime_type": content_type, "data": audio_bytes}, PROMPT],
-            generation_config={"response_mime_type": "application/json"},
+            generation_config={
+                "response_mime_type": "application/json",
+                "max_output_tokens": MAX_TOKENS_VOICE,
+            },
         )
     except Exception as exc:  # Gemini SDK'sı tek bir ortak hata tipi sağlamıyor
         raise VoiceListingError(f"Ses işlenemedi: {exc}") from exc

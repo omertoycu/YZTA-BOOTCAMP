@@ -10,7 +10,7 @@ import json
 from sqlalchemy import select
 
 from app.agents import intake
-from app.agents.whatsapp_bot import detect_command
+from app.agents.whatsapp_bot import COURTESY_REPLY, detect_command, detect_courtesy
 from app.core.config import settings
 from app.models.office import Office
 
@@ -314,3 +314,132 @@ def test_irrelevant_message_from_known_lead_gets_no_reply(client, db_session, mo
         _build_payload("2000000008", "wamid.BOTSILENT2", "905552220008", body="bugün hava çok güzel değil mi"),
     )
     assert sent_calls == []  # sessizlik = maliyet yok, yanlış beklenti yok
+
+
+# --- Nezaket/vedalaşma erken yönlendirmesi (detect_courtesy) ---
+
+
+def test_detect_courtesy_recognizes_variants():
+    assert detect_courtesy("Teşekkürler") is True
+    assert detect_courtesy("tesekkurler") is True
+    assert detect_courtesy("Teşekkür ederim!") is True
+    assert detect_courtesy("İyi günler") is True
+    assert detect_courtesy("TAMAM") is True
+    assert detect_courtesy("tamamdır") is True
+    assert detect_courtesy("ok") is True
+    assert detect_courtesy("Görüşürüz") is True
+    assert detect_courtesy("sağ ol") is True
+
+
+def test_detect_courtesy_ignores_content_and_greetings():
+    # İçerik taşıyan mesajlar nezaket sayılmaz — extraction normal çalışmalı.
+    assert detect_courtesy("tamam ama bütçem 5 milyon") is False
+    assert detect_courtesy("teşekkürler, bir de Moda'da var mı?") is False
+    # Açılış/cevap ifadeleri de nezaket değil (mevcut sessizlik/karşılama korunur).
+    assert detect_courtesy("merhaba") is False
+    assert detect_courtesy("evet") is False
+    assert detect_courtesy(None) is False
+    assert detect_courtesy("") is False
+
+
+def test_courtesy_message_gets_static_reply_without_gemini(client, db_session, monkeypatch):
+    monkeypatch.setattr(settings, "whatsapp_app_secret", WHATSAPP_APP_SECRET)
+    _register_office(client, "Ofis Bot Nezaket", "owner@bot-nezaket.com")
+    _configure_office(db_session, "Ofis Bot Nezaket", "2000000010", auto_reply=True)
+
+    def _fail_if_called(text):
+        raise AssertionError("extract_lead_fields bir nezaket mesajı için çağrılmamalı")
+
+    monkeypatch.setattr(intake, "extract_lead_fields", _fail_if_called)
+
+    sent_calls = []
+    monkeypatch.setattr(
+        intake, "send_whatsapp_text", lambda pid, to, text: sent_calls.append((pid, to, text))
+    )
+
+    # İlk mesaj lead'i oluşturur (karşılama gider), sonra teşekkür.
+    _post_webhook(client, _build_payload("2000000010", "wamid.BOTNEZ1", "905552220010", body="Selam"))
+    sent_calls.clear()
+
+    _post_webhook(client, _build_payload("2000000010", "wamid.BOTNEZ2", "905552220010", body="Teşekkürler"))
+    assert len(sent_calls) == 1
+    assert sent_calls[0][2] == COURTESY_REPLY
+
+
+def test_courtesy_reply_not_sent_twice_in_a_row(client, db_session, monkeypatch):
+    """"tamam" → yanıt → "ok" → yanıt döngüsü olmamalı: son giden mesaj zaten
+    nezaket yanıtıysa ikincisi sessiz kalır."""
+    monkeypatch.setattr(settings, "whatsapp_app_secret", WHATSAPP_APP_SECRET)
+    _register_office(client, "Ofis Bot Nezaket 2", "owner@bot-nezaket-2.com")
+    _configure_office(db_session, "Ofis Bot Nezaket 2", "2000000011", auto_reply=True)
+
+    sent_calls = []
+    monkeypatch.setattr(
+        intake, "send_whatsapp_text", lambda pid, to, text: sent_calls.append((pid, to, text))
+    )
+
+    _post_webhook(client, _build_payload("2000000011", "wamid.BOTNEZ3", "905552220011", body="Selam"))
+    sent_calls.clear()
+
+    _post_webhook(client, _build_payload("2000000011", "wamid.BOTNEZ4", "905552220011", body="tamam"))
+    _post_webhook(client, _build_payload("2000000011", "wamid.BOTNEZ5", "905552220011", body="ok"))
+    assert len(sent_calls) == 1  # sadece ilki yanıtlanır
+
+
+def test_new_lead_courtesy_first_message_gets_welcome_only(client, db_session, monkeypatch):
+    monkeypatch.setattr(settings, "whatsapp_app_secret", WHATSAPP_APP_SECRET)
+    _register_office(client, "Ofis Bot Nezaket 3", "owner@bot-nezaket-3.com")
+    _configure_office(db_session, "Ofis Bot Nezaket 3", "2000000012", auto_reply=True)
+
+    sent_calls = []
+    monkeypatch.setattr(
+        intake, "send_whatsapp_text", lambda pid, to, text: sent_calls.append((pid, to, text))
+    )
+
+    _post_webhook(client, _build_payload("2000000012", "wamid.BOTNEZ6", "905552220012", body="Teşekkürler"))
+    assert len(sent_calls) == 1  # karşılama; üstüne "rica ederiz" gitmez
+    assert "İLANLAR" in sent_calls[0][2]
+
+
+# --- Eşleşme mesajlarında vitrin linki ---
+
+
+def test_auto_match_message_contains_public_listing_link(client, db_session, monkeypatch):
+    monkeypatch.setattr(settings, "whatsapp_app_secret", WHATSAPP_APP_SECRET)
+    headers = _register_office(client, "Ofis Bot Link", "owner@bot-link.com")
+    _configure_office(db_session, "Ofis Bot Link", "2000000013", auto_reply=True)
+
+    listing = client.post(
+        "/listings",
+        json={"title": "Moda 2+1 Satılık", "district": "Moda", "price": 3_000_000, "room_count": "2+1"},
+        headers=headers,
+    ).json()
+
+    def _fake_extract(text):
+        return {
+            "district": "Moda",
+            "budget_min": None,
+            "budget_max": 3_500_000,
+            "room_count": "2+1",
+            "radius_km": None,
+            "listing_type_preference": None,
+            "property_type_preference": None,
+        }
+
+    monkeypatch.setattr(intake, "extract_lead_fields", _fake_extract)
+
+    sent_calls = []
+    monkeypatch.setattr(
+        intake, "send_whatsapp_text", lambda pid, to, text: sent_calls.append((pid, to, text))
+    )
+
+    _post_webhook(
+        client,
+        _build_payload(
+            "2000000013", "wamid.BOTLINK1", "905552220013", body="Moda'da 2+1 arıyorum, bütçem 3.5 milyon"
+        ),
+    )
+
+    match_messages = [text for _, _, text in sent_calls if "Moda 2+1 Satılık" in text]
+    assert len(match_messages) == 1
+    assert f"/p/{listing['id']}" in match_messages[0]

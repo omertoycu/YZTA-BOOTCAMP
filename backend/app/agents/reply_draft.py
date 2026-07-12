@@ -1,12 +1,14 @@
 import google.generativeai as genai
 
+from app.core.ai_limits import MAX_TOKENS_REPLY_DRAFT
 from app.core.config import settings
 
 MODEL_NAME = "gemini-2.5-flash"
 
-PROMPT_TEMPLATE = """Sen bir emlak ofisinin WhatsApp asistanısın. Bir adaya kısa, \
-samimi ve profesyonel bir Türkçe WhatsApp yanıtı taslağı yazacaksın.
+PROMPT_TEMPLATE = """Sen bir emlak ofisinin WhatsApp asistanısın. Bir adaya kısa \
+ve profesyonel bir Türkçe WhatsApp yanıtı taslağı yazacaksın.
 
+Aday özeti: {lead_summary}
 Adayın son mesajı: "{last_message}"
 Adayın aradığı kriterler: bölge={district}, oda={room_count}, bütçe üst sınırı={budget_max}
 
@@ -15,9 +17,13 @@ aktif portföyleri var. KURALLAR:
 1. SADECE bu listedeki ilanlardan bahset, ASLA var olmayan bir ilan uydurma.
 2. Liste BOŞ DEĞİLSE listedeki ilanları fiyatlarıyla MUTLAKA sun — kendi \
 değerlendirmenle "uygun ilan yok" deme, uygunluk kararı adaya ve danışmana ait. \
-İlan adayın aradığından farklı bir kategorideyse (örn. konut yerine ofis/arsa) \
-bunu dürüstçe belirtip yine de öner ("ilginizi çekebilecek şu seçeneğimiz var" gibi).
-3. Liste boşsa uygun ilan olmadığını nazikçe belirt, yakında haber vereceğini söyle.
+Her ilanı fiyatıyla TEK satırda ver. İlan adayın aradığından farklı bir \
+kategorideyse (örn. konut yerine ofis/arsa) bunu dürüstçe belirtip yine de öner.
+3. Liste boşsa uygun ilan olmadığını tek cümleyle belirt, yakında haber vereceğini söyle.
+4. ÜSLUP (KESİN KURAL): İlan satırları HARİÇ EN FAZLA 3 KISA CÜMLE yaz. \
+Gereksiz nezaket ve doldurma kalıpları KULLANMA ("umarım iyisinizdir", \
+"değerli müşterimiz", "her zaman hizmetinizdeyiz" gibi) — selamlama en fazla \
+tek kelime olsun. Mesaj kısa bir WhatsApp mesajı gibi okunmalı.
 
 Portföyler:
 {listings_block}
@@ -47,6 +53,7 @@ def draft_reply(
     room_count: str | None,
     budget_max: float | None,
     candidate_listings: list[dict],
+    lead_summary: str | None = None,
 ) -> str:
     """RAG'ın generation adımı: retrieval (Matching Agent'ın döndürdüğü gerçek/
     canlı portföyler, bkz. app/api/routes/leads.py: suggest_reply) burada
@@ -64,6 +71,7 @@ def draft_reply(
         else "(uygun portföy yok)"
     )
     prompt = PROMPT_TEMPLATE.format(
+        lead_summary=lead_summary or "(özet yok)",
         last_message=last_message or "(mesaj yok)",
         district=district or "belirtilmedi",
         room_count=room_count or "belirtilmedi",
@@ -71,7 +79,11 @@ def draft_reply(
         listings_block=listings_block,
     )
     try:
-        response = model.generate_content(prompt)  # düz metin — JSON mime type gerekmez
+        # Düz metin — JSON mime type gerekmez. Token tavanı için bkz.
+        # app/core/ai_limits.py (thinking-model uyarısı dahil).
+        response = model.generate_content(
+            prompt, generation_config={"max_output_tokens": MAX_TOKENS_REPLY_DRAFT}
+        )
     except Exception as exc:  # Gemini SDK'sı tek bir ortak hata tipi sağlamıyor
         raise ReplyDraftError(f"Yanıt taslağı üretilemedi: {exc}") from exc
 

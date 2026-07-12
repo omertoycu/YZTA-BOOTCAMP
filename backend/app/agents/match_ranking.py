@@ -3,6 +3,7 @@ import re
 
 import google.generativeai as genai
 
+from app.core.ai_limits import MAX_TOKENS_RERANK
 from app.core.config import settings
 
 MODEL_NAME = "gemini-2.5-flash"
@@ -82,7 +83,11 @@ def rerank_candidates_with_ai(
             listings_block=listings_block,
         )
         response = model.generate_content(
-            prompt, generation_config={"response_mime_type": "application/json"}
+            prompt,
+            generation_config={
+                "response_mime_type": "application/json",
+                "max_output_tokens": MAX_TOKENS_RERANK,
+            },
         )
         text = getattr(response, "text", None)
         if not text:

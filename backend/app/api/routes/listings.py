@@ -20,6 +20,11 @@ from app.agents.pricing import (
     suggest_price_range,
 )
 from app.agents.stale_listing import find_stale_listings
+from app.agents.store_import import (
+    StoreImportError,
+    UnsupportedStoreUrlError,
+    import_store_listings,
+)
 from app.agents.voice_listing import MAX_AUDIO_BYTES, VoiceListingError, transcribe_and_extract
 from app.api.deps import get_current_user
 from app.core.geo import infer_city
@@ -40,6 +45,7 @@ from app.schemas.listing import (
     ListingStatusUpdate,
     ListingTypeUpdate,
     ListingUpdate,
+    StoreImportRequest,
     VoiceListingDraftResponse,
 )
 from app.schemas.pricing import MarketPriceCheckResponse, PricingSuggestionResponse, StaleListingAlert
@@ -121,6 +127,31 @@ def extract_portfolio_from_html(
     otomatik oluşturulmaz, danışman ayrıştırılan listeyi gözden geçirip
     seçtiklerini onaylar."""
     listings = parse_sahibinden_portfolio(payload.html)
+    return ListingPortfolioExtractResponse(listings=[ListingExtractResponse(**item) for item in listings])
+
+
+@router.post("/import-store", response_model=ListingPortfolioExtractResponse)
+def import_from_store(
+    payload: StoreImportRequest,
+    current_user: dict = Depends(get_current_user),  # auth zorunlu, açık proxy istismarını önler
+):
+    """Sahibinden mağaza URL'sinden (örn. toycuemlak.sahibinden.com) tüm
+    ilanları Apify üzerinden çekip ayrıştırır — "kaynak yapıştır" toplu
+    aktarımının (extract-portfolio-from-html) fetch adımı otomatikleşmiş hali,
+    inceleme/onay akışı birebir aynı: hiçbir ilan otomatik oluşturulmaz,
+    danışman inceleme kartlarından onayladıklarını normal POST /listings ile
+    kaydeder (Postgres + ChromaDB emsal endeksi oraya bağlı). Senkron çalışır
+    (Apify 30-90 sn sürebilir, frontend yükleniyor durumu gösterir) — job/
+    polling altyapısı bilinçli olarak kurulmadı, taslak listesi tek yanıtta
+    döner (bkz. app/agents/store_import.py)."""
+    try:
+        listings = import_store_listings(payload.url)
+    except UnsupportedStoreUrlError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except StoreImportError as exc:
+        if str(exc) == "__not_configured__":
+            raise HTTPException(status_code=503, detail="Mağaza aktarımı şu an aktif değil") from exc
+        raise HTTPException(status_code=502, detail=str(exc)) from exc
     return ListingPortfolioExtractResponse(listings=[ListingExtractResponse(**item) for item in listings])
 
 

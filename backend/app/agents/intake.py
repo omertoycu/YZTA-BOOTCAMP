@@ -11,7 +11,7 @@ from app.agents.whatsapp_extract import (
     extract_lead_fields,
     should_run_extraction,
 )
-from app.agents.whatsapp_bot import build_auto_reply, detect_command
+from app.agents.whatsapp_bot import build_auto_reply, detect_command, detect_courtesy
 from app.agents.whatsapp_send import WhatsAppSendError, send_whatsapp_text
 from app.core.db import set_tenant
 from app.models.lead import Lead
@@ -142,12 +142,14 @@ def process_inbound_message(
     if is_new_lead:
         _notify_new_lead(db, office_id, lead)
 
-    # Tek kelimelik komutlar (MENÜ/İLANLAR/DURUM/DANIŞMAN) deterministik
-    # yanıtlanır — Gemini alan çıkarımına hiç gönderilmez (maliyet kalkanı).
+    # Erken yönlendirme (maliyet kalkanı): tek kelimelik komutlar
+    # (MENÜ/İLANLAR/DURUM/DANIŞMAN) ve teşekkür/onay/vedalaşma mesajları
+    # deterministik yanıtlanır — Gemini alan çıkarımına hiç gönderilmez.
     command = detect_command(extraction_text)
+    is_courtesy = command is None and detect_courtesy(extraction_text)
 
     fields_updated = False
-    if extraction_text and command is None:
+    if extraction_text and command is None and not is_courtesy:
         fields_updated = _maybe_extract_and_apply(db, office_id, lead, message_type, extraction_text)
 
     _maybe_auto_reply(
@@ -157,6 +159,7 @@ def process_inbound_message(
         command=command,
         is_new_lead=is_new_lead,
         fields_updated=fields_updated,
+        is_courtesy=is_courtesy,
     )
 
     return lead
@@ -245,6 +248,7 @@ def _maybe_auto_reply(
     command: str | None,
     is_new_lead: bool,
     fields_updated: bool,
+    is_courtesy: bool = False,
 ) -> None:
     """Opt-in otomatik yanıt (bkz. app/agents/whatsapp_bot.py): ofis
     auto_reply_enabled değilse hiçbir şey yapılmaz. Best-effort — yanıt
@@ -264,6 +268,7 @@ def _maybe_auto_reply(
         command=command,
         is_new_lead=is_new_lead,
         fields_updated=fields_updated,
+        is_courtesy=is_courtesy,
     )
     if not replies:
         db.rollback()

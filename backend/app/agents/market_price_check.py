@@ -3,6 +3,7 @@ import re
 from google import genai
 from google.genai import types
 
+from app.core.ai_limits import MAX_TOKENS_MARKET_PRICE_CHECK
 from app.core.config import settings
 from app.models.listing import Listing
 
@@ -123,7 +124,10 @@ def fetch_market_price_check(listing: Listing) -> dict:
         response = client.models.generate_content(
             model=MODEL_NAME,
             contents=prompt,
-            config=types.GenerateContentConfig(tools=[types.Tool(google_search=types.GoogleSearch())]),
+            config=types.GenerateContentConfig(
+                tools=[types.Tool(google_search=types.GoogleSearch())],
+                max_output_tokens=MAX_TOKENS_MARKET_PRICE_CHECK,
+            ),
         )
         text = getattr(response, "text", None)
         if not text:
