@@ -235,38 +235,43 @@ RLS testinde ortaya çıkan üç güvenlik açığı (superuser bypass, SET LOCA
 # Sprint 2
 
 > 📅 **6 Temmuz — 19 Temmuz 2026**
+> Sprint puanı hedefi: `37` (planlanan 5 story) — sprint içinde ayrıca backlog'da hiç yer almayan geniş bir ek kapsam tamamlandı.
 
 ### Backlog Düzeni ve Story Seçimleri
 
-Sprint 2'de gerçek entegrasyonları (ödeme, WhatsApp) ve Pricing/Scoring ajanlarını tamamlamayı hedefliyoruz.
+Sprint 2'nin ana hedefi gerçek entegrasyonları (ödeme, WhatsApp) ve Pricing/Scoring ajanlarını tamamlamak, ofis panelini demo iskeletinden gerçek bir ofiste kullanılabilir bir ürüne dönüştürmekti. Sprint 1 retrosundaki aksiyon maddesi uygulandı: manuel/kurumsal onay gerektiren dış adımlar (iyzico sandbox talebi, Meta WhatsApp Business kurulumu) sprintin ilk günlerinde, kod işine paralel başlatıldı.
 
-> ⚡ **Erken başlangıç notu (2–4 Temmuz 2026, sprint resmi olarak 6 Temmuz'da başlıyor):** Sprint 1 kapanışının hemen ardından, resmi tarih beklenmeden aşağıdaki tabloda listelenen Sprint 2 story'lerinin çoğu, backlog'da hiç yer almayan ek kapsam (ilan içe aktarma, konum bazlı eşleştirme, fotoğraf yükleme, tasarım sistemi yenilemesi, ilan detay sayfası, Reports) ve normalde Sprint 3'e ait iki hero özellik (Voice-to-Listing, Ulaşım Raporu) kod tarafında tamamlandı. Backend + PostgreSQL Railway'de, ofis paneli Vercel'de canlıya alındı (2026-07-03), Gemini/Google Maps entegrasyonları canlı ortama eklendi (2026-07-04). 93 backend testi yeşil, ruff lint temiz — gerçek pytest suite'i izole bir Docker+Postgres ortamında doğrulandı (bu süreçte WeasyPrint'in `pydyf` 0.12 ile kırılan uyumluluğu ve Railway'in Debian trixie tabanında `libgdk-pixbuf` paket adı değişikliği bulunup düzeltildi). Detaylar için [TEKNIK_YOL_HARITASI.md](./TEKNIK_YOL_HARITASI.md) ve [CLAUDE.md](./CLAUDE.md)'ye bakınız.
+> ⚡ **Erken başlangıç notu (2–4 Temmuz 2026, sprint resmi olarak 6 Temmuz'da başladı):** Sprint 1 kapanışının hemen ardından, resmi tarih beklenmeden Pricing/Scoring ajanları, ofis paneli iskeleti ve WhatsApp webhook kodu yazıldı; backend + PostgreSQL Railway'e, ofis paneli Vercel'e canlıya alındı (2026-07-03). Resmi sprint süresi bu sayede entegrasyonların olgunlaştırılmasına, **gerçek bir emlak ofisinin verisiyle canlı kullanımdan gelen geri bildirimlerin** düzeltilmesine ve aşağıdaki ek kapsama harcandı. Detaylar için [TEKNIK_YOL_HARITASI.md](./TEKNIK_YOL_HARITASI.md) ve Daily Scrum notlarına bakınız.
 
 **Planlanan Story'ler:**
 
-| # | User Story | Puan (Tahmini) | Durum |
-|---|-----------|----------------|-------|
-| 6 | iyzico canlı ödeme akışı: ürün + 3 `pricingPlan` (Starter/Pro/Ofis) | 8 | 🟡 Kod tamam (Checkout Form + callback doğrulama + `/billing` sayfası); sandbox aktivasyon maili bekleniyor (manuel, `entegrasyon@iyzico.com`) |
-| 7 | WhatsApp Business API başvurusu + BSP seçimi + Intake Agent webhook entegrasyonu | 8 | 🟡 Webhook kodu tamam (HMAC imza doğrulama, idempotency, prod'da secret zorunlu); Meta Business Manager doğrulaması bekleniyor (manuel) |
-| 8 | Pricing Agent: ChromaDB emsal embedding + k-NN benzerlik ile fiyat aralığı önerisi | 8 | ✅ Tamamlandı *(erken)* |
-| 9 | Scoring Agent: kural bazlı skor motoru (yanıt hızı + mesaj sayısı + bütçe tutarlılığı) | 5 | ✅ Tamamlandı *(erken)* |
-| 10 | Ofis paneli (Next.js): lead listesi + portföy yönetimi temel ekranları | 8 | ✅ Tamamlandı, ardından tasarım sistemi tamamen yenilendi (bkz. aşağı) |
+| # | User Story | Puan | Durum |
+|---|-----------|------|-------|
+| 6 | iyzico ödeme akışı: 3 plan (Starter/Pro/Ofis), Checkout Form + callback doğrulama + `/billing` sayfası | 8 | 🟡 Kod tamam ve test edildi (callback token'ı her zaman iyzico API'sinden doğrulanıyor, istemci beyanına güvenilmiyor); sandbox aktivasyon maili (manuel, `entegrasyon@iyzico.com`) yanıtlanmadığı için canlı ödeme testi Sprint 3'e devretti |
+| 7 | WhatsApp Business Cloud API + Intake Agent webhook entegrasyonu (BSP kullanmadan, Meta'ya doğrudan) | 8 | 🟡 Webhook kodu tamam (`X-Hub-Signature-256` HMAC doğrulaması + idempotency); Meta tarafında app + Business Portfolio + ücretsiz test numarası alındı, webhook Callback URL doğrulaması **geçti** — kalan tek adım kalıcı erişim token'ı (System User), Sprint 3'e devretti |
+| 8 | Pricing Agent: ChromaDB emsal embedding + k-NN benzerlik ile fiyat aralığı önerisi | 8 | ✅ Tamamlandı; sprint içinde satılık/kiralık ayrımı eklendi (kiralık emsaller satılıklarla karışıp anlamsız aralıklar üretiyordu) ve her deploy'da sıfırlanan endeks için otomatik yeniden indeksleme (self-heal) yazıldı |
+| 9 | Scoring Agent: kural bazlı skor motoru (yanıt hızı + mesaj sayısı + bütçe tutarlılığı) | 5 | ✅ Tamamlandı — ancak gerçek kullanımda danışmana değer üretmediği görüldü ve sprint içinde bilinçli bir ürün kararıyla üründen tamamen kaldırıldı (bkz. Sprint Review → Alınan Kararlar) |
+| 10 | Ofis paneli (Next.js): lead listesi + portföy yönetimi temel ekranları | 8 | ✅ Tamamlandı ve aşıldı: tasarım sistemi mockup'a göre tamamen yenilendi (bento-grid dashboard, sol sidebar, rehberli ilan ekleme sihirbazı), Adaylar sayfası 4 sekmeli olarak yeniden tasarlandı, Dashboard "Bugün" aksiyon merkezine dönüştürüldü |
 
-**Sprint içinde ortaya çıkan ek kapsam** (orijinal backlog'da yoktu, resmi sprint tarihinden önce tamamlandı):
+**Sprint içinde ortaya çıkan ek kapsam** (orijinal backlog'da yoktu):
 
 | Kapsam | Durum |
 |--------|-------|
-| Sahibinden + Emlakjet sayfa kaynağı yapıştır → ilan formu otomatik doldur (JSON-LD + CSS seçiciler, portal otomatik tespiti) | ✅ Kod tamam; seçiciler gerçek yapıştırılmış kaynaklarla henüz doğrulanmadı |
-| Konum/yarıçap bazlı eşleştirme (Nominatim geocoding + DB önbellek) | ✅ Tamamlandı; `radius_km` set edilmezse eski bölge-eşleşmesine geriye dönük uyumlu |
-| İlan fotoğrafı yükleme (S3-uyumlu depo, dosya boyutu/tür doğrulaması) | 🟡 Kod tamam; Railway Bucket (Tigris) kurulumu ve public-read doğrulaması devam ediyor |
-| Yeni tasarım sistemi: bento-grid dashboard + rehberli (6 adımlı) ilan ekleme sihirbazı | ✅ Tamamlandı |
-| Production deployment (Railway backend+DB, Vercel frontend) — orijinalde Sprint 3 story'siydi (#14), erken taşındı | ✅ Canlı; kalan: Sentry DSN, ChromaDB kalıcı disk (Volume) |
-| İlan detay sayfası (`/listings/[id]`) — "İncele" butonu önceden kendi sayfasına link veriyordu, hiçbir etkisi yoktu | ✅ Tamamlandı |
-| Voice-to-Listing: Gemini native ses girişiyle sesli not → ilan taslağı — orijinalde Sprint 3 story'siydi (#11), erken taşındı, Whisper'a gerek kalmadı | ✅ Canlı |
-| Markalı Ulaşım/Konum Raporu (PDF) — orijinalde Sprint 3 story'siydi (#12), erken taşındı | ❌ Kaldırıldı (2026-07-10) — Google Directions API entegrasyonu güvenilir çalışmadığı için üründen çıkarıldı |
-| WhatsApp takip mesajı (manuel tetiklenen giden mesaj) — orijinalde Sprint 3 story'sinin (#13) bir parçası | 🟡 Kod tamam; ofisin WhatsApp numarasına bağlı olması gerekiyor |
-| Otomatik WhatsApp takip zinciri (3 aşamalı, cron-tetiklemeli, aday yanıt verince duran) — Sprint 3 story'sinin (#13) kalan yarısı | 🟡 Kod tamam (scheduler endpoint'i dahil); Meta doğrulaması + cron kurulumu bekleniyor |
-| Reports sayfası: bölge/skor/kaynak dağılımı | ✅ Tamamlandı |
+| Production deployment (Railway backend+DB, Vercel frontend; `main`'e her push otomatik deploy) — orijinalde Sprint 3 story'siydi (#14), erken taşındı | ✅ Canlı |
+| Sahibinden toplu ilan aktarımı: danışman kendi tarayıcısından sayfa kaynağını yapıştırır (sunucudan dış siteye istek atılmaz), ilanlar inceleme kartlarına dökülür, onaylananlar kapak fotoğrafıyla içeri alınır | ✅ Gerçek mağaza verisiyle uçtan uca doğrulandı |
+| Yapılandırılmış konum: repo içine gömülü Türkiye sözlüğü (81 il / 973 ilçe / 32 bin mahalle, harici API yok) + ilan formunda şehir→ilçe→mahalle autocomplete + ilçeden şehir çıkarımı | ✅ Tamamlandı |
+| Konum/yarıçap bazlı eşleştirme (Nominatim geocoding + DB önbellek) + mahalle adının ilan başlığından yakalanması + bütçede ±%5 tolerans bandı | ✅ Tamamlandı |
+| İlan fotoğrafı yükleme (S3-uyumlu depo; bucket public erişim desteklemediği için backend proxy çözümü) + ofis logosu yükleme | ✅ Tamamlandı |
+| 🎙️ Voice-to-Listing: Gemini native ses girişiyle sesli not → onaylı ilan taslağı — orijinalde Sprint 3 story'siydi (#11), Whisper'a gerek kalmadı | ✅ Canlı |
+| 🎙️ Sesli Not → CRM Güncellemesi: aday hakkındaki sesli notu görüşme özeti + pipeline durumu + hatırlatma taslağına çevirir; onaysız hiçbir şey yazılmaz | ✅ Tamamlandı |
+| Lead pipeline hunisi (yeni → iletişim → yer gösterme → pazarlık → kazanıldı/kaybedildi) + görüşme notları + tek tıkla ilk 3 eşleşmenin WhatsApp'tan gönderimi | ✅ Tamamlandı |
+| Manuel WhatsApp takip mesajı + otomatik 3 aşamalı takip zinciri (+1g/+3g/+7g, giderek yumuşayan üslup, aday yanıt verince otomatik durur) — Sprint 3 story'sinin (#13) kod tarafı | 🟡 Kod tamam; kalıcı token + cron kurulumu Sprint 3'te |
+| 💬 WhatsApp otomatik yanıt botu: MENÜ/İLANLAR/DURUM/DANIŞMAN komutları tamamen deterministik yanıtlanır (LLM maliyeti sıfır), yeni adaya her koşulda karşılama+kısayol mesajı, arama kriterleri dolduğunda gerçek eşleşmelerin otomatik gönderimi, alakasız mesajlara sessizlik | ✅ Kod tamam (canlı test Sprint 3'te, token bekliyor) |
+| Aday adının WhatsApp profilinden otomatik yakalanması + danışmanın kendi telefonuna yeni aday anlık bildirimi | ✅ Tamamlandı |
+| Reports sayfası + komisyon/anlaşma takibi: toplam gelir, ortalama komisyon, kapanan anlaşma, dönüşüm oranı, bölgeye göre gelir grafiği | ✅ Tamamlandı |
+| Mobil/responsive iyileştirme (gerçek kullanıcı şikâyeti: landing hero mobilde çalışmıyordu, panel yüksekliği adres çubuğuyla kayıyordu) + şifre politikası + profil sayfası + bildirim zili | ✅ Tamamlandı |
+| Markalı Ulaşım/Konum Raporu (PDF) — orijinalde Sprint 3 story'siydi (#12), erken eklendi | ❌ Kaldırıldı (2026-07-10) — kök neden (Google Directions API `REQUEST_DENIED`) teşhis edilip düzeltme doğrulandı, buna rağmen değer/karmaşıklık dengesi nedeniyle ürün kararıyla çıkarıldı |
+| İzole test altyapısı: tek komutla Docker+Postgres içinde tüm backend suite (`backend/scripts/run-isolated-tests.sh`), CI ile birebir aynı akış — dev veritabanına asla dokunmaz | ✅ Sprint sonunda 308 test + ruff yeşil |
 
 ### Daily Scrum
 
@@ -274,39 +279,83 @@ Sprint 2'de gerçek entegrasyonları (ödeme, WhatsApp) ve Pricing/Scoring ajanl
 
 ### Sprint Board Güncellemeleri
 
-*Sprint devam ediyor (bitiş: 19 Temmuz 2026) — ekran görüntüleri sprint sonunda eklenecektir.*
+![Sprint 2 Board](./ProjectManagement/Sprint2Documents/sprintboard_sprint2.svg)
 
 ### Ürün Durumu
 
-*Sprint devam ediyor — ekran görüntüleri sprint sonunda eklenecektir. Bu arada canlı ortamlar: backend Railway'de, ofis paneli Vercel'de.*
+Canlı ortamlar: backend Railway'de, ofis paneli Vercel'de — gerçek bir emlak ofisi (Toycu Gayrimenkul) kendi portföyüyle aktif kullanıyor. Aşağıdaki ekran görüntüsü Reports sayfasından: komisyon/gelir kartları, satış hunisi ve bölge dağılımları gerçek ofis verisinden besleniyor.
+
+![Uygulama Ekranı — Reports](./ProjectManagement/Sprint2Documents/product_ss_sprint2.png)
 
 ### Sprint Review
 
-*Sprint devam ediyor (bitiş: 19 Temmuz 2026) — sprint bitiminde doldurulacaktır.*
+**Katılımcılar:** Ömer Faruk Toycu (tek kişilik takım — Product Owner / Scrum Master / Developer)
+
+**Tamamlanan Story'ler:**
+- [x] Story 8 — Pricing Agent (+ satılık/kiralık ayrımı, deploy sonrası self-heal reindex)
+- [x] Story 9 — Scoring Agent (tamamlandı; sprint içinde ürün kararıyla kaldırıldı, aşağıya bkz.)
+- [x] Story 10 — Ofis paneli (+ tasarım sistemi yenilemesi, 4 sekmeli Adaylar sayfası, "Bugün" aksiyon merkezi)
+- [x] Ek kapsam: production deploy, toplu ilan aktarımı, yapılandırılmış konum + autocomplete, Voice-to-Listing, Sesli Not→CRM, lead pipeline + notlar, WhatsApp otomatik yanıt botu, Reports + komisyon takibi, mobil iyileştirmeler
+- [ ] Story 6 — iyzico: kod tamam ve test edildi; sandbox aktivasyonu (dış bağımlılık) yanıt vermedi
+- [ ] Story 7 — WhatsApp: webhook doğrulaması geçti; kalıcı erişim token'ı (dış bağımlılık) alınamadı
+
+**Sonraki Sprint'e Devreden:**
+WhatsApp'ın uçtan uca canlıya alınması (kalıcı token + cron kurulumu + gerçek numarayla test) ve iyzico canlı ödeme testi, tamamı dış bağımlılık bekleyen işler olarak Sprint 3'e devrediyor. Sprint 2'nin yüksek temposu sayesinde Sprint 3 backlog'undaki bazı story'ler de (ilan vitrini, randevu/takvim, durgun portföy uyarısı, AI maliyet optimizasyonu) tasarım/kod ön çalışması hazır şekilde sprint'e girecek.
+
+**Alınan Kararlar:**
+1. **Scoring Agent üründen kaldırıldı.** Kural bazlı öncelik skoru teknik olarak çalışıyordu ama gerçek kullanımda danışmanın kararını değiştirmiyordu; tablo, endpoint ve rapor alanlarıyla birlikte tamamen silindi. "Çalışan ama değer üretmeyen özellik, bakım maliyetidir" ilkesi benimsendi.
+2. **Ulaşım/Konum Raporu üründen kaldırıldı.** Prod'da boş değer üretme şikâyeti üzerine kök neden (Google Directions `REQUEST_DENIED`) teşhis edilip düzeltme doğrulandı; buna rağmen özellik, harici API bağımlılığı ve PDF üretim zincirinin (WeasyPrint) getirdiği karmaşıklığa değmediği için bilinçli olarak çıkarıldı.
+3. **Tek-ilan sihirbazındaki "kaynak yapıştır" adımı kaldırıldı** — kullanıcı gözlemi, danışmanın bu işi hep toplu yaptığını gösterdi; toplu aktarım (`/listings/import`) tek yol olarak bırakıldı.
+4. **Bot için maliyet kalkanı:** sık komutlar (MENÜ/İLANLAR/DURUM/DANIŞMAN) LLM'e hiç gitmeden deterministik yanıtlanır; gelen mesaj başına en fazla 1 LLM çağrısı yapılır ve o da günlük kotaya bağlıdır.
+5. Kullanıcı arayüzünde teknik model adları (ör. "Gemini") kullanılmaz; fiyat önerisi arayüzü tek, anlaşılır karta indirildi.
 
 ### Sprint Retrospective
 
-*Sprint bitiminde doldurulacaktır.*
+**Ne iyi gitti?**
+- **Gerçek kullanıcı geri bildirim döngüsü kuruldu:** ürün sprint boyunca gerçek bir emlak ofisinin kendi portföyüyle canlıda kullanıldı. Mobil bozukluklar, kiralık/satılık emsallerin karışması ve botun karşılama mesajı eksikliği gibi sorunların tamamı gerçek kullanımdan geldi ve aynı sprint içinde düzeltildi — bu döngü, masa başında yakalanamayacak hataları yakaladı.
+- Sprint 1 retrosunun aksiyon maddesi işledi: Meta WhatsApp kurulumu sprint başında başlatıldığı için webhook doğrulaması sprint içinde geçti; tıkanma tek bir dış adıma (kalıcı token) indi.
+- İzole test altyapısı (`run-isolated-tests.sh`) sayesinde 308 testlik suite, dev veritabanını riske atmadan her değişiklikte tek komutla koşulabiliyor; CI aynı akışı birebir taklit ediyor.
+
+**Ne geliştirilmeli?**
+- Yaklaşık 13 puanlık iş (Scoring Agent + Ulaşım Raporu) tamamlandıktan *sonra* silindi. Her iki özellik de "teknik olarak ilginç" olduğu için önceliklendirilmişti; kullanıcı doğrulaması kodlamadan önce alınsaydı bu efor hero özelliklere harcanabilirdi.
+- Dış bağımlılıklar (iyzico aktivasyon maili, Meta kalıcı token, Google AI Studio kredisi) sprint sonunda hâlâ açık; bunların hiçbiri kod tarafından çözülemiyor ve demo senaryosunu kısıtlıyor.
+
+**Aksiyon Maddeleri:**
+- Sprint 3'te her yeni özellik, kodlamaya başlamadan önce hedef kullanıcıyla (aktif danışman) mini-doğrulamadan geçirilecek; "teknik olarak ilginç" tek başına önceliklendirme gerekçesi sayılmayacak.
+- Sprint 3'ün ilk günü üç dış bağımlılık (iyzico maili, Meta System User token'ı, AI Studio kredisi) için takip aksiyonu alınacak; sprint sonu demosu bu üçü çözülmüş varsayımıyla planlanacak.
 
 ---
 
 # Sprint 3
 
 > 📅 **20 Temmuz — 2 Ağustos 2026**
+> Sprint puanı hedefi: `44`
 
 ### Backlog Düzeni ve Story Seçimleri
 
-Sprint 3'te hero özelliklerin geri kalanını (Otomatik Takip zinciri) canlıya almayı ve deployment/polish adımlarını hedefliyoruz. Voice-to-Listing ve Ulaşım Raporu, resmi Sprint 3 tarihinden önce Sprint 2 kapsamında erken tamamlandı (bkz. yukarısı).
+Sprint 3 iki eksene odaklanıyor:
 
-**Planlanan Story'ler (Taslak):**
+1. **Canlıya alma:** Sprint 2'de kodu tamamlanan WhatsApp zincirinin (kalıcı token, cron kurulumu, gerçek numarayla uçtan uca test) ve iyzico ödeme akışının gerçek ortamda çalışır hale getirilmesi. Bootcamp final demosu bu akışların canlı çalışmasına dayanacak.
+2. **Danışman verimliliği:** danışmanın günlük işini kısaltan tamamlayıcı özellikler — login gerektirmeyen ilan vitrini, yer gösterme randevusu + takvim daveti, durgun portföy uyarısı, AI maliyet optimizasyonu ve danışmanın kendi Sahibinden mağazasından tek adımda toplu aktarım.
+
+> ⚡ Sprint 2'deki yüksek tempo sayesinde bu backlog'daki bazı story'ler (16–21) sprint'e tasarım/kod ön çalışması hazır şekilde giriyor; Sprint 3'teki iş bunların gerçek veriyle uçtan uca doğrulanması, canlı yapılandırması ve cilalanması.
+
+**Planlanan Story'ler:**
 
 | # | User Story | Puan (Tahmini) |
 |---|-----------|----------------|
 | 11 | ~~Voice-to-Listing: Whisper transkripsiyon + Gemini ile ilan taslağı~~ **Sprint 2'de erken tamamlandı** — Gemini native ses girişiyle, Whisper'a gerek kalmadan | 8 |
-| 12 | ~~Markalı ulaşım/konum raporu: Google Maps Directions API + WeasyPrint PDF üretimi~~ **Sprint 2'de erken tamamlandı** | 5 |
-| 13 | Otomatik WhatsApp takip mesajı zinciri — manuel tetiklenen giden mesaj (`/leads/{id}/follow-up`) Sprint 2'de erken tamamlandı; kalan kapsam: zamanlanmış/kural bazlı otomatik tetikleme (scheduler) | 5 |
-| 14 | ~~Production deployment: Railway/Render~~ **Railway+Vercel deploy'u Sprint 2'de erken tamamlandı** — kalan kapsam: Sentry hata izleme + retry/timeout mekanizmaları | 5 |
+| 12 | ~~Markalı ulaşım/konum raporu: Google Maps Directions API + WeasyPrint PDF üretimi~~ **Sprint 2'de tamamlandı, ürün kararıyla üründen kaldırıldı** (bkz. Sprint 2 Review) | 5 |
+| 13 | WhatsApp'ı uçtan uca canlıya alma: kalıcı erişim token'ı (System User) + `APP_SECRET`'ın prod ortamına eklenmesi, otomatik takip zinciri ve randevu hatırlatması için saatlik cron kurulumu, gerçek numarayla QR üzerinden uçtan uca test (gelen mesaj → aday kaydı → bot yanıtı → eşleşme gönderimi → takip zinciri) | 8 |
+| 14 | Production sertleştirme: Sentry hata izleme, ChromaDB kalıcı disk (Volume), retry/timeout mekanizmaları | 5 |
 | 15 | Onboarding'de zorunlu veri kalitesi kontrolü (eksik/tutarsız portföy girişini engelleme) | 3 |
+| 16 | İlan vitrini: login gerektirmeyen markalı mikro-link (`/p/{ilan}`) — danışman WhatsApp'tan link paylaşır, aday üye olmadan ilanı görür; görüntülenme sinyaliyle danışman ilanına ilgiyi ölçer | 5 |
+| 17 | Yer gösterme randevusu: tarih/saat + konum planlama, indirilebilir .ics takvim daveti, adaya WhatsApp onay mesajı ve randevudan 24 saat önce otomatik hatırlatma | 5 |
+| 18 | Durgun portföy uyarısı: 30+ gündür satılamayan ve emsallerine göre pahalı kalan ilanların otomatik işaretlenmesi (mevcut Pricing Agent altyapısını yeniden kullanır, ek maliyet yok) | 3 |
+| 19 | İlan düzenleme + fotoğraf silme: mevcut portföyün bakımı (fiyat/konum güncellemesi emsal endeksini de tazeler) | 3 |
+| 20 | AI maliyet optimizasyonu: tüm LLM çağrılarına katmanlı çıktı limitleri, konuşma geçmişinde kayan pencere, hibrit (deterministik + LLM) aday özeti, nezaket/vedalaşma mesajlarının LLM'e hiç gitmemesi | 5 |
+| 21 | Danışmanın kendi Sahibinden mağazasından URL ile tek adımda toplu aktarım (Apify üzerinden) — "portal scraping yok" ilkesinin yalnızca danışmanın **kendi** mağaza sayfasıyla sınırlı, kullanıcı onaylı istisnası; inceleme/onay akışı toplu aktarımla birebir aynı | 5 |
+| 22 | iyzico sandbox aktivasyonu + uçtan uca ödeme testi (plan seçimi → Checkout Form → callback doğrulaması → abonelik kaydı) | 2 |
 
 ### Daily Scrum
 
@@ -314,11 +363,11 @@ Sprint 3'te hero özelliklerin geri kalanını (Otomatik Takip zinciri) canlıya
 
 ### Sprint Board Güncellemeleri
 
-*Ekran görüntüleri eklenecektir.*
+*Sprint 20 Temmuz'da başlıyor — board görüntüsü sprint içinde eklenecektir.*
 
 ### Ürün Durumu
 
-*Ekran görüntüleri eklenecektir.*
+*Ekran görüntüleri sprint içinde eklenecektir. Canlı ortamlar: backend Railway'de, ofis paneli Vercel'de.*
 
 ### Sprint Review
 
