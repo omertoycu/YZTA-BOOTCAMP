@@ -27,7 +27,7 @@
 
 PortföyAI, emlak danışmanlarının WhatsApp'tan gelen hiçbir müşteriyi kaçırmadan, doğru alıcıyı doğru portföyle buluşturmasını sağlayan bir yapay zeka asistanıdır. Klasik bir CRM değildir; danışmanın günlük işini — ilan girmekten müşteri takibine kadar — hızlandıran bir yardımcıdır.
 
-Danışman portföyünü kendisi ekler: sesle anlatarak, rehberli bir formla ya da ilan sayfasının kaynağını yapıştırarak. Sistem gelen her müşteri mesajını otomatik değerlendirir, puanlar, uygun portföylerle eşleştirir ve takibi asla unutmaz. Danışman isterse tek tıkla, müşterisine ofis logolu bir ulaşım/konum raporu da gönderebilir.
+Danışman portföyünü kendisi ekler: sesle anlatarak, rehberli bir formla ya da ilan sayfasının kaynağını yapıştırarak. Sistem gelen her müşteri mesajını otomatik değerlendirir, uygun portföylerle eşleştirir ve takibi asla unutmaz. Danışman isterse WhatsApp otomatik yanıt botunu açar: sık sorular anında yanıtlanır, kriterleri netleşen adaya uygun portföyler otomatik gönderilir.
 
 > **Not:** PortföyAI, ilan sitelerini (Sahibinden, Hepsiemlak, Emlakjet vb.) arka planda otomatik tarayan bir sistem değildir. Danışman kendi portföyünü kendisi girer; bu hem yasal riskleri ortadan kaldırır hem de veri kalitesini danışmanın kontrolünde tutar.
 
@@ -40,17 +40,17 @@ Backend Railway'de, ofis paneli Vercel'de canlıdır.
 ### Öne Çıkan Özellikler (rakiplerde olmayan)
 - 🎙️ **Sesli Not → İlan** ✅ — Danışman telefonuna konuşur; yapay zeka kaydı dinleyip ilan taslağını (başlık, bölge, fiyat, oda sayısı, m²) otomatik hazırlar. Danışman onaylamadan hiçbir ilan yayınlanmaz.
 - 🎙️ **Sesli Not → CRM Güncellemesi** ✅ — Bir aday hakkındaki görüşmeyi sesli anlatır; yapay zeka görüşme özeti, önerilen pipeline durumu ve hatırlatma taslağı hazırlar. Onay olmadan hiçbir şey yazılmaz.
-- 💬 **Otomatik WhatsApp Takip Zinciri** 🟡 — Danışman "Otomatik Takip"i açtığında sistem müşteriye 1., 3. ve 7. günlerde giderek yumuşayan hatırlatma mesajları gönderir; müşteri yanıt verdiği an zincir otomatik durur. Kod hazır, WhatsApp hattının resmi onayı bekleniyor.
+- 💬 **WhatsApp Otomatik Yanıt Botu** 🟡 — Danışman botu açtığında MENÜ/İLANLAR/DURUM/DANIŞMAN komutları anında (yapay zeka maliyeti olmadan) yanıtlanır, yeni adaya her koşulda karşılama mesajı gider, kriterleri netleşen adaya uygun portföyler otomatik gönderilir. Kod hazır, WhatsApp hattının kalıcı erişim izni bekleniyor.
+- 💬 **Otomatik WhatsApp Takip Zinciri** 🟡 — Danışman "Otomatik Takip"i açtığında sistem müşteriye 1., 3. ve 7. günlerde giderek yumuşayan hatırlatma mesajları gönderir; müşteri yanıt verdiği an zincir otomatik durur. Kod hazır, WhatsApp hattının kalıcı erişim izni bekleniyor.
 
 ### Temel Özellikler (sektörde standart, ürünün olmazsa olmazı)
-- 🤖 **Müşteri Kaydı** ✅ — WhatsApp'tan gelen mesajlar otomatik olarak müşteri kaydına dönüşür.
-- 📋 **İlan İçe Aktarma** ✅ — Danışman bir ilan sitesindeki sayfanın kaynağını yapıştırır; başlık, bölge, fiyat, oda sayısı ve m² otomatik olarak forma dolar.
-- 🔗 **Eşleştirme** ✅ — Müşterinin bütçesi, oda tercihi ve bölgesine (istenirse yarıçap bazlı) göre uygun portföyleri bulur.
-- 📊 **Puanlama** ✅ — Müşterinin yanıt hızı, mesaj sayısı ve bütçe tutarlılığına göre bir öncelik skoru üretir.
-- 💰 **Fiyat Önerisi** ✅ — Ofisin geçmiş ilanlarına bakarak benzer portföyler için savunulabilir bir fiyat aralığı önerir.
-- 📈 **Raporlama** ✅ — Ofisin portföy ve müşteri verisinden bölge, skor ve kaynak dağılımını özetler.
+- 🤖 **Müşteri Kaydı** ✅ — WhatsApp'tan gelen mesajlar otomatik olarak müşteri kaydına dönüşür; adayın adı WhatsApp profilinden yakalanır, danışmana yeni aday anlık bildirimi gider.
+- 📋 **Toplu İlan Aktarımı** ✅ — Danışman kendi tarayıcısından ilan sayfasının kaynağını yapıştırır; tüm ilanlar başlık, konum (il/ilçe/mahalle), fiyat, oda sayısı, m² ve kapak fotoğrafıyla inceleme kartlarına dökülür, onaylananlar içeri alınır.
+- 🔗 **Eşleştirme** ✅ — Müşterinin bütçesi (±%5 tolerans), oda tercihi ve bölgesine (mahalle dahil, istenirse yarıçap bazlı) göre uygun portföyleri bulur.
+- 💰 **Fiyat Önerisi** ✅ — Benzer portföylerin emsallerine bakarak (satılık/kiralık ayrımıyla) savunulabilir bir fiyat aralığı önerir.
+- 📈 **Raporlama** ✅ — Ofisin verisinden satış hunisi, bölge/kaynak dağılımı, toplam gelir, ortalama komisyon ve dönüşüm oranını özetler.
 - 🏢 **Çoklu Ofis Desteği** ✅ — Her ofisin verisi diğerlerinden tamamen izole tutulur (rol bazlı erişim: sahip / danışman / görüntüleyici).
-- 💳 **Abonelik ve Faturalama** 🟡 — Üç plan arasından (Başlangıç / Profesyonel / Ofis) seçim yapılıp güvenli ödeme sayfası üzerinden abone olunur. Kod hazır, ödeme sağlayıcısının onayı bekleniyor.
+- 💳 **Abonelik ve Faturalama** 🟡 — Üç plan arasından (Başlangıç / Profesyonel / Ofis) seçim yapılıp güvenli ödeme sayfası üzerinden abone olunur. Kod hazır, ödeme sağlayıcısının sandbox aktivasyonu bekleniyor.
 
 ---
 
@@ -66,18 +66,18 @@ Backend Railway'de, ofis paneli Vercel'de canlıdır.
 
 | Katman | Teknoloji | Durum | Gerekçe |
 |--------|-----------|-------|---------|
-| LLM | Google Gemini (`google-generativeai` SDK, `gemini-2.5-flash`) | ✅ Aktif | Voice-to-Listing: ses dosyasını doğrudan modele göndererek tek çağrıda transkript + yapılandırılmış ilan taslağı üretir. Diğer ajanlar (Matching/Scoring/Pricing) hâlâ kural bazlı/istatistiksel, LLM kullanmıyor |
+| LLM | Google Gemini (`google-generativeai` SDK, `gemini-2.5-flash`) | ✅ Aktif | Voice-to-Listing ve Sesli Not → CRM: ses dosyası doğrudan modele gider, tek çağrıda transkript + yapılandırılmış taslak. WhatsApp yanıt taslakları ve web-araştırmalı fiyat aralığı da aynı modeli kullanır (tüm çağrılarda katmanlı çıktı limiti — maliyet kontrolü). Matching/Pricing ajanları kural bazlı/istatistiksel, LLM kullanmıyor |
 | Agent Framework | LangGraph | ✅ Aktif | Matching Agent şu an tek node'lu bir graph olarak çalışıyor; çoklu-node genişleme planlı |
 | Vektör DB | ChromaDB (yerel varsayılan embedding modeli, API anahtarı gerekmiyor) | ✅ Aktif | Pricing Agent — ofis-içi (tenant-scoped) bölgesel emsal ilan benzerliği |
 | Backend | Python 3.11 + FastAPI + SQLAlchemy + Alembic | ✅ Aktif, Railway'de canlı | REST API, migration yönetimi |
 | Auth | `python-jose` (JWT) + RBAC | ✅ Aktif | Ofis sahibi / danışman / görüntüleyici rolleri |
 | Veritabanı | PostgreSQL (Row-Level Security), Railway managed | ✅ Aktif, canlı | `office_id` bazlı multi-tenant izolasyon |
-| Mesajlaşma | WhatsApp Business Cloud API (Meta'ya doğrudan, BSP kullanılmıyor) | 🟡 Kod tamam, Meta doğrulaması bekleniyor | Intake Agent webhook kanalı |
-| İlan İçe Aktarma | BeautifulSoup4 + lxml | ✅ Aktif (yalnızca Sahibinden) | Yapıştırılan sayfa kaynağından JSON-LD/CSS seçicilerle alan çıkarımı |
-| Konum/Coğrafya | OpenStreetMap Nominatim (ücretsiz, API key gerektirmez) | ✅ Aktif | Bölge → koordinat geocoding, DB önbellek, yarıçap bazlı eşleştirme |
-| Dosya Depolama | boto3 + S3-uyumlu servis (Railway Bucket / Tigris) | 🟡 Kurulum aşamasında | İlan fotoğrafı yükleme; bucket public-read doğrulaması bekleniyor |
-| Ödeme | iyzico Abonelik Yönetimi (v2 API) | ⏳ Planlanan — sandbox aktivasyonu bekleniyor | Starter/Professional/Enterprise abonelik planları |
-| Frontend | Next.js 16 (App Router) + TypeScript + Tailwind CSS | ✅ Aktif, Vercel'de canlı | Ofis paneli — bento-grid dashboard, rehberli (6 adımlı) ilan ekleme sihirbazı |
+| Mesajlaşma | WhatsApp Business Cloud API (Meta'ya doğrudan, BSP kullanılmıyor) | 🟡 Kod tamam; webhook doğrulaması geçti, kalıcı erişim token'ı bekleniyor | Intake Agent webhook kanalı + otomatik yanıt botu + takip mesajları |
+| İlan İçe Aktarma | BeautifulSoup4 + lxml | ✅ Aktif (Sahibinden) | Yapıştırılan sayfa kaynağından JSON-LD/CSS seçicilerle toplu alan çıkarımı; gerçek mağaza verisiyle doğrulandı |
+| Konum/Coğrafya | Repo'ya gömülü Türkiye il/ilçe/mahalle sözlüğü + OpenStreetMap Nominatim (ücretsiz, API key gerektirmez) | ✅ Aktif | Şehir→ilçe→mahalle autocomplete, ilçeden şehir çıkarımı; geocoding + DB önbellek ile yarıçap bazlı eşleştirme |
+| Dosya Depolama | boto3 + S3-uyumlu servis (Railway Bucket) | ✅ Aktif | İlan fotoğrafı + ofis logosu; bucket public erişim desteklemediği için dosyalar backend proxy üzerinden sunuluyor |
+| Ödeme | iyzico Abonelik Yönetimi (v2 API) | 🟡 Kod tamam — sandbox aktivasyonu bekleniyor | Başlangıç/Profesyonel/Ofis abonelik planları (Checkout Form) |
+| Frontend | Next.js 16 (App Router) + TypeScript + Tailwind CSS | ✅ Aktif, Vercel'de canlı | Ofis paneli — bento-grid dashboard, rehberli ilan ekleme sihirbazı, mobil/responsive |
 | Hata İzleme | Sentry | ⏳ Planlanan — DSN henüz eklenmedi | Prod ortamda hata yakalama |
 | CI/CD | GitHub Actions (test) + Railway (backend) + Vercel (frontend) | ✅ Aktif | Otomatik test + deploy |
 | Versiyon Kontrolü | GitHub | ✅ Aktif | Bu repo |
@@ -89,7 +89,7 @@ Backend Railway'de, ofis paneli Vercel'de canlıdır.
 > ✅ = kod tarafında tamamlandı ve test edildi · 🟡 = kod tamam, dış onay/kurulum bekliyor
 
 ```
-WhatsApp Mesajı 🟡 / Sahibinden Sayfa Kaynağı Yapıştırma ✅ / Manuel Giriş ✅ / Sesli Not ✅
+WhatsApp Mesajı 🟡 / Sayfa Kaynağı Yapıştırma (toplu) ✅ / Manuel Giriş ✅ / Sesli Not ✅
               │
               ▼
      ┌──────────────────────┐
@@ -98,50 +98,48 @@ WhatsApp Mesajı 🟡 / Sahibinden Sayfa Kaynağı Yapıştırma ✅ / Manuel Gi
      └──┬──────┬──────┬──────┘
         │      │      │
         ▼      ▼      ▼
-   [Intake]  [Listing   [Matching Agent] ✅
-   Agent 🟡   Import      (bölge ya da Nominatim
-        │     Agent ✅     ile geocode edilmiş
-        │     (Sahibinden   yarıçap filtresi)
-        │      paste)           │
-        │      │                ▼
-        │      │          [Scoring Agent] ✅
-        │      │                │
-        │      │                ▼
+   [Intake]  [Listing    [Matching Agent] ✅
+   Agent 🟡   Import       (bölge/mahalle ya da
+      +       Agent ✅      Nominatim ile geocode
+   [Oto-Yanıt (toplu        edilmiş yarıçap filtresi)
+    Botu 🟡]  kaynak            │
+        │     yapıştır)         ▼
         │      │          [Pricing Agent] ✅
-        │      │                │
+        │      │           (satılık/kiralık ayrımlı
+        │      │            emsal k-NN benzerliği)
         └──────┴──────┬─────────┘
                        ▼
               ┌──────────────────┐
-              │  CRM Katmanı      │  ← Lead/portföy kaydı, skor, eşleşme, fotoğraf (S3) 🟡
+              │  CRM Katmanı      │  ← Aday/portföy kaydı, pipeline, notlar, eşleşme, fotoğraf (S3) ✅
               └────────┬─────────┘
                        │
                        ▼
         Ofis Paneli (Next.js, Vercel'de canlı) ✅
-        + Voice-to-Listing Agent ✅ + Ulaşım Raporu (PDF) ✅
-        + WhatsApp Takip Mesajı (manuel tetiklenen) 🟡
+        + Voice-to-Listing Agent ✅ + Sesli Not → CRM ✅
+        + WhatsApp Takip Mesajları (manuel + otomatik 3 aşamalı zincir) 🟡
 ```
 
-**Intake Agent 🟡:** Meta WhatsApp Cloud API webhook'undan gelen mesajları lead olarak kaydeder/günceller (şu an kural bazlı, LLM ayrıştırma yok); `X-Hub-Signature-256` HMAC doğrulaması ve idempotency ile mükerrer mesajları engeller. Kod ve testler tamam, Meta Business doğrulaması tamamlanana kadar canlı numarayla çalışmıyor.
+**Intake Agent 🟡:** Meta WhatsApp Cloud API webhook'undan gelen mesajları aday kaydına dönüştürür/günceller, adayın adını WhatsApp profilinden yakalar ve danışmana yeni aday bildirimi gönderir; `X-Hub-Signature-256` HMAC doğrulaması ve idempotency ile mükerrer mesajları engeller. Kod ve testler tamam, webhook doğrulaması geçti — kalıcı erişim token'ı alınana kadar canlı numarayla çalışmıyor.
 
-**Listing Import Agent ✅:** Danışmanın kendi tarayıcısından kopyaladığı Sahibinden sayfa kaynağını JSON-LD + CSS seçicileriyle ayrıştırıp ilan formunu otomatik doldurur; sunucudan hiçbir dış siteye istek atılmaz. Seçiciler henüz gerçek yapıştırılmış kaynaklarla doğrulanmadı.
+**WhatsApp Oto-Yanıt Botu 🟡:** Ofis bazında açılıp kapanabilen otomatik yanıt katmanı — MENÜ/İLANLAR/DURUM/DANIŞMAN komutları tamamen deterministik yanıtlanır (LLM maliyeti sıfır), yeni adaya her koşulda karşılama+kısayol mesajı gider, arama kriterleri netleşince Matching Agent'ın gerçek eşleşmeleri otomatik gönderilir; alakasız mesajlara sessiz kalır. Gelen mesaj başına en fazla 1 LLM çağrısı yapılır (maliyet kalkanı).
 
-**Matching Agent ✅:** Lead kriterlerini (bütçe, oda sayısı, bölge) mevcut portföylerle eşleştirir; `radius_km` set edilmişse bölge string eşleşmesi yerine Nominatim ile geocode edilmiş coğrafi yarıçap filtresi uygular.
+**Listing Import Agent ✅:** Danışmanın kendi tarayıcısından kopyaladığı Sahibinden sayfa kaynağını JSON-LD + CSS seçicileriyle ayrıştırıp ilanları inceleme kartlarına döker; onaylananlar kapak fotoğrafıyla içeri alınır. Sunucudan ilan sitesine istek atılmaz; gerçek mağaza verisiyle uçtan uca doğrulandı.
 
-**Scoring Agent ✅:** Kural bazlı ağırlıklı skor üretir — yanıt hızı (%40) + mesaj sayısı (%30) + bütçe tutarlılığı (%30)
+**Matching Agent ✅:** Aday kriterlerini (bütçe ±%5 tolerans, oda sayısı, bölge/mahalle) mevcut portföylerle eşleştirir; `radius_km` set edilmişse bölge string eşleşmesi yerine Nominatim ile geocode edilmiş coğrafi yarıçap filtresi uygular.
 
-**Pricing Agent ✅:** ChromaDB'deki ofis-içi (tenant-scoped) emsal ilan embedding'leri üzerinden k-NN benzerlik ile fiyat aralığı önerir
+**Pricing Agent ✅:** ChromaDB'deki ofis-içi (tenant-scoped) emsal ilan embedding'leri üzerinden, satılık/kiralık ayrımıyla k-NN benzerlik ile fiyat aralığı önerir; endeks her deploy sonrası otomatik yeniden kurulur (self-heal).
 
-**Voice-to-Listing Agent ✅:** Gemini'nin native ses girişiyle tek çağrıda transkript + yapılandırılmış ilan taslağı üretir; danışman onaylayıp `/listings`'e göndermeden hiçbir ilan oluşturulmaz
+**Voice-to-Listing Agent ✅:** Gemini'nin native ses girişiyle tek çağrıda transkript + yapılandırılmış ilan taslağı üretir; danışman onaylayıp `/listings`'e göndermeden hiçbir ilan oluşturulmaz.
 
-**Location Report Agent ✅:** Google Maps Directions API ile portföyden hedef adrese araç/yürüyüş/toplu taşıma sürelerini alır, WeasyPrint ile markalı bir PDF'e dönüştürür
+**Sesli Not → CRM Agent ✅:** Aynı ses altyapısıyla, bir aday hakkındaki sesli notu görüşme özeti + önerilen pipeline durumu + hatırlatma taslağına çevirir; danışman onaylamadan hiçbir kayıt yazılmaz.
 
-**WhatsApp Send 🟡:** Danışmanın panelden tek tıkla tetiklediği, Meta Cloud API üzerinden giden takip mesajı; ofisin `whatsapp_phone_number_id`'si set edilmemişse çalışmaz. Tam otomatik (zamanlanmış) takip zinciri henüz yok
+**WhatsApp Send 🟡:** Danışmanın panelden tek tıkla tetiklediği takip mesajı + cron ile tetiklenen otomatik 3 aşamalı takip zinciri (+1g/+3g/+7g, aday yanıt verince durur). Kod tamam; kalıcı token + cron kurulumu Sprint 3'te.
 
 ---
 
 ## İş Modeli Notu
 
-Starter / Professional / Enterprise üç kademeli abonelik modeli. Starter plana WhatsApp AI erişimi tamamen kapatılmaz — sınırlı sayıda konuşma (örn. ayda 100) dahil edilir ki deneme kullanıcısı ürünün asıl değerini (Intake Agent) görebilsin. 14 günlük deneme, iyzico akışı gereği kart bilgisi doğrulaması ister ancak deneme boyunca ücret alınmaz. Detaylı unit economics ve rakip analizi için [Girişim Analizi Raporu](./PortfoyAI_Girisim_Analizi_ve_Teknik_Rapor.md)'na bakınız.
+Başlangıç / Profesyonel / Ofis üç kademeli abonelik modeli. Starter plana WhatsApp AI erişimi tamamen kapatılmaz — sınırlı sayıda konuşma (örn. ayda 100) dahil edilir ki deneme kullanıcısı ürünün asıl değerini (Intake Agent) görebilsin. 14 günlük deneme, iyzico akışı gereği kart bilgisi doğrulaması ister ancak deneme boyunca ücret alınmaz. Detaylı unit economics ve rakip analizi için [Girişim Analizi Raporu](./PortfoyAI_Girisim_Analizi_ve_Teknik_Rapor.md)'na bakınız.
 
 ---
 
@@ -342,10 +340,10 @@ Sprint 3 iki eksene odaklanıyor:
 
 **Planlanan Story'ler:**
 
+> Not: Story #11 (Voice-to-Listing) Sprint 2'de erken tamamlandığı, #12 (ulaşım/konum raporu) ise Sprint 2'de ürün kararıyla kapsamdan çıkarıldığı için (bkz. Sprint 2 Review → Alınan Kararlar) numaralandırma 13'ten başlar.
+
 | # | User Story | Puan (Tahmini) |
 |---|-----------|----------------|
-| 11 | ~~Voice-to-Listing: Whisper transkripsiyon + Gemini ile ilan taslağı~~ **Sprint 2'de erken tamamlandı** — Gemini native ses girişiyle, Whisper'a gerek kalmadan | 8 |
-| 12 | ~~Markalı ulaşım/konum raporu: Google Maps Directions API + WeasyPrint PDF üretimi~~ **Sprint 2'de tamamlandı, ürün kararıyla üründen kaldırıldı** (bkz. Sprint 2 Review) | 5 |
 | 13 | WhatsApp'ı uçtan uca canlıya alma: kalıcı erişim token'ı (System User) + `APP_SECRET`'ın prod ortamına eklenmesi, otomatik takip zinciri ve randevu hatırlatması için saatlik cron kurulumu, gerçek numarayla QR üzerinden uçtan uca test (gelen mesaj → aday kaydı → bot yanıtı → eşleşme gönderimi → takip zinciri) | 8 |
 | 14 | Production sertleştirme: Sentry hata izleme, ChromaDB kalıcı disk (Volume), retry/timeout mekanizmaları | 5 |
 | 15 | Onboarding'de zorunlu veri kalitesi kontrolü (eksik/tutarsız portföy girişini engelleme) | 3 |
